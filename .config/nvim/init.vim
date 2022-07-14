@@ -1,3 +1,6 @@
+"========================================
+"plugins
+"========================================
 let autoload_plug_path = stdpath('config') . '/autoload/plug.vim'
 if !filereadable(autoload_plug_path)
     silent exe '!curl -fL --create-dirs -o ' . autoload_plug_path . 
@@ -19,3 +22,23 @@ if plug_install
     PlugInstall --sync
 endif
 unlet plug_install
+
+"========================================
+"general
+"========================================
+set fileencoding=utf-set fileencodings=ucs-bom,utf-8,gbk,cp936,latin-1
+set fileformat=unix
+set fileformats=unix,dos,mac
+filetype on
+filetype plugin on
+filetype plugin indent on
+syntax on
+set smartindent
+set expandtab         "tab to spaces
+set tabstop=4         "the width of a tab
+set shiftwidth=4      "the width for indent
+set foldenable
+set foldmethod=indent "folding by indent
+set foldlevel=99
+set ignorecase        "ignore the case when search texts
+set smartcase         "if searching text contain
