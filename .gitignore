@@ -1,0 +1,5 @@
+./nvim/packer/packer_compiled.lua
+./nvim/rplugin.vim
+./nvim/shada
+./nvim/site
+./nvim/swap
