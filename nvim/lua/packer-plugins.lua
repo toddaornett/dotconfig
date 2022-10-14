@@ -17,7 +17,14 @@ return require('packer').startup(function(use)
 
   -- colorscheme
   use 'gruvbox-community/gruvbox'
-  
+
+  -- lsp setup
+  use 'williamboman/mason.nvim'
+  use 'williamboman/mason-lspconfig.nvim'
+
+  -- miscellaneous code editing
+  use 'b3nj5m1n/kommentary'
+
   -- Execute after all plugins
   if packer_bootstrap then
     require('packer').sync()
