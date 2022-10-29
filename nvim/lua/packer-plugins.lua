@@ -22,8 +22,20 @@ return require('packer').startup(function(use)
   use 'williamboman/mason.nvim'
   use 'williamboman/mason-lspconfig.nvim'
 
+  -- file explorer
+  use {
+    'nvim-tree/nvim-tree.lua',
+    requires = {
+        'nvim-tree/nvim-web-devicons', -- optional, for file icons
+    },
+    tag = 'nightly' -- optional, updated every week. (see issue #1193)
+  }
+
   -- miscellaneous code editing
   use 'b3nj5m1n/kommentary'
+  use {
+    "windwp/nvim-autopairs", config = function() require("nvim-autopairs").setup {} end
+  }
 
   -- Execute after all plugins
   if packer_bootstrap then

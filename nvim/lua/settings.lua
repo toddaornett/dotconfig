@@ -1,6 +1,3 @@
--- global options
-vim.g,mapleader = " "
-
 -- general options
 vim.o.relativenumber = true
 
