@@ -15,6 +15,11 @@ return require('packer').startup(function(use)
   use 'wbthomason/packer.nvim'
   -- Automatically set up your configuration after cloning packer.nvim
 
+  use 'nvim-lua/popup.nvim'
+
+  -- plenary library
+  use 'nvim-lua/plenary.nvim'
+
   -- colorscheme
   use 'gruvbox-community/gruvbox'
 
@@ -35,6 +40,21 @@ return require('packer').startup(function(use)
   use 'b3nj5m1n/kommentary'
   use {
     "windwp/nvim-autopairs", config = function() require("nvim-autopairs").setup {} end
+  }
+
+  -- syntatic highlighting
+  use 'nvim-treesitter/nvim-treesitter'
+  use 'sheerun/vim-polyglot'
+  use 'tjdevries/colorbuddy.nvim'
+  use 'bkegley/gloombuddy'
+  use {'prettier/vim-prettier', run = 'yarn install' }
+
+  -- telescope
+  use {'nvim-telescope/telescope-fzf-native.nvim', run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
+
+  use {
+    'nvim-telescope/telescope.nvim', tag = '0.1.0',
+    requires = { {'nvim-lua/plenary.nvim'} }
   }
 
   -- Execute after all plugins
