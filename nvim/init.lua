@@ -29,3 +29,23 @@ require("nvim-tree").setup({
 })
 require('keymaps')
 require("nvim-autopairs")
+require('telescope').setup {
+  defaults = {
+    mappings = { i = {
+      ['<C-p>'] = require('telescope.actions.layout').toggle_preview}
+    },
+    preview = {
+      hide_on_startup = false
+    }
+  },
+  extensions = {
+    fzf = {
+      fuzzy = true,
+      override_generic_sorter = true,
+      override_file_sorter = true,
+      case_mode = "smart_case",        -- or "ignore_case" or "respect_case"
+                                       -- the default case_mode is "smart_case"
+    }
+  }
+}
+require('telescope').load_extension('fzf')
