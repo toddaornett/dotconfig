@@ -24,3 +24,12 @@ keymap('n', '<C-Right>', ':vertical resize +2<CR>', opts)
 -- Navigate buffers
 keymap('n', '<S-l>', ':bnext<CR>', opts)
 keymap('n', '<S-h>', ':bprevious<CR>', opts)
+
+-- Clear search highlight until next search
+keymap('n', '<cr>', ':nohlsearch<CR>', opts)
+
+-- Telescope
+keymap('n', '<C-p>', ':lua require"telescope.builtin".find_files()<CR>', opts)
+keymap('n', '<leader>fs', ':lua require"telescope.builtin".live_grep()<CR>', opts)
+keymap('n', '<leader>fh', ':lua require"telescope.builtin".help_tags()<CR>', opts)
+keymap('n', '<leader>fb', ':lua require"telescope.builtin".buffers()<CR>', opts)
