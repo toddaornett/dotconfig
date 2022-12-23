@@ -1,14 +1,21 @@
--- Shorten function name
+-- Shorte function name
 local keymap = vim.api.nvim_set_keymap
 local opts = { noremap = true, silent = true }
 
 -- Press jk fast to enter normal mode
 keymap('i', 'jk', '<Esc>', opts)
 
+-- Normal mode --
+
 -- Toggle nvim-tree
 keymap('n', '<leader>n', [[:NvimTreeToggle<CR>]], opts)
 
--- Normal --
+-- Change configuration
+keymap('n', '<leader>ei', ':e ~/.config/nvim/init.lua<CR>', opts)
+keymap('n', '<leader>ek', ':e ~/.config/nvim/lua/keymaps.lua<CR>', opts)
+keymap('n', '<leader>ep', ':e ~/.config/nvim/lua/packer-plugins.lua<CR>', opts)
+keymap('n', '<leader>es', ':e ~/.config/nvim/lua/settings.lua<CR>', opts)
+
 -- Better window navigation
 keymap('n', '<C-h>', '<C-w>h', opts)
 keymap('n', '<C-j>', '<C-w>j', opts)
