@@ -24,14 +24,28 @@ return require('packer').startup(function(use)
   use 'gruvbox-community/gruvbox'
 
   -- lsp setup
-  use 'williamboman/mason.nvim'
-  use 'williamboman/mason-lspconfig.nvim'
+  use {
+    'neovim/nvim-lspconfig',
+    requires = {
+      -- Automatically install LSPs to stdpath for neovim
+      'williamboman/mason.nvim',
+      'williamboman/mason-lspconfig.nvim',
+
+      -- Useful status updates for LSP
+      'j-hui/fidget.nvim'
+    }
+  }
+
+  use { -- Autocompletion
+    'hrsh7th/nvim-cmp',
+    requires = { 'hrsh7th/cmp-nvim-lsp', 'L3MON4D3/LuaSnip', 'saadparwaiz1/cmp_luasnip' },
+  }
 
   -- file explorer
   use {
     'nvim-tree/nvim-tree.lua',
     requires = {
-        'nvim-tree/nvim-web-devicons', -- optional, for file icons
+      'nvim-tree/nvim-web-devicons', -- optional, for file icons
     },
     tag = 'nightly' -- optional, updated every week. (see issue #1193)
   }
@@ -43,11 +57,21 @@ return require('packer').startup(function(use)
   }
 
   -- syntatic highlighting
-  use 'nvim-treesitter/nvim-treesitter'
+  use { -- Highlight, edit, and navigate code
+    'nvim-treesitter/nvim-treesitter',
+    run = function()
+      pcall(require('nvim-treesitter.install').update { with_sync = true })
+    end,
+  }
   use 'sheerun/vim-polyglot'
   use 'tjdevries/colorbuddy.nvim'
   use 'bkegley/gloombuddy'
   use {'prettier/vim-prettier', run = 'yarn install' }
+
+  use { -- Additional text objects via treesitter
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    after = 'nvim-treesitter',
+  }
 
   -- telescope
   use {'nvim-telescope/telescope-fzf-native.nvim', run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
