@@ -40,3 +40,6 @@ keymap('n', '<C-p>', ':lua require"telescope.builtin".find_files()<CR>', opts)
 keymap('n', '<leader>fs', ':lua require"telescope.builtin".live_grep()<CR>', opts)
 keymap('n', '<leader>fh', ':lua require"telescope.builtin".help_tags()<CR>', opts)
 keymap('n', '<leader>fb', ':lua require"telescope.builtin".buffers()<CR>', opts)
+
+-- Markdown preview
+keymap('n', '<C-p>', '<Plug>MarkdownPreview', opts)

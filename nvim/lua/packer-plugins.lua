@@ -49,6 +49,11 @@ return require('packer').startup(function(use)
   use 'bkegley/gloombuddy'
   use {'prettier/vim-prettier', run = 'yarn install' }
 
+  -- markdown preview
+  use({
+    "iamcco/markdown-preview.nvim",
+    run = function() vim.fn["mkdp#util#install"]() end, })
+
   -- telescope
   use {'nvim-telescope/telescope-fzf-native.nvim', run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
 
