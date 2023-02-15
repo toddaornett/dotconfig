@@ -59,7 +59,7 @@ function work_in_progress() {
 function git_cleanup_branches {
   git remote prune origin
   git fetch --prune
-  git branch --merged master | grep -v '^[ *]*master$' | grep -v '[ *]*release.*$'| xargs git branch -d
+  git branch --merged main | grep -v '^[ *]*main$' | grep -v '[ *]*release.*$'| xargs git branch -d
 }
 
 function gstA {
