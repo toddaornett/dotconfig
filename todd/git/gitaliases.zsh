@@ -89,7 +89,7 @@ function gstp {
   fi
 }
 
-function gstd {
+function gstD {
   if (($# > 0))
   then
     git stash drop "$@"
@@ -316,7 +316,7 @@ alias gs='git status'
 #  && alias gsta='git stash push -u' \
 #  || alias gsta='git stash save -u'
 
-alias gstc='git stash clear'
+alias gstC='git stash clear'
 alias gstl='git stash list'
 alias gsts='git stash show --text'
 alias gstu='git stash --include-untracked'
