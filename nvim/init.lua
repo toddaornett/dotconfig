@@ -11,6 +11,13 @@ require("mason").setup()
 require('kommentary.config').use_extended_mappings()
 require("nvim-tree").setup({
   sort_by = "case_sensitive",
+  actions = {
+    open_file = {
+      window_picker = {
+        enable = false
+      }
+    }
+  },
   view = {
     adaptive_size = true,
     side = "right",
@@ -31,8 +38,15 @@ require('keymaps')
 require("nvim-autopairs")
 require('telescope').setup {
   defaults = {
-    mappings = { i = {
-      ['<C-p>'] = require('telescope.actions.layout').toggle_preview}
+    mappings = {
+      n = {
+        ['<c-d>'] = require('telescope.actions').delete_buffer
+      },
+      i = {
+        ["<C-h>"] = "which_key",
+        ['<c-d>'] = require('telescope.actions').delete_buffer,
+        ['<C-p>'] = require('telescope.actions.layout').toggle_preview
+      }
     },
     preview = {
       hide_on_startup = false
