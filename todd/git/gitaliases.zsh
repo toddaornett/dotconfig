@@ -100,18 +100,17 @@ function gstD {
 
 #
 # Aliases
-# (sorted alphabetically)
 #
 
 alias g='git'
 
 alias ga='git add'
 alias gaa='git add --all'
+alias gap='git apply'
 alias gapa='git add --patch'
+alias gapt='git apply --3way'
 alias gau='git add --update'
 alias gav='git add --verbose'
-alias gap='git apply'
-alias gapt='git apply --3way'
 
 alias gBB='git blame -b -w'
 
