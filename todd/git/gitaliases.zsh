@@ -59,7 +59,7 @@ function work_in_progress() {
 function git_cleanup_branches {
   git remote prune origin
   git fetch --prune
-  git branch --merged main | grep -v '^[ *]*main$' | grep -v '[ *]*release.*$'| xargs git branch -d
+  git branch --merged $(git_main_branch) | grep -v "^[ *]*$(git_main_branch)$" | grep -v '[ *]*release.*$'| xargs git branch -d
 }
 
 function gstA {
@@ -387,6 +387,13 @@ function grename() {
 
 function forceSsh() {
   git config --global url."git@github.com:".insteadOf "https://github.com/"
+}
+
+#####
+# gh command helpers
+#####
+function ghCl() {
+  gh repo clone $(gh search repos $1 | head -1 | cut -f 1)
 }
 
 unset git_version
