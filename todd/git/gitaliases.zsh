@@ -392,8 +392,12 @@ function forceSsh() {
 #####
 # gh command helpers
 #####
-function ghCl() {
+function ghcl() {
   gh repo clone $(gh search repos $1 | head -1 | cut -f 1)
+}
+
+function ghs() {
+  gh search repos $1
 }
 
 unset git_version
