@@ -1,32 +1,32 @@
 [submodule "nvim/lazy/indent-blankline.nvim"]
   path = nvim/lazy/indent-blankline.nvim
-	url = https://github.com/lukas-reineke/indent-blankline.nvim.git
+  url = https://github.com/lukas-reineke/indent-blankline.nvim.git
   ignore = dirty
 [submodule "nvim/lazy/mini.animate"]
   path = nvim/lazy/mini.animate
-	url = https://github.com/echasnovski/mini.animate.git
+  url = https://github.com/echasnovski/mini.animate.git
   ignore = dirty
 [submodule "nvim/lazy/mini.bufremove"]
   path = nvim/lazy/mini.bufremove
-	url = https://github.com/echasnovski/mini.bufremove.git
+  url = https://github.com/echasnovski/mini.bufremove.git
   ignore = dirty
 [submodule "nvim/lazy/mini.comment"]
   path = nvim/lazy/mini.comment
-	url = https://github.com/echasnovski/mini.comment.git
+  url = https://github.com/echasnovski/mini.comment.git
   ignore = dirty
 [submodule "nvim/lazy/mini.indentscope"]
   path = nvim/lazy/mini.indentscope
-	url = https://github.com/echasnovski/mini.indentscope.git
+  url = https://github.com/echasnovski/mini.indentscope.git
   ignore = dirty
 [submodule "nvim/lazy/mini.pairs"]
   path = nvim/lazy/mini.pairs
-	url = https://github.com/echasnovski/mini.pairs.git
+  url = https://github.com/echasnovski/mini.pairs.git
   ignore = dirty
 [submodule "nvim/lazy/mini.surround"]
   path = nvim/lazy/mini.surround
-	url = https://github.com/echasnovski/mini.surround.git
+  url = https://github.com/echasnovski/mini.surround.git
   ignore = dirty
 [submodule "nvim/lazy/nvim-ts-context-commentstring"]
   path = nvim/lazy/nvim-ts-context-commentstring
-	url = https://github.com/JoosepAlviste/nvim-ts-context-commentstring.git
+  url = https://github.com/JoosepAlviste/nvim-ts-context-commentstring.git
   ignore = dirty
