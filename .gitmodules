@@ -1,0 +1,24 @@
+[submodule "nvim/lazy/indent-blankline.nvim"]
+  path = nvim/lazy/indent-blankline.nvim
+	url = https://github.com/lukas-reineke/indent-blankline.nvim.git
+[submodule "nvim/lazy/mini.animate"]
+  path = nvim/lazy/mini.animate
+	url = https://github.com/echasnovski/mini.animate.git
+[submodule "nvim/lazy/mini.bufremove"]
+  path = nvim/lazy/mini.bufremove
+	url = https://github.com/echasnovski/mini.bufremove.git
+[submodule "nvim/lazy/mini.comment"]
+  path = nvim/lazy/mini.comment
+	url = https://github.com/echasnovski/mini.comment.git
+[submodule "nvim/lazy/mini.indentscope"]
+  path = nvim/lazy/mini.indentscope
+	url = https://github.com/echasnovski/mini.indentscope.git
+[submodule "nvim/lazy/mini.pairs"]
+  path = nvim/lazy/mini.pairs
+	url = https://github.com/echasnovski/mini.pairs.git
+[submodule "nvim/lazy/mini.surround"]
+  path = nvim/lazy/mini.surround
+	url = https://github.com/echasnovski/mini.surround.git
+[submodule "nvim/lazy/nvim-ts-context-commentstring"]
+  path = nvim/lazy/nvim-ts-context-commentstring
+	url = https://github.com/JoosepAlviste/nvim-ts-context-commentstring.git
