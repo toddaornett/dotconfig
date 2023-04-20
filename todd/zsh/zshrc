@@ -1,0 +1,20 @@
+# load starship prompt, autoinstall if needed
+# see https://starship.rs
+if command -v starship &> /dev/null
+then
+  eval "$(starship init zsh)"
+else
+  if [ ! -d /opt/bin ]
+  then
+    sudo mkdir -p /opt/bin
+    sudo chmod a+x /opt/bin
+  fi
+  if [[ ! $PATH =~ /opt/bin ]]
+  then
+    echo 'path=("/opt/bin" $path)' >> ~/.zprofile
+    source ~/.zprofile
+  fi
+  echo "Installing starship prompt"
+  curl -sS https://starship.rs/install.sh | sh -s -- -y --bin-dir /opt/bin
+  eval "$(starship init zsh)"
+fi
