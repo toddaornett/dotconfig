@@ -1,20 +1,28 @@
-# load starship prompt, autoinstall if needed
-# see https://starship.rs
-if command -v starship &> /dev/null
-then
-  eval "$(starship init zsh)"
-else
-  if [ ! -d /opt/bin ]
-  then
-    sudo mkdir -p /opt/bin
-    sudo chmod a+x /opt/bin
+export LC_ALL=en_US.UTF-8  
+export LANG=en_US.UTF-8
+export LANGUAGE=en_US.UTF-8
+
+# node.js
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+
+autoload -U add-zsh-hook
+
+load-nvmrc() {
+  local nvmrc_path="$(nvm_find_nvmrc)"
+
+  if [ -n "$nvmrc_path" ]; then
+    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+
+    if [ "$nvmrc_node_version" = "N/A" ]; then
+      nvm install
+    elif [ "$nvmrc_node_version" != "$(nvm version)" ]; then
+      nvm use
+    fi
+  elif [ -n "$(PWD=$OLDPWD nvm_find_nvmrc)" ] && [ "$(nvm version)" != "$(nvm version default)" ]; then
+    echo "Reverting to nvm default version"
+    nvm use default
   fi
-  if [[ ! $PATH =~ /opt/bin ]]
-  then
-    echo 'path=("/opt/bin" $path)' >> ~/.zprofile
-    source ~/.zprofile
-  fi
-  echo "Installing starship prompt"
-  curl -sS https://starship.rs/install.sh | sh -s -- -y --bin-dir /opt/bin
-  eval "$(starship init zsh)"
-fi
+}
+add-zsh-hook chpwd load-nvmrc
+load-nvmrc
