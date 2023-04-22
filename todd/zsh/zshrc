@@ -1,8 +1,13 @@
+##########
+# character encoding
+##########
 export LC_ALL=en_US.UTF-8  
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
+##########
 # node.js
+##########
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 
@@ -26,3 +31,63 @@ load-nvmrc() {
 }
 add-zsh-hook chpwd load-nvmrc
 load-nvmrc
+
+##########
+# preset folders
+##########
+unset cdirmap
+declare -A cdirmap
+devBase=~/Projects
+cdirmap[P]="$devBase"
+cdirmap[vim]="$HOME/.config/nvim"
+
+# display the folder shortcut mappings
+function ds {
+	(for key value in ${(@kv)cdirmap}; do printf "%-10s %s\n" $key $value; done) | sort
+}
+
+# change to specified folder by key
+# e.g. to change to the ~/Projects directory, type "d P"
+function d {
+	key="$1"
+	if [ -n "$key" ] && 
+	then
+		e=${key:0:1}
+		echo $e
+		v="${cdirmap[${key}]}" 
+		if [ -n "$v" ];
+		then
+			cd "$v"
+		else
+			cd "$dirBase"
+		fi
+	else
+		cd "$dirBase"
+	fi
+	unset key
+}
+
+##########
+# misc
+##########
+alias -g G='| grep -i'
+alias Z='source ~/.zshrc'
+
+###########
+# Copy/Paste aliases
+###########
+alias p='pbcopy '
+alias P='pbpaste '
+
+
+##########
+# change finder setting for showing of hidden files
+##########
+function hide {
+    defaults write com.apple.Finder AppleShowAllFiles false
+}
+
+function show {
+    defaults write com.apple.Finder AppleShowAllFiles true
+}
+
