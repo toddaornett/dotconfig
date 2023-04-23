@@ -8,11 +8,12 @@ export LANGUAGE=en_US.UTF-8
 ##########
 # node.js
 ##########
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-
+if ! command nvm
+then
+  echo "Install nvm, see https://github.com/nvm-sh/nvm"
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | sh -
+fi
 autoload -U add-zsh-hook
-
 load-nvmrc() {
   local nvmrc_path="$(nvm_find_nvmrc)"
 
