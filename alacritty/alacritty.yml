@@ -883,6 +883,7 @@ key_bindings:
   #- { key: B,              mods: Command, mode: ~Search,     action: SearchBackward        }
   - { key: T, mods: Command, chars: "\x02\x63" }
   - { key: Back, mods: Command, chars: "\x15" }
+  - { key: N, mods: Command, action: CreateNewWindow }
 
 #debug:
   # Display the time it takes to redraw each frame.
