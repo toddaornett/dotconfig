@@ -71,7 +71,7 @@ function d {
 ##########
 # misc
 ##########
-alias -g G='| grep -i'
+alias G='grep -i'
 alias Z='source ~/.zshrc'
 
 ###########
