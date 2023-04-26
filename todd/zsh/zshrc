@@ -6,6 +6,16 @@ export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
 ##########
+# install the missing package manager brew if missing
+##########
+if ! type brew >/dev/null
+then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
+  path=("/opt/homebrew/bin" $path)
+fi
+
+##########
 # hammerspoon config
 ##########
 defaults write org.hammerspoon.Hammerspoon MJConfigFile "~/.config/todd/hammerspoon/init.lua"
@@ -40,6 +50,10 @@ setopt share_history # share history between different instances of the shell
 # enhance cd and use zoxide
 ##########
 setopt auto_cd
+if ! type zoxide >/dev/null
+then
+  brew install zoxide
+fi
 eval "$(zoxide init zsh)"
 
 ##########
@@ -106,6 +120,15 @@ function d {
 }
 
 ##########
+# spaceship prompt
+##########
+if ! brew list spaceship &>/dev/null
+then
+  brew install spaceship
+fi
+source $(brew --prefix)/opt/spaceship/spaceship.zsh
+
+##########
 # misc
 ##########
 alias G='grep -i'
@@ -116,7 +139,6 @@ alias Z='source ~/.zshrc'
 ###########
 alias p='pbcopy '
 alias P='pbpaste '
-
 
 ##########
 # change finder setting for showing of hidden files
