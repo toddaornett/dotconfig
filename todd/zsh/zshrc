@@ -6,6 +6,11 @@ export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
 ##########
+# hammerspoon config
+##########
+defaults write org.hammerspoon.Hammerspoon MJConfigFile "~/.config/todd/hammerspoon/init.lua"
+
+##########
 # node.js
 ##########
 if ! command nvm
