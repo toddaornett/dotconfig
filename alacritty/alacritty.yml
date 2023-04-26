@@ -884,6 +884,7 @@ key_bindings:
   - { key: T, mods: Command, chars: "\x02\x63" }
   - { key: Back, mods: Command, chars: "\x15" }
   - { key: N, mods: Command, action: CreateNewWindow }
+  - { key: J, mods: Command, chars: "\x02\x54" }
 
 #debug:
   # Display the time it takes to redraw each frame.
