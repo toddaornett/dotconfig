@@ -212,5 +212,6 @@ yarn
 zeromq
 zimg
 zlib
+zoxide
 zsh-async
 zstd
