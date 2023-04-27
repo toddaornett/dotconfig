@@ -6,6 +6,11 @@ export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 
 ##########
+# setup for terminal emacs key bindings
+##########
+bindkey -e
+
+##########
 # install the missing package manager brew if missing
 ##########
 if ! type brew >/dev/null
