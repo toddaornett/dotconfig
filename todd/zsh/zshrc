@@ -144,10 +144,16 @@ alias P='pbpaste '
 # change finder setting for showing of hidden files
 ##########
 function hide {
-    defaults write com.apple.Finder AppleShowAllFiles false
+  defaults write com.apple.Finder AppleShowAllFiles false
 }
 
 function show {
-    defaults write com.apple.Finder AppleShowAllFiles true
+  defaults write com.apple.Finder AppleShowAllFiles true
 }
+
+###########
+# simulate locate command, thereby using the same Spotlight search DB
+###########
+function locate {
+  mdfind "kMDItemDisplayName == '$@'wc"; }
 
