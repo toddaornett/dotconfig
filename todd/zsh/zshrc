@@ -175,5 +175,17 @@ function show {
 # simulate locate command, thereby using the same Spotlight search DB
 ###########
 function locate {
-  mdfind "kMDItemDisplayName == '$@'wc"; }
+  mdfind "kMDItemDisplayName == '$@'wc";
 
+}
+
+###########
+# swagger editor
+###########
+function swage {
+  if ! docker images | grep swaggerapi/swagger-editor 2>/dev/null
+  then
+    docker pull swaggerapi/swagger-editor
+  fi
+  docker run -p 80:8080 swaggerapi/swagger-editor
+}
