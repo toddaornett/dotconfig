@@ -1,15 +1,30 @@
 ##########
 # character encoding
 ##########
-export LC_ALL=en_US.UTF-8  
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
+export LC_TIME=ja_JP
 
 ##########
-# setup for terminal emacs key bindings
+# terminal (alacritty and tmux)
 ##########
+
+# emacs key bindings
 bindkey -e
 
+# setup terminfo if needed
+# (for one thing, this was needed to make my backspace key work)
+if [ ! -f $(brew --prefix)/opt/ncurses/bin/infocmp ] || [ ! $(brew --prefix)/opt/ncurses/bin/infocmp tmux-256color &>/dev/null ]
+then
+  if ! brew list | grep ncurses
+  then
+    brew install ncurses
+  fi
+  $(brew --prefix)/opt/ncurses/bin/infocmp tmux-256color > /tmp/tmux-256color
+  tic -xe tmux-256color /tmp/tmux-256color
+  rm /tmp/tmux-256color
+fi
+ 
 ##########
 # install the missing package manager brew if missing
 ##########
