@@ -6,6 +6,16 @@ export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
 
 ##########
+# install the missing package manager brew if missing
+##########
+if ! type brew >/dev/null
+then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
+  path=("/opt/homebrew/bin" $path)
+fi
+
+##########
 # terminal (alacritty and tmux)
 ##########
 
@@ -23,16 +33,6 @@ then
   $(brew --prefix)/opt/ncurses/bin/infocmp tmux-256color > /tmp/tmux-256color
   tic -xe tmux-256color /tmp/tmux-256color
   rm /tmp/tmux-256color
-fi
- 
-##########
-# install the missing package manager brew if missing
-##########
-if ! type brew >/dev/null
-then
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
-  path=("/opt/homebrew/bin" $path)
 fi
 
 ##########
@@ -86,6 +86,7 @@ then
 fi
 autoload -U add-zsh-hook
 load-nvmrc() {
+  local node_version="$(nvm version)"
   local nvmrc_path="$(nvm_find_nvmrc)"
 
   if [ -n "$nvmrc_path" ]; then
@@ -93,10 +94,10 @@ load-nvmrc() {
 
     if [ "$nvmrc_node_version" = "N/A" ]; then
       nvm install
-    elif [ "$nvmrc_node_version" != "$(nvm version)" ]; then
+    elif [ "$nvmrc_node_version" != "$node_version" ]; then
       nvm use
     fi
-  elif [ -n "$(PWD=$OLDPWD nvm_find_nvmrc)" ] && [ "$(nvm version)" != "$(nvm version default)" ]; then
+  elif [ "$node_version" != "$(nvm version default)" ]; then
     echo "Reverting to nvm default version"
     nvm use default
   fi
@@ -180,6 +181,14 @@ function locate {
 }
 
 ###########
+# remove (aka nuke) various things
+###########
+function nuke-config-nvim {
+  rm -rf ~/.config/nvim
+  rm -rf ~/.local/share/nvim
+}
+	
+###########
 # swagger editor
 ###########
 function swage {
@@ -189,3 +198,4 @@ function swage {
   fi
   docker run -p 80:8080 swaggerapi/swagger-editor
 }
+
