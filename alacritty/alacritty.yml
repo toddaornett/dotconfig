@@ -885,6 +885,7 @@ key_bindings:
   - { key: Back, mods: Command, chars: "\x15" }
   - { key: N, mods: Command, action: CreateNewWindow }
   - { key: J, mods: Command, chars: "\x02\x54" }
+  - { key: Backslash, mods: Alt,       chars: "\\"                          } # \
 
 #debug:
   # Display the time it takes to redraw each frame.
