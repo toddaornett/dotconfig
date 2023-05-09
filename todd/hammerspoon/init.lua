@@ -1,3 +1,20 @@
+doReload = false
+function reloadConfig(files)
+	for _, file in pairs(files) do
+		if file:sub(-4) == ".lua" then
+			doReload = true
+		end
+	end
+	if doReload then
+		hs.reload()
+	end
+end
+myWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
+hs.alert.show("Config loaded")
+
+hs.loadSpoon("ReloadConfiguration")
+spoon.ReloadConfiguration:start()
+
 hs.hotkey.bind({ "command" }, "escape", function()
 	hs.execute("open /Applications/Alacritty.app")
 end)
