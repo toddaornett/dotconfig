@@ -116,28 +116,28 @@ cdirmap[vim]="$HOME/.config/nvim"
 
 # display the folder shortcut mappings
 function ds {
-	(for key value in ${(@kv)cdirmap}; do printf "%-10s %s\n" $key $value; done) | sort
+  (for key value in ${(@kv)cdirmap}; do printf "%-10s %s\n" $key $value; done) | sort
 }
 
 # change to specified folder by key
 # e.g. to change to the ~/Projects directory, type "d P"
 function d {
-	key="$1"
-	if [ -n "$key" ] && 
-	then
-		e=${key:0:1}
-		echo $e
-		v="${cdirmap[${key}]}" 
-		if [ -n "$v" ];
-		then
-			cd "$v"
-		else
-			cd "$dirBase"
-		fi
-	else
-		cd "$dirBase"
-	fi
-	unset key
+  key="$1"
+  if [ -n "$key" ] && 
+  then
+    e=${key:0:1}
+    echo $e
+    v="${cdirmap[${key}]}" 
+    if [ -n "$v" ];
+    then
+      cd "$v"
+    else
+      cd "$dirBase"
+    fi
+  else
+    cd "$dirBase"
+  fi
+  unset key
 }
 
 ##########
@@ -177,7 +177,6 @@ function show {
 ###########
 function locate {
   mdfind "kMDItemDisplayName == '$@'wc";
-
 }
 
 ###########
@@ -187,7 +186,18 @@ function nuke-config-nvim {
   rm -rf ~/.config/nvim
   rm -rf ~/.local/share/nvim
 }
-	
+
+###########
+# building from varous sources
+###########
+function make-my-nvim {
+  cd ~/Projects/neovim
+  if git pull
+  then
+    make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=$HOME/Neovim install
+  fi
+}
+
 ###########
 # swagger editor
 ###########
