@@ -191,9 +191,18 @@ function nuke-config-nvim {
 # building from varous sources
 ###########
 function make-my-nvim {
-  cd ~/Projects/neovim
-  if git pull
+  if [ ! -d ~/Projects/neovim/ ]
   then
+    if [ ! -d ~/Projects ]
+    then
+      mkdir ~/Projects
+    fi
+    cd Projects
+    git clone https://github.com/neovim/neovim.git
+  fi
+  if [[ "$#" -gt 0 ]] || [[ ! $(git pull | grep "Already up to date." >&/dev/null) ]]
+  then
+    cd ~/Projects/neovim
     make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=$HOME/Neovim install
   fi
 }
