@@ -106,6 +106,15 @@ add-zsh-hook chpwd load-nvmrc
 load-nvmrc
 
 ##########
+# rust
+##########
+if ! command -v rustup | grep rustup >&/dev/null
+then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+fi
+source "$HOME/.cargo/env"
+
+##########
 # preset folders
 ##########
 unset cdirmap
