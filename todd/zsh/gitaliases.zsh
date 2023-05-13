@@ -48,13 +48,6 @@ function _git_log_prettily(){
   fi
 }
 
-# Warn if the current branch is a WIP
-function work_in_progress() {
-  if $(git log -n 1 2>/dev/null | grep -q -c "\-\-wip\-\-"); then
-    echo "WIP!!"
-  fi
-}
-
 function git_cleanup_branches {
   git remote prune origin
   git fetch --prune
@@ -161,7 +154,6 @@ alias gdt='git diff-tree --no-commit-id --name-only -r'
 alias gdw='git diff --word-diff'
 
 alias mycommits='git log --pretty=format:"%h%x09%an%x09%ad%x09%s" 2>&1 | grep Todd | grep -v Merge'
-alias teamcommits='git log --pretty=format:"%h%x09%an%x09%ad%x09%s" 2>&1 | grep -i takumi | grep -v Merge'
 
 function gdnolock() {
   git diff "$@" ":(exclude)package-lock.json" ":(exclude)*.lock"
@@ -312,7 +304,7 @@ alias gstl='git stash list'
 alias gsts='git stash show --text'
 alias gstu='git stash --include-untracked'
 alias gstall='git stash --all'
-alias gsu='git submodule update'
+alias gSu='git submodule update'
 alias gsw='git switch'
 alias gswc='git switch -c'
 
