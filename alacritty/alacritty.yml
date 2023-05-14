@@ -115,13 +115,13 @@ window:
   #   - None (default)
   option_as_alt: Both
 
-#scrolling:
+scrolling:
   # Maximum number of lines in the scrollback buffer.
   # Specifying '0' will disable scrolling.
-  #history: 10000
+  history: 10000
 
   # Scrolling distance multiplier.
-  #multiplier: 3
+  multiplier: 3
 
 # Font configuration
 font:
@@ -453,9 +453,12 @@ draw_bold_text_with_bright_colors: false
 #   - (Linux/BSD/macOS) `$SHELL` or the user's login shell, if `$SHELL` is unset
 #   - (Windows) powershell
 #shell:
-#  program: /bin/bash
-#  args:
-#    - --login
+  # below to launch tmux would be nice but moved to shell for additional config
+  #program: /bin/zsh
+  #args:
+    #- -l
+    #- -c
+    #- "tmux new -As0"
 
 # Startup directory
 #
@@ -466,7 +469,7 @@ draw_bold_text_with_bright_colors: false
 # Offer IPC using `alacritty msg` (unix only)
 #ipc_socket: true
 
-#mouse:
+mouse:
   # Click settings
   #
   # The `double_click` and `triple_click` settings control the time
@@ -476,7 +479,7 @@ draw_bold_text_with_bright_colors: false
   #triple_click: { threshold: 300 }
 
   # If this is `true`, the cursor is temporarily hidden when typing.
-  #hide_when_typing: false
+  hide_when_typing: false
 
 # Hints
 #
@@ -875,17 +878,21 @@ key_bindings:
   #- { key: H,              mods: Command,                    action: Hide                  }
   #- { key: H,              mods: Command|Alt,                action: HideOtherApplications }
   #- { key: M,              mods: Command,                    action: Minimize              }
-  #- { key: Q,              mods: Command,                    action: Quit                  }
+  - { key: Q,               mods: Command,                    action: Quit                  }
   #- { key: W,              mods: Command,                    action: Quit                  }
   #- { key: N,              mods: Command,                    action: CreateNewWindow       }
   #- { key: F,              mods: Command|Control,            action: ToggleFullscreen      }
   #- { key: F,              mods: Command, mode: ~Search,     action: SearchForward         }
   #- { key: B,              mods: Command, mode: ~Search,     action: SearchBackward        }
-  - { key: T, mods: Command, chars: "\x02\x63" }
-  - { key: Back, mods: Command, chars: "\x15" }
-  - { key: N, mods: Command, action: CreateNewWindow }
-  - { key: J, mods: Command, chars: "\x02\x54" }
-  - { key: Backslash, mods: Alt,       chars: "\\" } # \
+  - { key: T,               mods: Command,                    chars: "\x02\x63" }
+  - { key: Back,            mods: Command,                    chars: "\x15" }
+  - { key: N,               mods: Command,                    action: CreateNewWindow }
+  - { key: J,               mods: Command,                    chars: "\x02\x54" }
+  - { key: Backslash,       mods: Alt,                        chars: "\\" } # \
+  - { key: W,               mods: Command,                    action: None }
+
+  # misc
+  - { key: Return,          mods: Command|Shift|Control|Alt, action: SpawnNewInstance }
 
 #debug:
   # Display the time it takes to redraw each frame.
