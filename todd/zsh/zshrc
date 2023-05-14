@@ -99,7 +99,6 @@ fi
 # ------------
 source "/opt/homebrew/opt/fzf/shell/key-bindings.zsh"
 
-
 if [ ! -d $(brew --prefix)/opt/zsh-autocomplete ]
 then
   brew install zsh-autocomplete
@@ -112,6 +111,7 @@ if ! command -v fnm >/dev/null
 then
   brew install fnm
 fi
+eval $(fnm env)
 
 ##########
 # rust
