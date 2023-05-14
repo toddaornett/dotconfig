@@ -8,7 +8,7 @@ export LC_TIME=ja_JP
 ##########
 # install the missing package manager brew if missing
 ##########
-if ! type brew >/dev/null
+if ! type brew &>/dev/null
 then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
@@ -22,7 +22,7 @@ fi
 # emacs key bindings
 bindkey -e
 
-# setup terminfo if needed
+# setup terminfo if needed and launch tmux
 # (for one thing, this was needed to make my backspace key work)
 if [ ! -f $(brew --prefix)/opt/ncurses/bin/infocmp ] || [ ! $(brew --prefix)/opt/ncurses/bin/infocmp tmux-256color &>/dev/null ]
 then
@@ -33,6 +33,10 @@ then
   $(brew --prefix)/opt/ncurses/bin/infocmp tmux-256color > /tmp/tmux-256color
   tic -xe tmux-256color /tmp/tmux-256color
   rm /tmp/tmux-256color
+fi
+if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
+then
+  exec tmux new -As0 && exit
 fi
 
 ##########
@@ -67,48 +71,52 @@ setopt inc_append_history # save history entries as soon as they are entered
 setopt share_history # share history between different instances of the shell
 
 ##########
-# enhance cd and use zoxide
+# enhance cd and use zoxide with fzf
 ##########
 setopt auto_cd
 if ! type zoxide >/dev/null
 then
   brew install zoxide
+  rm ~/.zcompdump*; compinit
 fi
+export _ZO_EXCLUDE_DIRS="$HOME/private/*"
 eval "$(zoxide init zsh)"
 
-##########
+if [ ! -d $(brew --prefix)/opt/fzf ]
+then
+  brew install fzf
+  # To install useful key bindings and fuzzy completion:
+  $(brew --prefix)/opt/fzf/install
+fi
+if [[ ! "$PATH" == */opt/homebrew/opt/fzf/bin* ]]; then
+  PATH="${PATH:+${PATH}:}/opt/homebrew/opt/fzf/bin"
+fi
+
+# Auto-completion
+[[ $- == *i* ]] && source "/opt/homebrew/opt/fzf/shell/completion.zsh" 2>/dev/null
+
+# Key bindings
+# ------------
+source "/opt/homebrew/opt/fzf/shell/key-bindings.zsh"
+
+
+if [ ! -d $(brew --prefix)/opt/zsh-autocomplete ]
+then
+  brew install zsh-autocomplete
+fi
+
+#########
 # node.js
 ##########
-if ! type nvm >/dev/null
+if ! command -v fnm >/dev/null
 then
-  echo "Install nvm, see https://github.com/nvm-sh/nvm"
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | sh -
+  brew install fnm
 fi
-autoload -U add-zsh-hook
-load-nvmrc() {
-  local node_version="$(nvm version)"
-  local nvmrc_path="$(nvm_find_nvmrc)"
-
-  if [ -n "$nvmrc_path" ]; then
-    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
-
-    if [ "$nvmrc_node_version" = "N/A" ]; then
-      nvm install
-    elif [ "$nvmrc_node_version" != "$node_version" ]; then
-      nvm use
-    fi
-  elif [ "$node_version" != "$(nvm version default)" ]; then
-    echo "Reverting to nvm default version"
-    nvm use default
-  fi
-}
-add-zsh-hook chpwd load-nvmrc
-load-nvmrc
 
 ##########
 # rust
 ##########
-if ! command -v rustup | grep rustup >&/dev/null
+if ! command -v rustup | grep rustup &>/dev/null
 then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   echo 'path=("$HOME/.cargo/bin" $path)' >> $HOME/.zprofile
@@ -209,7 +217,7 @@ function make-my-nvim {
     cd Projects
     git clone https://github.com/neovim/neovim.git
   fi
-  if [[ "$#" -gt 0 ]] || [[ ! $(git pull | grep "Already up to date." >&/dev/null) ]]
+  if [[ "$#" -gt 0 ]] || [[ ! $(git pull | grep "Already up to date." &>/dev/null) ]]
   then
     cd ~/Projects/neovim
     make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=$HOME/Neovim install
