@@ -1,7 +1,8 @@
-theme = "onedark"
+theme = "base16_transparent"
 
 [editor]
 line-number = "relative"
+true-color = true
 mouse = false
 
 [editor.cursor-shape]
@@ -11,3 +12,17 @@ select = "underline"
 
 [editor.file-picker]
 hidden = false
+
+[editor.lsp]
+display-messages = true
+
+[keys.normal]
+X = "extend_line_above"
+ret = ["move_line_down", "goto_line_start"]
+
+[keys.normal.g]
+q = ":reflow"
+
+[keys.normal.space]
+q = ":quit"
+w = ":write"
