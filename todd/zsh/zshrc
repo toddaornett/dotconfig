@@ -235,6 +235,59 @@ function swage {
   docker run -p 80:8080 swaggerapi/swagger-editor
 }
 
+##########
+# install marksman lsp for markdown
+##########
+if ! type marksman >/dev/null
+then
+  brew install marksman
+fi
+
+##########
+# install ripgrep
+##########
+if ! type rg >/dev/null
+then
+  brew install rg
+fi
+
+##########
+# install fd
+##########
+if ! type fd >/dev/null
+then
+  brew install fd
+fi
+
+##########
+# install coreutils
+##########
+if [ ! -d $(brew --prefix)/opt/coreutils ]
+then
+  brew install coreutils
+fi
+
+##########
+# install doom emacs
+# see also:
+#   https://github.com/doomemacs/doomemacs
+#   https://github.com/d12frosted/homebrew-emacs-plus
+##########
+if ! type emacs >/dev/null
+then
+  brew tap d12frosted/emacs-plus
+  brew install emacs-plus@27 --with-modern-doom-icon
+  if ! -d ~/.emacs.d
+  then
+    git clone https://github.com/hlissner/doom-emacs ~/.emacs.d
+  fi
+  cd ~//.emacs.d
+  git checkout develop
+  echo 'path=("\$HOME/.emacs.d/bin" $path)' >> $HOME/.zprofile
+  ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
+  $HOME/.emacs.d/bin/doom install
+  $HOME/.emacs.d/bin/doom sync
+fi
 
 ###########
 # Neovim configuration switcher
