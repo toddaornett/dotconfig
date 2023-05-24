@@ -8,3 +8,4 @@ nvim/.netrwhist
 nvim/mason/
 nvim/telescope_history
 karabiner/automatic_backups
+.DS_Store
