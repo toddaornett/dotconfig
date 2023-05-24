@@ -279,7 +279,7 @@ then
   brew install emacs-plus@27 --with-modern-doom-icon
   if ! -d ~/.emacs.d
   then
-    git clone https://github.com/hlissner/doom-emacs ~/.emacs.d
+    git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.emacs.d
   fi
   cd ~//.emacs.d
   git checkout develop
