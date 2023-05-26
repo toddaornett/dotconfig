@@ -1,4 +1,6 @@
-########## # character encoding ##########
+##########
+# character encoding
+##########
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
@@ -275,16 +277,16 @@ if ! type emacs >/dev/null
 then
   brew tap d12frosted/emacs-plus
   brew install emacs-plus@27 --with-modern-doom-icon
-  if ! -d ~/.config/emacs
+  if ! -d ~/.emacs.d
   then
-    git clone https://github.com/hlissner/doom-emacs ~/.config/emacs
+    git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.emacs.d
   fi
-  cd ~/.config/emacs
+  cd ~//.emacs.d
   git checkout develop
-  echo 'path=("\$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
+  echo 'path=("\$HOME/.emacs.d/bin" $path)' >> $HOME/.zprofile
   ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
-  $HOME/.config/emacs/bin/doom install
-  $HOME/.config/emacs/bin/doom sync
+  $HOME/.emacs.d/bin/doom install
+  $HOME/.emacs.d/bin/doom sync
 fi
 
 ###########
