@@ -8,10 +8,18 @@ export LC_TIME=ja_JP
 ##########
 if ! type brew &>/dev/null
 then
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
-  path=("/opt/homebrew/bin" $path)
+  mkdir -p $HOME/.local/homebrew && curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C $HOME/.local/homebrew
+  echo 'path=("$HOME/.local/homebrew/bin" $path)' >> $HOME/.zprofile
+  path=("$HOME/.local/homebrew/bin" $path)
 fi
+
+##########
+# install the fast node manager
+if ! type fnm &>/dev/null
+then
+  brew install fnm
+fi
+##########
 
 ##########
 # terminal (alacritty and tmux)
