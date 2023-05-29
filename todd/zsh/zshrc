@@ -332,3 +332,12 @@ function nvims() {
   fi
   NVIM_APPNAME=$config nvim $@
 }
+
+##########
+# install and configure direnv
+##########
+if ! type direnv &>/dev/null
+then
+  brew install direnv
+fi
+eval "$(direnv hook zsh)"
