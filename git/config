@@ -1,0 +1,41 @@
+[include]
+  path = ~/.git_local_config
+[core]
+  pager = less -FX
+  excludesfile = /Users/todd.ornett/.git_local_ignore
+[filter "lfs"]
+  process = git-lfs filter-process
+  required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+[diff]
+  colorMoved = default
+[init]
+  defaultBranch = main
+[pull]
+  rebase = false
+[url "git@github.com:"]
+  insteadOf = https://github.com/
+[interactive]
+  diffFilter = delta
+[delta]
+  features = decorations
+  navigate = true    # use n and N to move between diff sections
+  light = false      # set to true if you're in a terminal w/ a light background color (e.g. the default macOS terminal)
+[delta "interactive"]
+  keep-plus-minus-markers = true
+[delta "decorations"]
+  commit-decoration-style = blue ol
+  commit-style = raw
+  file-style = omit
+  hunk-header-decoration-style = blue box
+  hunk-header-file-style = red
+  hunk-header-line-number-style = "#067a00"
+  hunk-header-style = file line-number syntax
+  line-numbers = true
+[merge]
+  conflictstyle = diff3
+[alias]
+  change-commits = "!f() { VAR=$1; OLD=$2; NEW=$3; shift 3; git filter-branch --env-filter \"if [[ \\\"$`echo $VAR`\\\" = '$OLD' ]]; then export $VAR='$NEW'; fi\" $@; }; f"
+[filter "spacify"]
+  clean = gexpand --tabs=2 --initial
