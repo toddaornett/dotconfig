@@ -94,8 +94,8 @@ then
   # To install useful key bindings and fuzzy completion:
   $(brew --prefix)/opt/fzf/install
 fi
-if [[ ! "$PATH" == */opt/homebrew/opt/fzf/bin* ]]; then
-  PATH="${PATH:+${PATH}:}/opt/homebrew/opt/fzf/bin"
+if [[ ! "$PATH" == */homebrew/opt/fzf/bin* ]]; then
+  PATH="${PATH:+${PATH}:}$(brew --prefix)/opt/fzf/bin"
 fi
 
 # Auto-completion
@@ -293,6 +293,24 @@ then
   ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
   $HOME/.config/emacs/bin/doom install
   $HOME/.config/emacs/bin/doom sync
+fi
+
+##########
+# install moreutils which includes sponge command
+##########
+if ! type sponge &>/dev/null
+then
+  brew install moreutils
+fi
+
+##########
+# install libpq
+##########
+if [ ! -d $(brew --prefix)/opt/libpq ]
+then
+  brew install libpq
+  echo "export CPPFLAGS=\"-I$(brew --prefix)/opt/libpq/include" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
+  echo "export LDFLAGS=\"-L$(brew --prefix)/opt/libpq/lib" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
 fi
 
 ###########
