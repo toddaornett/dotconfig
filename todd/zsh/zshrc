@@ -309,8 +309,8 @@ fi
 if [ ! -d $(brew --prefix)/opt/libpq ]
 then
   brew install libpq
-  echo "export CPPFLAGS=\"-I$(brew --prefix)/opt/libpq/include" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
-  echo "export LDFLAGS=\"-L$(brew --prefix)/opt/libpq/lib" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
+  echo "export CPPFLAGS=\"-I$(brew --prefix)/opt/libpq/include\"" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
+  echo "export LDFLAGS=\"-L$(brew --prefix)/opt/libpq/lib\"" | cat - $HOME/.zprofile | sponge $HOME/.zprofile
 fi
 
 ###########
