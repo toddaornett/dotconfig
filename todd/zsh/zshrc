@@ -285,10 +285,9 @@ then
   brew install emacs-plus@27 --with-modern-doom-icon
   if ! -d ~/.config/emacs
   then
-    git clone https://github.com/hlissner/doom-emacs ~/.config/emacs
+    git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.config/emacs
   fi
   cd ~/.config/emacs
-  git checkout develop
   echo 'path=("\$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
   ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
   $HOME/.config/emacs/bin/doom install
@@ -332,6 +331,15 @@ function nvims() {
   fi
   NVIM_APPNAME=$config nvim $@
 }
+
+##########
+# install lazygit
+##########
+if ! type lazygit &>/dev/null
+then
+  brew install jesseduffield/lazygit/lazygit
+  brew install lazygit
+fi
 
 ##########
 # install and configure direnv
