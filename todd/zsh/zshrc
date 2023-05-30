@@ -284,17 +284,16 @@ fi
 #   https://github.com/doomemacs/doomemacs
 #   https://github.com/d12frosted/homebrew-emacs-plus
 ##########
-if ! type emacs >/dev/null
+if ! type emacs &>/dev/null
 then
   brew tap d12frosted/emacs-plus
   brew install emacs-plus@27 --with-modern-doom-icon
-  if ! -d ~/.config/emacs
-  then
-    git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.config/emacs
-  fi
-  cd ~/.config/emacs
   echo 'path=("\$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
   ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
+fi
+if [ ! -d ~/.config/emacs ]
+then
+  git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.config/emacs
   $HOME/.config/emacs/bin/doom install
   $HOME/.config/emacs/bin/doom sync
 fi
