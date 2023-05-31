@@ -289,7 +289,7 @@ then
   brew tap d12frosted/emacs-plus
   brew install emacs-plus@29 --with-modern-doom-icon
   echo 'path=("\$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
-  ln -s $(brew --prefix)/opt/emacs-plus@27/Emacs.app /Applications/Emacs.app
+  ln -s $(brew --prefix)/opt/emacs-plus@29/Emacs.app /Applications/Emacs.app
 fi
 if [ ! -d ~/.config/emacs ]
 then
