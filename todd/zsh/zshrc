@@ -15,11 +15,12 @@ fi
 
 ##########
 # install the fast node manager
+##########
 if ! type fnm &>/dev/null
 then
   brew install fnm
 fi
-##########
+eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 
 ##########
 # terminal (alacritty and tmux)
