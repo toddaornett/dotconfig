@@ -41,6 +41,10 @@ then
   tic -xe tmux-256color /tmp/tmux-256color
   rm /tmp/tmux-256color
 fi
+if ! command -v tmux &>/dev/null
+then
+  brew install tmux
+fi
 if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
 then
   exec tmux new -As0 && exit
