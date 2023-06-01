@@ -82,3 +82,18 @@
          ("\\.tsx\\'" . tsx-ts-mode))
   :config
   (add-hook! '(typescript-ts-mode-hook tsx-ts-mode-hook) #'lsp!))
+
+(defadvice! workaround--+lookup--xref-show (fn identifier &optional show-fn)
+  :override #'+lookup--xref-show
+  (let ((xrefs (funcall fn
+                        (xref-find-backend)
+                        identifier)))
+    (when xrefs
+      (funcall (or show-fn #'xref--show-defs)
+               (lambda () xrefs)
+               nil)
+      (if (cdr xrefs)
+          'deferred
+        t))))
+
+(add-hook 'focus-out-hook (lambda () (save-some-buffers t)))
