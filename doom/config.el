@@ -113,3 +113,10 @@
   (add-to-list 'eglot-server-programs
                '((typescript-mode) "typescript-language-server" "--stdio"))
   )
+
+(defun insert-backslash ()
+    "insert back-slash"
+    (interactive)
+    (insert "\\"))
+
+(global-set-key (kbd "M-¥") 'insert-backslash)
