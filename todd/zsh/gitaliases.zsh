@@ -95,6 +95,7 @@ function gstD {
 #
 
 alias g='git'
+alias lg='lazygit'
 
 alias ga='git add'
 alias gaa='git add --all'
