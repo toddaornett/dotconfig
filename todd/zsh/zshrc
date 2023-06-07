@@ -45,10 +45,10 @@ if ! command -v tmux &>/dev/null
 then
   brew install tmux
 fi
-if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
-then
-  exec tmux new -As0 && exit
-fi
+#if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
+#then
+#  exec tmux new -As0 && exit
+#fi
 
 ##########
 # hammerspoon config
@@ -249,7 +249,7 @@ function swage {
 ##########
 # install marksman lsp for markdown
 ##########
-if ! type marksman >/dev/null
+if ! type marksman &>/dev/null
 then
   brew install marksman
 fi
@@ -257,7 +257,7 @@ fi
 ##########
 # install ripgrep
 ##########
-if ! type rg >/dev/null
+if ! type rg &>/dev/null
 then
   brew install rg
 fi
@@ -265,7 +265,7 @@ fi
 ##########
 # install fd
 ##########
-if ! type fd >/dev/null
+if ! type fd &>/dev/null
 then
   brew install fd
 fi
@@ -279,11 +279,19 @@ then
 fi
 
 ##########
-# install doom emacs
+# install doom emacs and some dependent external tools
 # see also:
 #   https://github.com/doomemacs/doomemacs
 #   https://github.com/d12frosted/homebrew-emacs-plus
 ##########
+if ! type shfmt &>/dev/null
+then
+  brew install shfmt
+fi
+if ! type shellcheck &>/dev/null
+then
+  brew install shellcheck
+fi
 if ! type emacs &>/dev/null
 then
   brew tap d12frosted/emacs-plus
