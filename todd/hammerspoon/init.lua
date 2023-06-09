@@ -29,7 +29,11 @@ end)
 
 hs.hotkey.bind({ "command", "alt" }, "d", function()
 	hs.execute("open /Applications/Docker.app")
-end)
+end);
+
+hs.hotkey.bind({ "command", "alt" }, "e", function()
+	hs.execute("open -a /opt/homebrew/bin/emacsclient --args -c -a ''")
+end);
 
 hs.hotkey.bind({ "command", "alt" }, "f", function()
 	hs.execute("open /Applications/Firefox.app")

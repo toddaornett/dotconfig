@@ -120,3 +120,6 @@
     (insert "\\"))
 
 (global-set-key (kbd "M-¥") 'insert-backslash)
+
+(load "server")
+(unless (server-running-p) (server-start))
