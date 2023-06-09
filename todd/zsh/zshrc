@@ -26,6 +26,13 @@ eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 # terminal (alacritty and tmux)
 ##########
 
+# Nerd Fonts
+if ! brew list | grep nerd-font &>/dev/null
+then
+  brew tap homebrew/cask-fonts
+  brew search '/font-.*-nerd-font/' | awk '{ print $1 }' | xargs -I{} brew install --cask {} || true
+fi
+
 # emacs key bindings
 bindkey -e
 
