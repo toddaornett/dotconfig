@@ -306,6 +306,10 @@ then
   echo 'path=("$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
   ln -s $(brew --prefix)/opt/emacs-plus@29/Emacs.app /Applications/Emacs.app
 fi
+if ! brew list | grep libvterm &>/dev/null
+then
+  brew install libvterm
+fi
 if [ ! -d ~/.config/emacs ]
 then
   git clone --depth 1 https://github.com/hlissner/doom-emacs ~/.config/emacs
