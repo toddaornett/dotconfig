@@ -127,3 +127,7 @@
 (yas-global-mode t)
 (add-hook 'yas-minor-mode-hook (lambda ()
                                  (yas-activate-extra-mode 'fundamental-mode)))
+;; snippets
+;;(defun add-yasnippet-ac-sources ()
+;;  (add-to-list 'ac-sources 'ac-source-yasnippet))
+;;(add-hook 'rustic-mode-hook 'add-yasnippet-ac-sources)
