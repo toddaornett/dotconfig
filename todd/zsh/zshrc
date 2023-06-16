@@ -299,6 +299,10 @@ if ! type shellcheck &>/dev/null
 then
   brew install shellcheck
 fi
+if ! type editorconfig &>/dev/null
+then
+  brew install editorconfig
+fi
 if ! type emacs &>/dev/null
 then
   brew tap d12frosted/emacs-plus
