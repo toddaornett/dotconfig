@@ -123,3 +123,7 @@
 
 (load "server")
 (unless (server-running-p) (server-start))
+
+(yas-global-mode t)
+(add-hook 'yas-minor-mode-hook (lambda ()
+                                 (yas-activate-extra-mode 'fundamental-mode)))
