@@ -1,7 +1,10 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
+
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
+
+(add-to-list 'load-path "~/.config/doom/lisp")
 
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
@@ -130,4 +133,11 @@
 ;; snippets
 ;;(defun add-yasnippet-ac-sources ()
 ;;  (add-to-list 'ac-sources 'ac-source-yasnippet))
+;;
 ;;(add-hook 'rustic-mode-hook 'add-yasnippet-ac-sources)
+
+(unless (and (fboundp 'play-sound-internal)
+             (subrp (symbol-function 'play-sound-internal)))
+  (require 'play-sound))
+
+(load "~/.local/config/doom/config")
