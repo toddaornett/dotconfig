@@ -1,0 +1,18 @@
+# -*- mode: snippet -*-
+# name: query day counts for the month
+# uuid:
+# key: trigger-key
+# condition: t
+# --
+select
+	date_trunc('day',
+	created_at) as day,
+	count(*) as count
+from
+	schema.tablename
+where
+	created_at >= date_trunc('month',
+	current_date)
+	and created_at <= current_date
+group by
+	day;
