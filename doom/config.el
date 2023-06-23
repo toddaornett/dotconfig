@@ -118,9 +118,9 @@
   )
 
 (defun insert-backslash ()
-    "insert back-slash"
-    (interactive)
-    (insert "\\"))
+  "insert back-slash"
+  (interactive)
+  (insert "\\"))
 
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
@@ -140,4 +140,7 @@
              (subrp (symbol-function 'play-sound-internal)))
   (require 'play-sound))
 
-(load "~/.local/config/doom/config")
+(let ((my-private-config-file "~/.local/config/doom/config.el"))
+  (if (file-exists-p my-private-config-file)
+      (load-file (file-name-sans-extension my-private-config-file))
+    (message "Ignoring missing local configration expected in %s" my-private-config-file)))
