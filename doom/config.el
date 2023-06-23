@@ -142,5 +142,5 @@
 
 (let ((my-private-config-file "~/.local/config/doom/config.el"))
   (if (file-exists-p my-private-config-file)
-      (load-file (file-name-sans-extension my-private-config-file))
+      (load (file-name-sans-extension my-private-config-file))
     (message "Ignoring missing local configration expected in %s" my-private-config-file)))
