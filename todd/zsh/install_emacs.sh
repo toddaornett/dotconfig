@@ -30,7 +30,7 @@ cd ~/Projects
 git clone https://github.com/emacs-mirror/emacs.git
 cd emacs
 autoreconf -isvf
-./configure --with-native-compilation --prefix=/opt/emacs
+./configure --with-native-compilation --prefix=/opt/emacs --disable-ns-self-contained
 make -j10
 make check
 
