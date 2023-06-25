@@ -8,9 +8,9 @@ export LC_TIME=ja_JP
 ##########
 if ! type brew &>/dev/null
 then
-  mkdir -p $HOME/.local/homebrew && curl -L https://github.com/Homebrew/brew/tarball/master | tar xz --strip 1 -C $HOME/.local/homebrew
-  echo 'path=("$HOME/.local/homebrew/bin" $path)' >> $HOME/.zprofile
-  path=("$HOME/.local/homebrew/bin" $path)
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
+  path=("/opt/homebrew/bin" $path)
 fi
 
 ##########
@@ -287,9 +287,10 @@ fi
 
 ##########
 # install doom emacs and some dependent external tools
-# see also:
-#   https://github.com/doomemacs/doomemacs
+# see also: https://github.com/doomemacs/doomemacs
 #   https://github.com/d12frosted/homebrew-emacs-plus
+#   https://emacsformacosx.com/
+#   https://github.com/jimeh/build-emacs-for-macos
 ##########
 if ! type shfmt &>/dev/null
 then
@@ -303,12 +304,9 @@ if ! type editorconfig &>/dev/null
 then
   brew install editorconfig
 fi
-if ! type emacs &>/dev/null
+if ! type doom &>/dev/null
 then
-  brew tap d12frosted/emacs-plus
-  brew install emacs-plus@29 --with-modern-doom-icon
   echo 'path=("$HOME/.config/emacs/bin" $path)' >> $HOME/.zprofile
-  ln -s $(brew --prefix)/opt/emacs-plus@29/Emacs.app /Applications/Emacs.app
 fi
 if ! brew list | grep libvterm &>/dev/null
 then
