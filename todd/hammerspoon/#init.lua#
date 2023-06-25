@@ -1,16 +1,5 @@
-doReload = false
-function reloadConfig(files)
-	for _, file in pairs(files) do
-		if file:sub(-4) == ".lua" then
-			doReload = true
-		end
-	end
-	if doReload then
-		hs.reload()
-	end
-end
-myWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
-hs.alert.show("Config loaded")
+/e
+jjkf
 
 hs.loadSpoon("ReloadConfiguration")
 spoon.ReloadConfiguration:start()
@@ -32,7 +21,7 @@ hs.hotkey.bind({ "command", "alt" }, "d", function()
 end);
 
 hs.hotkey.bind({ "command", "alt" }, "e", function()
-	hs.execute("open -a /opt/emacs/bin/emacsclient --args -c -a ''")
+	hs.execute("open -a /opt/homebrew/bin/emacsclient --args -c -a ''")
 end);
 
 hs.hotkey.bind({ "command", "alt" }, "f", function()
