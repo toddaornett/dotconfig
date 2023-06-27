@@ -1,5 +1,6 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
+(set-language-environment "UTF-8")
 
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
@@ -141,3 +142,20 @@
   (if (file-exists-p my-private-config-file)
       (load (file-name-sans-extension my-private-config-file))
     (message "Ignoring missing local configration expected in %s" my-private-config-file)))
+
+(after! rustic
+  (setq lsp-rust-server 'rust-analyzer))
+
+(defun url-decode-region (start end)
+  "Replace a region with the same contents, only URL decoded."
+  (interactive "r")
+  (let ((text (decode-coding-string (url-unhex-string (buffer-substring start end) t) 'utf-8)))
+    (delete-region start end)
+    (insert text)))
+
+(defun url-encode-region (start end)
+  "Replace a region with the same contents, only URL encoded."
+  (interactive "r")
+  (let ((text (url-hexify-string (buffer-substring start end))))
+    (delete-region start end)
+    (insert text)))
