@@ -12,6 +12,11 @@ then
 fi
 
 ##########
+# fnm for node version management
+##########
+eval "$(fnm env --use-on-cd)"
+
+##########
 # autocomplete and history
 ##########
 autoload -Uz compinit
