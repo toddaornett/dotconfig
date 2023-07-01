@@ -34,3 +34,4 @@ autoreconf -isvf
 make -j10
 make check
 
+brew install emacs-plus@28 --with-mailutils --with-no-titlebar-and-round-corners --with-imagemagick --with-native-comp
