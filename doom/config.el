@@ -127,36 +127,21 @@
 
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
-<<<<<<< Updated upstream
-(yas-global-mode t)
-(add-hook 'yas-minor-mode-hook (lambda ()
-                                 (yas-activate-extra-mode 'fundamental-mode)))
-||||||| Stash base
-(load "server")
-(unless (server-running-p) (server-start))
-
-(yas-global-mode t)
-(add-hook 'yas-minor-mode-hook (lambda ()
-                                 (yas-activate-extra-mode 'fundamental-mode)))
-=======
-(load "server")
-(unless (server-running-p) (server-start))
-
-;;(yas-global-mode t)
-;;(add-hook 'yas-minor-mode-hook (lambda ()
-   ;;                              (yas-activate-extra-mode 'fundamental-mode)))
->>>>>>> Stashed changes
 ;; snippets
-;;(defun add-yasnippet-ac-sources ()
-;;  (add-to-list 'ac-sources 'ac-source-yasnippet))
-;;
-;;(add-hook 'rustic-mode-hook 'add-yasnippet-ac-sources)
+(yas-global-mode t)
+(add-hook 'yas-minor-mode-hook (lambda ()
+                                 (yas-activate-extra-mode 'fundamental-mode)))
+
+(defun add-yasnippet-ac-sources ()
+  (add-to-list 'ac-sources 'ac-source-yasnippet))
+
+(add-hook 'rustic-mode-hook 'add-yasnippet-ac-sources)
 
 (unless (and (fboundp 'play-sound-internal)
              (subrp (symbol-function 'play-sound-internal)))
   (require 'play-sound))
 
-(let ((my-private-config-file "~/.local/config/doom/config.el"))
+(let ((my-private-config-file "~/.local/config/emacs/config.el"))
   (if (file-exists-p my-private-config-file)
       (load (file-name-sans-extension my-private-config-file))
     (message "Ignoring missing local configration expected in %s" my-private-config-file)))
