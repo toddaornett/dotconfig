@@ -190,3 +190,11 @@ function nvims() {
 }
 
 eval "$(direnv hook zsh)"
+
+###########
+# turn display off in 5 seconds
+###########
+function doff {
+  sleep 5
+  pmset displaysleepnow
+}

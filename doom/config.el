@@ -125,9 +125,25 @@
 
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
+<<<<<<< Updated upstream
 (yas-global-mode t)
 (add-hook 'yas-minor-mode-hook (lambda ()
                                  (yas-activate-extra-mode 'fundamental-mode)))
+||||||| Stash base
+(load "server")
+(unless (server-running-p) (server-start))
+
+(yas-global-mode t)
+(add-hook 'yas-minor-mode-hook (lambda ()
+                                 (yas-activate-extra-mode 'fundamental-mode)))
+=======
+(load "server")
+(unless (server-running-p) (server-start))
+
+;;(yas-global-mode t)
+;;(add-hook 'yas-minor-mode-hook (lambda ()
+   ;;                              (yas-activate-extra-mode 'fundamental-mode)))
+>>>>>>> Stashed changes
 ;; snippets
 ;;(defun add-yasnippet-ac-sources ()
 ;;  (add-to-list 'ac-sources 'ac-source-yasnippet))
