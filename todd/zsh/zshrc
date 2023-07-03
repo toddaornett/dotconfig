@@ -198,3 +198,8 @@ function doff {
   sleep 5
   pmset displaysleepnow
 }
+
+###########
+# rbenv
+###########
+eval "$(rbenv init - zsh)"
