@@ -196,3 +196,12 @@ if ! type direnv &>/dev/null
 then
   brew install direnv
 fi
+
+##########
+# rbenv
+##########
+if ! type rbenv &>/dev/null
+then
+  brew install rbenv ruby-build
+fi
+
