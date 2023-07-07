@@ -162,3 +162,31 @@
   (let ((text (url-hexify-string (buffer-substring start end))))
     (delete-region start end)
     (insert text)))
+
+(after! rustic
+  (map! :map rustic-mode-map
+        "M-j" #'lsp-ui-imenu
+        "M-?" #'lsp-find-references
+        "C-c C-c C-c" #'rustic-compile
+        "C-c C-c l" #'flycheck-list-errors
+        "C-c C-c a" #'lsp-execute-code-action
+        "C-c C-c r" #'lsp-rename
+        "C-c C-c q" #'lsp-workspace-restart
+        "C-c C-c Q" #'lsp-workspace-shutdown
+        "C-c C-c s" #'lsp-rust-analyzer-status)
+  (setq lsp-enable-symbol-highlighting nil)
+  (setq rustic-format-trigger nil)
+  (add-hook 'rustic-mode-hook 'tao/rustic-mode-hook)
+  (setq lsp-rust-analyzer-server-display-inlay-hints t)
+  ;; (customize-set-variable 'lsp-ui-doc-enable nil)
+  ;; (add-hook 'lsp-ui-mode-hook #'(lambda () (lsp-ui-sideline-enable nil)))
+  )
+
+
+(defun tao/rustic-mode-hook ()
+  ;; so that run C-c C-c C-r works without having to confirm, but don't try to
+  ;; save rust buffers that are not file visiting. Once
+  ;; https://github.com/brotzeit/rustic/issues/253 has been resolved this should
+  ;; no longer be necessary.
+  (when buffer-file-name
+    (setq-local buffer-save-without-query t)))
