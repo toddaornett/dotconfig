@@ -462,3 +462,14 @@
 (use-package lsp-treemacs
   :after (treemacs lsp))
 
+(use-package rustic 
+  :bind (("<f6>" . rustic-format-buffer))
+  
+  :config
+  (require 'lsp-rust)
+  (setq rustic-analyzer-command (list (substring (shell-command-to-string "rustup which rust-analyzer") 0 -1)))
+  (setq lsp-rust-analyzer-completion-add-call-parenthesis nil))
+
+(use-package cargo)
+(use-package flycheck)
+(use-package flycheck-rust)
