@@ -4,14 +4,6 @@ export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
 
 ##########
-# start tmux
-##########
-if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
-then
-  exec tmux new -As0 && exit
-fi
-
-##########
 # fnm for node version management
 ##########
 eval "$(fnm env --use-on-cd)"
@@ -203,3 +195,13 @@ function doff {
 # rbenv
 ###########
 eval "$(rbenv init - zsh)"
+
+##########
+# start tmux
+##########
+function start_tmux {
+  if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
+  then
+    exec tmux new -As0 && exit
+  fi
+}
