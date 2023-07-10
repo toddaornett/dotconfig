@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 brew install autoconf
 brew install automake
+brew install cmake
 brew install coreutils
 brew install dbus
 brew install expat
@@ -26,6 +27,7 @@ brew install sqlite
 brew install texinfo
 brew install tree-sitter
 brew install zlib
+brew install libvterm
 cd ~/Projects
 git clone https://github.com/emacs-mirror/emacs.git
 cd emacs
@@ -33,5 +35,3 @@ autoreconf -isvf
 ./configure --with-native-compilation --prefix=/opt/emacs --disable-ns-self-contained
 make -j10
 make check
-
-brew install emacs-plus@28 --with-mailutils --with-no-titlebar-and-round-corners --with-imagemagick --with-native-comp
