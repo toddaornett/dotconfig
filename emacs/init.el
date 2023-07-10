@@ -31,7 +31,6 @@
   (package-install 'use-package))
 
 (require 'use-package)
-(use-package no-littering)
 (setq use-package-always-ensure t)
 
 (use-package auto-package-update
@@ -42,6 +41,8 @@
   :config
   (auto-package-update-maybe)
   (auto-package-update-at-time "09:00"))
+
+(use-package no-littering)
 
 ;; Set up the visible bell
 (setq visible-bell t)
@@ -145,8 +146,6 @@
   :config
   (setq which-key-idle-delay 0.3))
  
-(define-key key-translation-map (kbd "SPC") 'event-apply-control-modifier)
-
 (defun tao/evil-hook ()
   (dolist (mode '(custom-mode
 		  eshell-mode
