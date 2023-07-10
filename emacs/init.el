@@ -480,5 +480,6 @@
   (setq lsp-rust-analyzer-completion-add-call-parenthesis nil))
 
 (use-package cargo)
-(use-package flycheck)
+(use-package flycheck
+  :init (global-flycheck-mode))
 (use-package flycheck-rust)
