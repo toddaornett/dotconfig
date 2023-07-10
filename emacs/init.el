@@ -42,6 +42,15 @@
   (auto-package-update-maybe)
   (auto-package-update-at-time "09:00"))
 
+(use-package exec-path-from-shell
+  :config
+  (dolist (var '("SSH_AUTH_SOCK" "LANG" "LANGUAGE" "LC_CTYPE" "LC_TIME"))
+    (add-to-list 'exec-path-from-shell-variables var))
+  (when (daemonp)
+    (exec-path-from-shell-initialize))
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
+
 (use-package no-littering)
 
 ;; Set up the visible bell
