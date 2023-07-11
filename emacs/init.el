@@ -155,6 +155,7 @@
   :config
   (setq which-key-idle-delay 0.3))
  
+
 (defun tao/evil-hook ()
   (dolist (mode '(custom-mode
 		  eshell-mode
@@ -179,6 +180,7 @@
   (setq evil-want-C-u-scroll t)
   
   (setq evil-want-C-i-jump nil)
+  (setq evil-undo-system 'undo-redo)
   :hook (evil-mode . tao/evil-hook)
   :config
   (evil-mode 1)
