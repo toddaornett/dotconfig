@@ -83,6 +83,8 @@
 
 (load-theme 'doom-tomorrow-night t)
 (set-face-attribute 'default nil :font "Fira Code Retina-16")
+(set-face-attribute 'fixed-pitch nil :font "Fira Code Retina-16")
+(set-face-attribute 'variable-pitch nil :font "Cantarell-16" :weight 'regular)
 
 ;; Make ESC quit prompts
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
@@ -306,7 +308,8 @@
 (use-package org
   :hook (org-mode . tao/org-mode-setup)
   :config
-  (setq org-ellipsis " ▾")
+  (setq org-ellipsis " ▾"
+	org-hide-emphasis-markers t)
   (tao/org-font-setup))
 
 (use-package org-bullets
@@ -323,7 +326,7 @@
 (defun tao/org-mode-visual-fill ()
   (setq visual-fill-column-width 100
 	visual-fill-column-center-text t)
-  (visual-fill-column-mode t))
+  (visual-fill-column-mode 1))
 
 (use-package visual-fill-column
   :defer t
