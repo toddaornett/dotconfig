@@ -6,7 +6,7 @@ export LC_TIME=ja_JP
 ##########
 # fnm for node version management
 ##########
-eval "$(fnm env --use-on-cd)"
+eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 
 ##########
 # autocomplete and history
@@ -34,6 +34,7 @@ setopt hist_reduce_blanks # remove superfluous blanks from history items
 setopt inc_append_history # save history entries as soon as they are entered
 setopt share_history # share history between different instances of the shell
 
+setopt auto_cd
 eval "$(zoxide init zsh)"
 
 if [ ! -d $(brew --prefix)/opt/fzf ]
