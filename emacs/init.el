@@ -493,3 +493,16 @@
 (use-package flycheck
   :init (global-flycheck-mode))
 (use-package flycheck-rust)
+
+(use-package yasnippet
+  :defer 1
+  :diminish yas-minor-mode
+  :config
+  (setq yas-snippet-dirs (append yas-snippet-dirs
+                               '("~/.config/emacs/snippets")))
+  (yas-global-mode))
+
+(use-package yasnippet-snippets
+  :after yasnippet
+  :config (yasnippet-snippets-initialize))
+
