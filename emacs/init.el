@@ -309,7 +309,12 @@
   :hook (org-mode . tao/org-mode-setup)
   :config
   (setq org-ellipsis " ▾"
-	org-hide-emphasis-markers t)
+	org-hide-emphasis-markers t
+	org-confirm-babel-evaluate nil)
+  (org-babel-do-load-languages 'org-babel-load-languages
+    '(
+        (shell . t)
+    ))
   (tao/org-font-setup))
 
 (use-package org-bullets
