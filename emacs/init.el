@@ -235,6 +235,7 @@
   (general-def universal-argument-map
     "SPC u" 'universal-argument-more)
   (tao/leader-keys
+    "cc" 'comment-or-uncomment-region
     "t"  '(:ignore t :which-key "toggles")
     "tt" '(counsel-load-theme :which-key "choose theme")
     "bd" 'kill-this-buffer
@@ -257,7 +258,11 @@
     "gp"  'magit-pull-branch
     "gf"  'magit-fetch
     "gF"  'magit-fech-all
-    "gr"  'magit-rebase))
+    "gr"  'magit-rebase
+    ;; projectile
+    "pd" 'counsel-projectile-find-dir
+    "pf" 'counsel-projectile-find-file
+    "pp" 'counsel-projectile-switch-project))
 
 (general-define-key
  "C-s" 'counsel-grep-or-swiper
@@ -511,3 +516,4 @@
   :after yasnippet
   :config (yasnippet-snippets-initialize))
 
+(use-package string-inflection)
