@@ -9,6 +9,7 @@ function reloadConfig(files)
 		hs.reload()
 	end
 end
+
 myWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
 hs.alert.show("Config loaded")
 
@@ -27,12 +28,8 @@ hs.hotkey.bind({ "command", "alt" }, "c", function()
 	hs.execute("open /Applications/Google Chrome.app")
 end)
 
-hs.hotkey.bind({ "command", "alt" }, "d", function()
-	hs.execute("open /Applications/Docker.app")
-end);
-
 hs.hotkey.bind({ "command", "alt" }, "e", function()
-	hs.execute("open -a /opt/emacs/bin/emacsclient --args -c -a ''")
+	hs.execute("open -a /Applications/Emacs.app")
 end);
 
 hs.hotkey.bind({ "command", "alt" }, "f", function()
@@ -47,8 +44,16 @@ hs.hotkey.bind({ "command", "alt" }, "o", function()
 	hs.execute("open /Applications/Microsoft Outlook.app")
 end)
 
+hs.hotkey.bind({ "command", "alt" }, "p", function()
+	hs.execute("open /Applications/DBeaver.app")
+end)
+
 hs.hotkey.bind({ "command", "alt" }, "s", function()
 	hs.execute("open /Applications/Safari.app")
+end)
+
+hs.hotkey.bind({ "command", "alt" }, "t", function()
+	hs.execute("open /Applications/Microsoft Teams.app")
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "z", function()
