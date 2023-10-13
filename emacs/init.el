@@ -517,3 +517,6 @@
   :config (yasnippet-snippets-initialize))
 
 (use-package string-inflection)
+
+(use-package org-autolist
+  :hook (org-mode . org-autolist-mode))
