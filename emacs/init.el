@@ -38,6 +38,9 @@
 
 (require 'use-package)
 (setq use-package-always-ensure t)
+(setq use-package-always-defer nil)
+(setq use-package-verbose t)
+(setq use-package-compute-statistics t)
 
 (use-package auto-package-update
   :custom
@@ -348,21 +351,32 @@
   :defer t
   :hook (org-mode . tao/org-mode-visual-fill))
 
-(defun tao/lsp-mode-setup ()
-  (setq lsp-headerline-breadcrumb-segments '(path-up-to-project file symbols))
-  (lsp-headerline-breadcrumb-mode))
-
 (use-package lsp-mode
   :commands (lsp lsp-deferred)
-  :hook (lsp-mode . tao/lsp-mode-setup)
-  :init
-  (setq lsp-keymap-prefix "C-c l") ;; Or 'C-l', 's-l'
+  :custom
+  (lsp-rust-analyzer-cargo-watch-command "clippy")
+  (lsp-eldoc-render-all t)
+  (lsp-idle-delay 0.6)
+  (lsp-inlay-hint-enable t)
+  ;; These are optional configurations. See
+  ;; https://emacs-lsp.github.io/lsp-mode/page/lsp-rust-analyzer/#lsp-rust-analyzer-display-chaining-hints
+  ;; for a full list
+  (lsp-rust-analyzer-display-lifetime-elision-hints-enable "skip_trivial")
+  (lsp-rust-analyzer-display-chaining-hints t)
+  (lsp-rust-analyzer-display-lifetime-elision-hints-use-parameter-names nil)
+  (lsp-rust-analyzer-display-display-closure-return-type-hints t)
+  (lsp-rust-analyzer-display-parameter-hints nil)
+  (lsp-rust-analyzer-display-reborrow-hints nil)
   :config
-  (lsp-enable-which-key-integration t))
+  (setq lsp-keymap-prefix "C-c l") ;; Or 'C-l', 's-l'
+  (lsp-enable-which-key-integration t)
+  (add-hook 'lsp-mode-hook 'lsp-ui-mode))
 
 (use-package lsp-ui
-  :hook (lsp-mode . lsp-ui-mode)
+  :commands lsp-ui-mode
   :custom
+  (lsp-ui-peek-always-show t)
+  (lsp-ui-sideline-show-hover t)
   (lsp-ui-doc-enable t)
   (lsp-ui-doc-position 'bottom))
 
@@ -498,12 +512,21 @@
   :after (treemacs lsp))
 
 (use-package rustic 
-  :bind (("<f6>" . rustic-format-buffer))
-  
+  :bind (:map rustic-mode-map
+	      ("<f6>" . rustic-format-buffer)
+	      ("M-j" . lsp-ui-imenu)
+	      ("M-?" . lsp-find-references)
+	      ("C-c C-c l" . flycheck-list-errors)
+	      ("C-c C-c a" . lsp-execute-code-action)
+	      ("C-c C-c r" . lsp-rename)
+	      ("C-c C-c q" . lsp-workspace-restart)
+	      ("C-c C-c Q" . lsp-workspace-shutdown)
+	      ("C-c C-c s" . lsp-rust-analyzer-status))
   :config
-  (require 'lsp-rust)
+  (setq rustic-format-on-save t)
   (setq rustic-analyzer-command (list (substring (shell-command-to-string "rustup which rust-analyzer") 0 -1)))
   (setq lsp-rust-analyzer-completion-add-call-parenthesis nil))
+
 
 (use-package cargo)
 (use-package flycheck
@@ -529,3 +552,7 @@
 
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
+
+(electric-pair-mode 1)
+
+(setq confirm-kill-emacs 'y-or-n-p)
