@@ -193,6 +193,15 @@ function doff {
 }
 
 ###########
+# stay awake
+###########
+function nodoze {
+    local w=$(($1 * 3600))
+    echo "Stay active for $1 hours ($w seconds)"
+    caffeinate -d -i -m -s -u -t $w
+}
+
+###########
 # rbenv
 ###########
 eval "$(rbenv init - zsh)"
