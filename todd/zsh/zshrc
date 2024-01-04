@@ -98,6 +98,7 @@ source $(brew --prefix)/opt/spaceship/spaceship.zsh
 ##########
 alias G='grep -i'
 alias Z='source ~/.zprofile && source ~/.zshrc'
+alias lc='print -l ${(ok)functions}|G -v "^_"'
 
 ###########
 # Copy/Paste aliases
@@ -215,3 +216,4 @@ function start_tmux {
     exec tmux new -As0 && exit
   fi
 }
+
