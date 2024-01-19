@@ -97,7 +97,7 @@ source $(brew --prefix)/opt/spaceship/spaceship.zsh
 # misc
 ##########
 alias G='grep -i'
-alias Z='source ~/.zprofile && source ~/.zshrc'
+alias Z='source ~/.config/zsh/.zshrc'
 alias lc='print -l ${(ok)functions}|G -v "^_"'
 
 ###########
@@ -217,3 +217,21 @@ function start_tmux {
   fi
 }
 
+##########
+# add hook for loading project companion env variables
+##########
+autoload -U add-zsh-hook
+
+load_companion_env() {
+  local currentdir=$(pwd)
+  local parentdir="$(dirname "$currentdir")"
+  if [[ $parentdir == *Projects ]]
+  then
+    local project="$(basename "$currentdir")"
+    local myenv=${MYENV:-local}
+    local envars="$HOME/myenv/$project/${myenv}.zsh"
+    [ -e $envars ] && source $envars
+  fi
+}
+
+add-zsh-hook chpwd load_companion_env
