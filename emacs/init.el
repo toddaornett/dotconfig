@@ -552,6 +552,9 @@
 (use-package org-autolist
   :hook (org-mode . org-autolist-mode))
 
+(use-package shfmt
+  :hook (sh-mode . shfmt-on-save-mode))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
 
