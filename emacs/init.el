@@ -129,7 +129,7 @@
 	 :map minibuffer-local-map
 	 ("C-r" . "counsel-minibuffer-history"))
   :config
-  (setq ivy-initial-inputs-alist nil)) ;; Don't start searches with ^ 
+  (setq ivy-initial-inputs-alist nil)) ;; Don't start searches with ^
 
 (use-package helpful
   :custom
@@ -143,7 +143,7 @@
 
 ;; backslash for jis style keyboard8
 (defun insert-backslash ()
-  "insert back-slash"
+  "Insert back-slash."
   (interactive)
   (insert "\\"))
 
@@ -166,7 +166,6 @@
   :config
   (setq which-key-idle-delay 0.3))
  
-
 (defun tao/evil-hook ()
   (dolist (mode '(custom-mode
 		  eshell-mode
@@ -529,7 +528,6 @@
   (setq rustic-analyzer-command (list (substring (shell-command-to-string "rustup which rust-analyzer") 0 -1)))
   (setq lsp-rust-analyzer-completion-add-call-parenthesis nil))
 
-
 (use-package cargo)
 (use-package flycheck
   :init (global-flycheck-mode))
@@ -554,6 +552,8 @@
 
 (use-package shfmt
   :hook (sh-mode . shfmt-on-save-mode))
+
+(use-package browse-url-dwim)
 
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
