@@ -9,9 +9,19 @@ export LC_TIME=ja_JP
 eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 
 ##########
+# autocomplete for rust tools
+##########
+if [ ! -e ~/.config/zsh/_rustup.zsh -o ! -e ~/.config/zsh/_cargo.zsh -a $commands[rustup] ]; then
+  mkdir -p ~/.config/zsh 2>&1 >/dev/null
+  rustup completions zsh cargo >> ~/.config/zsh/_cargo.zsh
+  rustup completions zsh > ~/.config/zsh/_rustup.zsh
+  fpath+=~/.config/zsh
+fi
+
+##########
 # autocomplete and history
 ##########
-autoload -Uz compinit
+autoload -Uz compinit && compinit
 typeset -i updated_at=$(date +'%j' -r ~/.zcompdump 2>/dev/null || stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null)
 if [ $(date +'%j') != $updated_at ]; then
   compinit -i
@@ -36,23 +46,23 @@ setopt share_history # share history between different instances of the shell
 
 setopt auto_cd
 eval "$(zoxide init zsh)"
-
-if [ ! -d $(brew --prefix)/opt/fzf ]
+export HOMEBREW=$(brew --prefix)
+if [ ! -d $HOMEBREW/opt/fzf ]
 then
   brew install fzf
   # To install useful key bindings and fuzzy completion:
-  $(brew --prefix)/opt/fzf/install
+  $HOMEBREW/opt/fzf/install
 fi
 if [[ ! "$PATH" == */homebrew/opt/fzf/bin* ]]; then
-  PATH="${PATH:+${PATH}:}$(brew --prefix)/opt/fzf/bin"
+  PATH="${PATH:+${PATH}:}$HOMEBREW/opt/fzf/bin"
 fi
 
 # Auto-completion
-[[ $- == *i* ]] && source "$(brew --prefix)/opt/fzf/shell/completion.zsh" 2>/dev/null
+[[ $- == *i* ]] && source "$)/opt/fzf/shell/completion.zsh" 2>/dev/null
 
 # Key bindings
 # ------------
-source "$(brew --prefix)/opt/fzf/shell/key-bindings.zsh"
+source "$HOMEBREW/opt/fzf/shell/key-bindings.zsh"
 
 export _ZO_EXCLUDE_DIRS="$HOME/private/*"
 
@@ -91,7 +101,7 @@ function d {
   unset key
 }
 
-source $(brew --prefix)/opt/spaceship/spaceship.zsh
+source $HOMEBREW/opt/spaceship/spaceship.zsh
 
 ##########
 # misc
@@ -235,3 +245,10 @@ load_companion_env() {
 }
 
 add-zsh-hook chpwd load_companion_env
+
+
+##########
+# postgresql
+##########
+alias pg_start="launchctl bootstrap load ~/Library/LaunchAgents"
+alias pg_stop="launchctl bootstrap unload ~/Library/LaunchAgents"
