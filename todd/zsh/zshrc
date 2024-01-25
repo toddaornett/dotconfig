@@ -245,10 +245,3 @@ load_companion_env() {
 }
 
 add-zsh-hook chpwd load_companion_env
-
-
-##########
-# postgresql
-##########
-alias pg_start="launchctl bootstrap load ~/Library/LaunchAgents"
-alias pg_stop="launchctl bootstrap unload ~/Library/LaunchAgents"
