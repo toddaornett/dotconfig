@@ -39,3 +39,9 @@
   change-commits = "!f() { VAR=$1; OLD=$2; NEW=$3; shift 3; git filter-branch --env-filter \"if [[ \\\"$`echo $VAR`\\\" = '$OLD' ]]; then export $VAR='$NEW'; fi\" $@; }; f"
 [filter "spacify"]
   clean = gexpand --tabs=2 --initial
+[http]
+	lowSpeedLimit = 1000
+	lowSpeedTime = 60
+[credential]
+	helper = manager
+	useHttpPath = true
