@@ -522,6 +522,8 @@
 	      ("C-c C-c q" . lsp-workspace-restart)
 	      ("C-c C-c Q" . lsp-workspace-shutdown)
 	      ("C-c C-c s" . lsp-rust-analyzer-status))
+  :custom
+  (rustic-rustfmt-config-alist '((edition . "2021")))
   :config
   (setq rustic-format-on-save t)
   (setq rustic-analyzer-command (list (substring (shell-command-to-string "rustup which rust-analyzer") 0 -1)))
