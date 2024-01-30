@@ -38,6 +38,7 @@ add-zsh-hook chpwd create_run_aliases
 
 alias cbd='cargo build'
 alias cbr='cargo build --release'
+alias cf='cargo fmt'
 alias crr='cargo run --release'
 alias crrd='LOGGING_LEVEL=debug && cargo run --release'
 alias crri='LOGGING_LEVEL=info && cargo run --release'
