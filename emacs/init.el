@@ -228,7 +228,7 @@
   ("C-c p" . projectile-command-map)
   :init
   (when (file-directory-p "~/Projects")
-    (setq projectile-project-search-path '("~/Projects" "~/.config")))
+    (setq projectile-project-search-path '("~/Projects" "~/OpenProjects" "~/.config")))
   (setq projectile-switch-project-action #'projectile-dired))
 
 (use-package counsel-projectile
