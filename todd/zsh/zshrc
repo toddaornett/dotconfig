@@ -9,12 +9,24 @@ export LC_TIME=ja_JP
 eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 
 ##########
+# install rust and diesel
+##########
+if ! type "rustup" > /dev/null; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  export PATH=$PATH:~/.cargo/bin
+fi
+if ! type "diesel" > /dev/null; then
+  cargo install diesel_cli --no-default-features --features postgres
+fi
+
+##########
 # autocomplete for rust tools
 ##########
 if [ ! -e ~/.config/zsh/_rustup.zsh -o ! -e ~/.config/zsh/_cargo.zsh -a $commands[rustup] ]; then
   mkdir -p ~/.config/zsh 2>&1 >/dev/null
   rustup completions zsh cargo >> ~/.config/zsh/_cargo.zsh
   rustup completions zsh > ~/.config/zsh/_rustup.zsh
+  diesel completions zsh > ~/.config/zsh/_diesel.zsh
   fpath+=~/.config/zsh
 fi
 
