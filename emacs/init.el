@@ -316,6 +316,7 @@
 (defun tao/org-mode-setup ()
   (org-indent-mode)
   (variable-pitch-mode 1)
+  (setq org-clock-sound (getenv "POMODORO_BREAK_SOUNDFILE"))
   (visual-line-mode 1))
 
 (use-package org
