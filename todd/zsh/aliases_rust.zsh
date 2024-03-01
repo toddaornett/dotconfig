@@ -19,9 +19,19 @@ create_run_aliases() {
         fi
       done
     fi
+    for (( ; ; )); do
+      idx=$((idx + 1))
+      if alias crr${idx} >/dev/null 2>&1; then
+        unalias crr${idx}
+        unalias crr${idx}d
+        unalias crr${idx}i
+      else
+        break
+      fi
+    done
     # rust debug binaries
+    idx=0
     if [ -d target/debug ]; then
-      idx=0
       for f in target/debug/*; do
         if [ -f "$f" ] && [ -x "$f" ]; then
           idx=$((idx + 1))
@@ -31,6 +41,16 @@ create_run_aliases() {
         fi
       done
     fi
+    for (( ; ; )); do
+      idx=$((idx + 1))
+      if alias crd${idx} >/dev/null 2>&1; then
+        unalias crd${idx}
+        unalias crd${idx}d
+        unalias crd${idx}i
+      else
+        break
+      fi
+    done
   fi
 }
 
