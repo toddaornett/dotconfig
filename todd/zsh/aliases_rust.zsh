@@ -14,8 +14,6 @@ create_run_aliases() {
         if [ -f "$f" ] && [ -x "$f" ]; then
           idx=$((idx + 1))
           alias crr${idx}="cargo run --release --bin ${f##*/}"
-          alias crr${idx}d="LOGGING_LEVEL=debug && cargo run --release --bin ${f##*/}"
-          alias crr${idx}i="LOGGING_LEVEL=info && cargo run --release --bin ${f##*/}"
         fi
       done
     fi
@@ -23,8 +21,6 @@ create_run_aliases() {
       idx=$((idx + 1))
       if alias crr${idx} >/dev/null 2>&1; then
         unalias crr${idx}
-        unalias crr${idx}d
-        unalias crr${idx}i
       else
         break
       fi
@@ -36,8 +32,6 @@ create_run_aliases() {
         if [ -f "$f" ] && [ -x "$f" ]; then
           idx=$((idx + 1))
           alias crd${idx}="cargo run --bin ${f##*/}"
-          alias crd${idx}d="LOGGING_LEVEL=debug && cargo run --bin ${f##*/}"
-          alias crd${idx}i="LOGGING_LEVEL=info && cargo run --bin ${f##*/}"
         fi
       done
     fi
@@ -45,8 +39,6 @@ create_run_aliases() {
       idx=$((idx + 1))
       if alias crd${idx} >/dev/null 2>&1; then
         unalias crd${idx}
-        unalias crd${idx}d
-        unalias crd${idx}i
       else
         break
       fi
@@ -64,11 +56,7 @@ alias cdr='cargo remove'
 alias ck='cargo check'
 alias cf='cargo fmt'
 alias crr='cargo run --release'
-alias crrd='LOGGING_LEVEL=debug && cargo run --release'
-alias crri='LOGGING_LEVEL=info && cargo run --release'
 alias crd='cargo run'
 alias crdd='LOGGING_LEVEL=debug && cargo run'
 alias crdi='LOGGING_LEVEL=info && cargo run'
 alias ct='cargo test'
-alias cti='LOGGING_LEVEL=info && cargo test -- --nocapture'
-alias ctd='LOGGING_LEVEL=debug && cargo test -- --nocapture'
