@@ -64,6 +64,10 @@ then
   brew install fzf
   # To install useful key bindings and fuzzy completion:
   $HOMEBREW/opt/fzf/install
+  # not really related to brew, but just want to run this once sometime
+  # to disable the minimize app shortcut keys
+  defaults write -g NSUserKeyEquivalents -dict-add 'Minimize' '\0'
+  defaults write -g NSUserKeyEquivalents -dict-add 'Minimize All' '\0'
 fi
 if [[ ! "$PATH" == */homebrew/opt/fzf/bin* ]]; then
   PATH="${PATH:+${PATH}:}$HOMEBREW/opt/fzf/bin"
