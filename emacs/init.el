@@ -244,14 +244,15 @@
     "SPC u" 'universal-argument-more)
   (tao/leader-keys
     "cc" 'comment-or-uncomment-region
-    "t"  '(:ignore t :which-key "toggles")
-    "tt" '(counsel-load-theme :which-key "choose theme")
     "bd" 'kill-this-buffer
     "bi" 'ibuffer-list-buffers
     "fd" 'init-file
     "ff" 'find-file
     "fs" 'save-buffer
     "k"  'switch-to-buffer
+    "ps" 'org-pomodoro
+    "t"  '(:ignore t :which-key "toggles")
+    "tt" '(counsel-load-theme :which-key "choose theme")
     "xh" 'mark-whole-buffer
     ;; magit
     "g"   '(:ignore t :which-key "git")
@@ -350,6 +351,20 @@
 (use-package visual-fill-column
   :defer t
   :hook (org-mode . tao/org-mode-visual-fill))
+
+(use-package org-pomodoro
+  :after org)
+
+(use-package pomidor
+  :bind (("<f12>" . pomidor))
+  :config (setq pomidor-sound-tick nil
+                pomidor-sound-tack nil)
+  :hook (pomidor-mode . (lambda ()
+                          (display-line-numbers-mode -1) ; Emacs 26.1+
+                          (setq left-fringe-width 0 right-fringe-width 0)
+                          (setq left-margin-width 2 right-margin-width 0)
+                          ;; force fringe update
+                          (set-window-buffer nil (current-buffer)))))
 
 (use-package lsp-mode
   :commands (lsp lsp-deferred)
