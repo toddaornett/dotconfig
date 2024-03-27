@@ -125,6 +125,7 @@ source $HOMEBREW/opt/spaceship/spaceship.zsh
 alias G='grep -i'
 alias Z='source ~/.config/zsh/.zshrc'
 alias lc='print -l ${(ok)functions}|G -v "^_"'
+alias env='/usr/bin/env | grep -iv pass | grep -v DATABASE_URL | grep -v FLYWAY_URL'
 
 ###########
 # Copy/Paste aliases
