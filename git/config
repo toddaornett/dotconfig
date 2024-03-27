@@ -42,6 +42,3 @@
 [http]
 	lowSpeedLimit = 1000
 	lowSpeedTime = 60
-[credential]
-	helper = manager
-	useHttpPath = true
