@@ -336,6 +336,8 @@ alias greset='branchname=$(git rev-parse --abbrev-ref HEAD); git fetch origin; g
 alias gpro='git config --get remote.origin.url'
 alias gpru='git config --get remote.upstream.url'
 
+alias agit="alias | grep '^g'"
+
 function gForceSsh {
     git config --global url."git@github.com:".insteadOf "https://github.com/"
 }
