@@ -538,10 +538,10 @@
 	      ("C-c C-c Q" . lsp-workspace-shutdown)
 	      ("C-c C-c s" . lsp-rust-analyzer-status))
   :custom
+  (rustic-analyzer-command '("rustup" "run" "stable" "rust-analyzer"))
   (rustic-rustfmt-config-alist '((edition . "2021")))
   :config
   (setq rustic-format-on-save t)
-  (setq rustic-analyzer-command (list (substring (shell-command-to-string "rustup which rust-analyzer") 0 -1)))
   (setq lsp-rust-analyzer-completion-add-call-parenthesis nil))
 
 (use-package cargo)
