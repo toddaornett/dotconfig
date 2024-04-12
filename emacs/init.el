@@ -16,12 +16,6 @@
   (setq mac-option-modifier 'meta)
   (setq mac-command-modifier 'super))
 
-; auto save path
-(defvar autosave-dir (concat "~/auto-save" "/"))
-(make-directory autosave-dir t)
-(setq auto-save-file-name-transforms
-      `(("\\(?:[^/]*/\\)*\\(.*\\)" ,(concat autosave-dir "\\1") t)))
-
 ;; Initialize package sources
 (require 'package)
 (setq package-user-dir "~/.cache/emacs/packages")
