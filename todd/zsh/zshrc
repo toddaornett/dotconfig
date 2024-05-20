@@ -14,6 +14,10 @@ eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
 if ! type "rustup" > /dev/null; then
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
   export PATH=$PATH:~/.cargo/bin
+  rustup component add rust-src
+  rustup component add rust-analyzer
+  cargo install cargo-audit
+  cargo install cargo-edit
 fi
 if ! type "diesel" > /dev/null; then
   cargo install diesel_cli --no-default-features --features postgres
