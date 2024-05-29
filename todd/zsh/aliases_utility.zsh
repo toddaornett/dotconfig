@@ -73,3 +73,39 @@ function stomp {
   done
   return 0
 }
+
+function wips {
+  local dest="${HOME}/wip/$(basename `pwd`)"
+  mkdir -p "$dest"
+  local copy
+  if command -v -- gcp > /dev/null 2>&1; then
+    copy=gcp
+  else
+    copy=cp
+  fi
+  local files=($(git status -s | cut -c 4- | xargs))
+  local f
+  for f in $files; do
+    $copy --parents "$f" "$dest"
+  done
+}
+
+function wipc {
+  local src="${HOME}/wip/$(basename `pwd`)"
+  local copy
+  if command -v -- gcp > /dev/null 2>&1; then
+    copy=gcp
+  else
+    copy=cp
+  fi
+  local folders=($(find "$src"/* -type d | sed -e "s|$src/||" | xargs))
+  local d
+  for d in $folders; do
+    mkdir -p "$d"
+  done
+  local files=($(find "$src" -type f | sed -e "s|$src/||" | xargs))
+  local f
+  for f in $files; do
+    $copy --parents "$src/$f" .
+  done
+}
