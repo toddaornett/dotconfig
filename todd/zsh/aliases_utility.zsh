@@ -37,32 +37,49 @@ function stomp {
       if version_gt "$version" "$TARGET_VERSION"; then
         echo "DELETE FROM flyway_schema_history WHERE version='$version';"
 	local OLDIFS=$IFS
+        local command=""
         while IFS= read -r line; do
           # Check if the line contains a CREATE TABLE command
-          if [[ "$line" =~ CREATE[[:space:]]+TABLE ]]; then
-            # Extract the table name
-            local table_name=$(echo "$line" | awk -F' ' '{print $3}' | sed 's/(//')
-            if [[ -n "$table_name" ]]; then
-              echo "DROP TABLE IF EXISTS $table_name;"
-            fi
+          if [[ "$line" =~ CREATE[[:space:]]+TABLE[[:space:]]+([_A-Za-z0-9]+).* ]]; then
+	    command=""
+            echo "DROP TABLE IF EXISTS ${match[1]};"
           fi
 
           # Check if the line contains a CREATE INDEX command
-          if [[ "$line" =~ CREATE[[:space:]]+INDEX ]]; then
-            # Extract the index name
-            local index_name=$(echo "$line" | awk -F' ' '{print $3}')
-            if [[ -n "$index_name" ]]; then
-              echo "DROP INDEX IF EXISTS $index_name;"
-            fi
+          if [[ "$line" =~ CREATE[[:space:]]+INDEX[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?([_A-Za-z0-9]+).* ]]; then
+	    command=""
+            echo "DROP INDEX IF EXISTS ${match[2]};"
           fi
 
-          # Check if the line contains a CREATE INDEX command
-          if [[ "$line" =~ CREATE[[:space:]]+UNIQUE[[:space:]]+INDEX ]]; then
-            # Extract the index name
-            local index_name=$(echo "$line" | awk -F' ' '{print $4}')
-            if [[ -n "$index_name" ]]; then
-              echo "DROP INDEX IF EXISTS $index_name;"
-            fi
+          # Check if the line contains a CREATE UNIQUE INDEX command
+          if [[ "$line" =~ CREATE[[:space:]]+UNIQUE[[:space:]]+INDEX[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?([^ ]+).* ]]; then
+	    command=""
+            echo "DROP INDEX IF EXISTS ${match[2]};"
+          fi
+
+          # Check if the line contains a CREATE TRIGGER command
+          if [[ "$line" =~ CREATE[[:space:]]+TRIGGER[[:space:]]+([^ ]+).* ]]; then
+            command="DROP TRIGGER IF EXISTS ${match[1]}"
+          fi
+
+          # Check if the line contains a CREATE OR REPLACE FUNCTION command
+          if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+FUNCTION[[:space:]]+([^ ]+)(\\\().* ]]; then
+	    command=""
+            echo "DROP FUNCTION IF EXISTS ${match[1]};"
+          fi
+
+          # Check if the line contains a CREATE OR REPLACE PROCEDURE command
+          if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+PROCEDURE[[:space:]]+([^ ]+)(\\\().* ]]; then
+	    command=""
+            echo "DROP PROCEDURE IF EXISTS ${match[1]};"
+	  fi
+
+          # Check there is ON <table name> for completing buffered command string
+          if [[ "$line" =~ .*[[:space:]]ON[[:space:]]([^ ]+).* ]]; then
+	    if [ "$command" != "" ] ; then
+	      echo "$command ON ${match[1]};"
+	      command=""
+	    fi
           fi
         done <"$file"
 	IFS=$OLDIFS
