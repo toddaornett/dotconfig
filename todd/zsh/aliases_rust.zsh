@@ -54,7 +54,7 @@ add-zsh-hook chpwd create_run_aliases
 cmd='cargo audit'
 alias ca="echo \"$cmd\" && $cmd"
 
-cmd='cargo build && cargo fmt && cargo clippy --all-features -- -D warnings && cargo audit'
+cmd='cargo fmt && cargo clippy --all-features -- -D warnings && cargo build'
 alias cbd="echo \"$cmd\" && $cmd"
 
 cmd='cargo build --release'
