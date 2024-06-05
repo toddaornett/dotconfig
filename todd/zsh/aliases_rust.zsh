@@ -7,13 +7,20 @@ autoload -U add-zsh-hook
 
 create_run_aliases() {
   if [ -f Cargo.toml ]; then
+    local suffix=""
+    local cmd
+    if [ -d src/openapi_spec ]; then
+      suffix=" --features openapi-spec"
+      cmd="cargo run${suffix}"
+      alias crd="echo \"$cmd\" && $cmd"
+    fi
     local idx=0 cmd
     # rust release binaries
     if [ -d target/release ]; then
       for f in target/release/*; do
         if [ -f "$f" ] && [ -x "$f" ]; then
           idx=$((idx + 1))
-          cmd="cargo run --release --bin ${f##*/}"
+          cmd="cargo run --release --bin ${f##*/}${suffix}"
           alias crr${idx}="echo \"$cmd\" && $cmd"
         fi
       done
@@ -32,7 +39,7 @@ create_run_aliases() {
       for f in target/debug/*; do
         if [ -f "$f" ] && [ -x "$f" ]; then
           idx=$((idx + 1))
-          cmd="cargo run --bin ${f##*/}"
+          cmd="cargo run --bin ${f##*/}${suffix}"
           alias crd${idx}="echo \"$cmd\" && $cmd"
         fi
       done
@@ -51,7 +58,7 @@ create_run_aliases() {
 add-zsh-hook chpwd create_run_aliases
 
 # static aliases
-cmd='cargo audit'
+local cmd='cargo audit'
 alias ca="echo \"$cmd\" && $cmd"
 
 cmd='cargo fmt && cargo clippy --all-features -- -D warnings && cargo build'
