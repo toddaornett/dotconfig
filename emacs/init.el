@@ -10,6 +10,7 @@
 (tool-bar-mode -1); Disable the toolbar
 (tooltip-mode -1); Disable tooltips
 (set-fringe-mode 10); Give some breathing room
+(setq create-lockfiles nil)
 
 ;; Set up modifier key, macport/railwaycat specifics for macOS
 (when (boundp 'mac-carbon-version-string)
@@ -217,7 +218,29 @@
 (use-package projectile
   :diminish projectile-mode
   :config (projectile-mode)
-  :custom ((projectile-completion-system 'ivy))
+  :custom ((projectile-completion-system 'ivy)
+	   (projectile-globally-ignored-directories
+	    '("^\\.idea$"
+	      "^\\.vscode$"
+	      "^\\.ensime_cache$"
+	      "^\\.eunit$"
+	      "^\\.git$"
+	      "^\\.hg$"
+	      "^\\.fslckout$"
+	      "^_FOSSIL_$"
+	      "^\\.bzr$"
+	      "^_darcs$"
+	      "^\\.pijul$"
+	      "^\\.tox$"
+	      "^\\.svn$"
+	      "^\\.stack-work$"
+	      "^\\.ccls-cache$"
+	      "^\\.cache$"
+	      "^\\.clangd$"
+	      "^\\.sl$"
+	      "^\\.jj$"
+	      "^target$")
+	    ))
   :bind-keymap
   ("C-c p" . projectile-command-map)
   :init
@@ -549,7 +572,7 @@
   :config
   (setq yas-snippet-dirs (append yas-snippet-dirs
                                '("~/.config/emacs/snippets")))
-  (yas-global-mode))
+  (yas-global-mode 1))
 
 (use-package yasnippet-snippets
   :after yasnippet
