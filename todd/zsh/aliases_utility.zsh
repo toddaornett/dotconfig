@@ -77,19 +77,19 @@ function stomp {
           # Check if the line contains a CREATE OR REPLACE FUNCTION command
           if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+FUNCTION[[:space:]]+([^ ]+)(\\\().* ]]; then
 	    command=""
-            echo "DROP FUNCTION IF EXISTS ${match[1]};"
+            echo "DROP FUNCTION IF EXISTS ${match[1]} CASCADE;"
           fi
 
           # Check if the line contains a CREATE OR REPLACE PROCEDURE command
           if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+PROCEDURE[[:space:]]+([^ ]+)(\\\().* ]]; then
 	    command=""
-            echo "DROP PROCEDURE IF EXISTS ${match[1]};"
+            echo "DROP PROCEDURE IF EXISTS ${match[1]} CASCADE;"
 	  fi
 
           # Check there is ON <table name> for completing buffered command string
           if [[ "$line" =~ .*[[:space:]]ON[[:space:]]([^ ]+).* ]]; then
 	    if [ "$command" != "" ] ; then
-	      echo "$command ON ${match[1]};"
+	      echo "$command ON ${match[1]} CASCADE;"
 	      command=""
 	    fi
           fi
