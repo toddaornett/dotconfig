@@ -11,10 +11,12 @@ create_run_aliases() {
     local cmd
     if [ -d src/openapi_spec ]; then
       suffix=" --features openapi-spec"
-      cmd="cargo run${suffix}"
-      alias crd="echo \"$cmd\" && $cmd"
+    else
+      suffix=""
     fi
-    local idx=0 cmd
+    cmd="cargo run${suffix}"
+    alias crd="echo \"$cmd\" && $cmd"
+    local idx=0
     # rust release binaries
     if [ -d target/release ]; then
       for f in target/release/*; do
