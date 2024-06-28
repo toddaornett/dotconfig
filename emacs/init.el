@@ -12,6 +12,9 @@
 (set-fringe-mode 10); Give some breathing room
 (setq create-lockfiles nil)
 (setq disabled-command-function 'ignore)
+(setq confirm-kill-emacs 'y-or-n-p)
+(setq-default require-final-newline t)
+(electric-pair-mode 1)
 
 ;; Set up modifier key, macport/railwaycat specifics for macOS
 (when (boundp 'mac-carbon-version-string)
@@ -208,6 +211,7 @@
   (evil-collection-init))
 
 (use-package evil-surround
+  :ensure t
   :config
   (global-evil-surround-mode 1))
 
@@ -579,7 +583,7 @@
   :after yasnippet
   :config (yasnippet-snippets-initialize))
 
-(use-package string-inflection)
+(use-package evil-string-inflection :ensure t)
 
 (use-package org-autolist
   :hook (org-mode . org-autolist-mode))
@@ -589,12 +593,9 @@
 
 (use-package browse-url-dwim)
 
+(use-package expand-region
+  :config
+  (bind-key "C-=" 'er/expand-region))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
-
-(electric-pair-mode 1)
-
-(setq confirm-kill-emacs 'y-or-n-p)
-
-(setq-default require-final-newline t)
-
