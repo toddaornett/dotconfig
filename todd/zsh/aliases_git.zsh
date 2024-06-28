@@ -322,15 +322,16 @@ alias gupa='git pull --rebase --autostash'
 alias gupav='git pull --rebase --autostash -v'
 alias glum='git pull upstream $(git_main_branch)'
 
-function gpap {
+function pclean {
   (
   local p
   local current_branch_name
   local main_branch_name
+  local remote_main_branch_name
   local opwd=$(pwd)
+  local artifacts=("build", "dist", "distro", "target")
   cd "${HOME}/Projects"
-  for p in *
-  do
+  for p in *; do
     if [ -d "$p" ]; then
       cd "$p"
       if [ -d .git ]; then
@@ -339,12 +340,22 @@ function gpap {
 	if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
 	  git checkout "${main_branch_name}"
 	fi
+	remote_main_branch_name=$(set -- `git ls-remote --symref origin HEAD` test $1 = ref: && echo $2 | cut -d '/' -f 3)
+	if [[ "$main_branch_name)" != "$remote_main_branch_name" ]]; then
+	  git branch -m "$main_branch_name" "$remote_main_branch_name"
+	fi
 	git pull
 	if [ git rev-parse --verify release 2>/dev/null ]; then
 	  echo  "Delete local release branch"
 	  git branch -D release
         fi
       fi
+      for artifact in "${artifacts[@]}"; do
+        if [ -d $artifact ]; then
+          echo "Delete ${artifact} folder"
+	  rm -rf $artifact
+        fi
+      done
       cd ..
     fi
   done
