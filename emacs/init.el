@@ -11,6 +11,7 @@
 (tooltip-mode -1); Disable tooltips
 (set-fringe-mode 10); Give some breathing room
 (setq create-lockfiles nil)
+(setq disabled-command-function 'ignore)
 
 ;; Set up modifier key, macport/railwaycat specifics for macOS
 (when (boundp 'mac-carbon-version-string)
