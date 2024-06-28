@@ -298,7 +298,7 @@ alias gs='git status'
 # use the default stash push on git 2.13 and newer
 #is-at-least 2.13 "$git_version" \
 #  && alias gsta='git stash push -u' \
-#  || alias gsta='git stash save -u'
+#  || a
 
 alias gstC='git stash clear'
 alias gstl='git stash list'
@@ -321,6 +321,36 @@ alias gupv='git pull --rebase -v'
 alias gupa='git pull --rebase --autostash'
 alias gupav='git pull --rebase --autostash -v'
 alias glum='git pull upstream $(git_main_branch)'
+
+function gpap {
+  (
+  local p
+  local current_branch_name
+  local main_branch_name
+  local opwd=$(pwd)
+  cd "${HOME}/Projects"
+  for p in *
+  do
+    if [ -d "$p" ]; then
+      cd "$p"
+      if [ -d .git ]; then
+	main_branch_name=$(git_main_branch)
+        echo "${p}: PULL $main_branch_name"
+	if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
+	  git checkout "${main_branch_name}"
+	fi
+	git pull
+	if [ git rev-parse --verify release 2>/dev/null ]; then
+	  echo  "Delete local release branch"
+	  git branch -D release
+        fi
+      fi
+      cd ..
+    fi
+  done
+  cd $opwd
+  )
+}
 
 alias gwch='git whatchanged -p --abbrev-commit --pretty=medium'
 alias gwip='git add -A; git rm $(git ls-files --deleted) 2> /dev/null; git commit --no-verify --no-gpg-sign -m "--wip-- [skip ci]"'
