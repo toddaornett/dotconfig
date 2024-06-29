@@ -338,16 +338,16 @@ function pclean {
 	main_branch_name=$(git_main_branch)
         echo "${p}: PULL $main_branch_name"
 	if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
-	  git checkout "${main_branch_name}"
+	  command git checkout "${main_branch_name}"
 	fi
 	remote_main_branch_name=$(set -- `git ls-remote --symref origin HEAD` test $1 = ref: && echo $2 | cut -d '/' -f 3)
 	if [[ "$main_branch_name)" != "$remote_main_branch_name" ]]; then
-	  git branch -m "$main_branch_name" "$remote_main_branch_name"
+	  command git branch -m "$main_branch_name" "$remote_main_branch_name"
 	fi
-	git pull
-	if [ git rev-parse --verify release 2>/dev/null ]; then
-	  echo  "Delete local release branch"
-	  git branch -D release
+	command git pull
+	if command git show-ref -q --verify refs/heads/release ; then
+	  echo "Delete local release branch"
+	  command git branch -D release
         fi
       fi
       for artifact in "${artifacts[@]}"; do
