@@ -328,7 +328,6 @@ function pclean {
   local current_branch_name
   local main_branch_name
   local remote_main_branch_name
-  local opwd=$(pwd)
   local artifacts=("build", "dist", "distro", "target")
   cd "${HOME}/Projects"
   for p in *; do
@@ -363,7 +362,6 @@ function pclean {
       cd ..
     fi
   done
-  cd $opwd
   )
 }
 
