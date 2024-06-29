@@ -336,15 +336,19 @@ function pclean {
       cd "$p"
       if [ -d .git ]; then
 	main_branch_name=$(git_main_branch)
-        echo "${p}: PULL $main_branch_name"
-	if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
-	  command git checkout "${main_branch_name}"
+	if [[ -n $(command git status --porcelain) ]]; then
+	  echo "${p}: Local changes so not pulling ${main_branch_name}"
+	else
+          echo "${p}: Pull $main_branch_name"
+	  if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
+	    command git checkout "${main_branch_name}"
+	  fi
+	  remote_main_branch_name=$(set -- `git ls-remote --symref origin HEAD` test $1 = ref: && echo $2 | cut -d '/' -f 3)
+	  if [[ "$main_branch_name)" != "$remote_main_branch_name" ]]; then
+	    command git branch -m "$main_branch_name" "$remote_main_branch_name"
+	  fi
+	  command git pull
 	fi
-	remote_main_branch_name=$(set -- `git ls-remote --symref origin HEAD` test $1 = ref: && echo $2 | cut -d '/' -f 3)
-	if [[ "$main_branch_name)" != "$remote_main_branch_name" ]]; then
-	  command git branch -m "$main_branch_name" "$remote_main_branch_name"
-	fi
-	command git pull
 	if command git show-ref -q --verify refs/heads/release ; then
 	  echo "Delete local release branch"
 	  command git branch -D release
