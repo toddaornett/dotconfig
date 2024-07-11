@@ -121,12 +121,6 @@ function wips {
 
 function wipc {
   local src="${HOME}/wip/$(basename `pwd`)"
-  local copy
-  if command -v -- gcp > /dev/null 2>&1; then
-    copy=gcp
-  else
-    copy=cp
-  fi
   local folders=($(find "$src"/* -type d | sed -e "s|$src/||" | xargs))
   local d
   for d in $folders; do
@@ -135,6 +129,6 @@ function wipc {
   local files=($(find "$src" -type f | sed -e "s|$src/||" | xargs))
   local f
   for f in $files; do
-    $copy --parents "$src/$f" .
+    cp "$src/$f" "$f"
   done
 }
