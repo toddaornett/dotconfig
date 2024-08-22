@@ -115,7 +115,7 @@ function wips {
   local files=($(git status -s | cut -c 4- | xargs))
   local f
   for f in $files; do
-    $copy --parents "$f" "$dest"
+    $copy --parents -r "$f" "$dest"
   done
 }
 
