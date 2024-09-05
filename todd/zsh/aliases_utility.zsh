@@ -132,3 +132,7 @@ function wipc {
     cp "$src/$f" "$f"
   done
 }
+
+function uuidgen {
+  /usr/bin/uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '\n'
+}
