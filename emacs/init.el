@@ -16,6 +16,10 @@
 (setq-default require-final-newline t)
 (electric-pair-mode 1)
 
+(add-to-list 'load-path "~/.config/emacs/site-lisp/")
+(let ((default-directory  "~/.config/emacs/site-lisp/"))
+  (normal-top-level-add-subdirs-to-load-path))
+
 ;; Set up modifier key, macport/railwaycat specifics for macOS
 (when (boundp 'mac-carbon-version-string)
   (setq mac-option-modifier 'meta)
@@ -27,6 +31,10 @@
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
 			 ("org" . "https://orgmode.org/elpa/")
 			 ("elpa" . "https://elpa.gnu.org/packages/")))
+
+;; Local packages
+(require 'insert-random-uuid-into-buffer)
+
 (package-initialize)
 (unless package-archive-contents
   (package-refresh-contents))
