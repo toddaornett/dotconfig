@@ -103,6 +103,33 @@ function stomp {
   return 0
 }
 
+# Usage: pgd <db schema name>
+# Verify environment variables in the command below
+# and be ready to enter password when prompted
+function pgd {
+  pg_dump -h $DB_HOST -U $DB_USER -d $DB_NAME -n $1 -Fc -f ~/db_${MYENV:-local}.dump
+}
+
+# Usage: pgr
+# Verify environment variables in the command below
+function pgr {
+  pg_restore -U $USERNAME -d $DB_NAME --no-owner -Fc ~/db_${MYENV:-local}.dump
+}
+
+# Switch to main database for this environment
+function dbl {
+  unset MYENV_DB_TEST
+  load_companion_env
+  echo "Using $(env | grep DB | grep NAME | head -1)"
+}
+
+# Switch to automatic testing database
+function dbt {
+  export MYENV_DB_TEST=_test
+  load_companion_env
+  echo "Using $(env | grep DB | grep NAME | head -1)"
+}
+
 function wips {
   local dest="${HOME}/wip/$(basename `pwd`)"
   mkdir -p "$dest"
