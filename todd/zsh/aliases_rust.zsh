@@ -90,5 +90,14 @@ alias crr="echo \"$cmd\" && $cmd"
 cmd='cargo test'
 alias ct="echo \"$cmd\" && $cmd"
 
+cmd='cargo test -- --nocapture'
+alias ctp="echo \"$cmd\" && $cmd"
+
+cmd='cargo nextest run'
+alias cnt="echo \"$cmd\" && $cmd"
+
+cmd='cargo nextest run --no-capture'
+alias cntp="echo \"$cmd\" && $cmd"
+
 # list mostly cargo related aliases
 alias acargo="alias | egrep '^c.+='"
