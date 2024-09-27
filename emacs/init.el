@@ -154,6 +154,14 @@
   (interactive)
   (insert "\\"))
 
+;; strip trailing whitespace on save in certain modes
+(defun my-delete-trailing-whitespace ()
+  "Delete trailing whitepace in programing modes only."
+  (when (or (derived-mode-p 'prog-mode)
+	    (derived-mode-p 'sql-mode))
+    (delete-trailing-whitespace)))
+(add-hook 'before-save-hook 'my-delete-trailing-whitespace)
+
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
 (load-file "~/.local/config/emacs/config.el")
@@ -172,7 +180,7 @@
   :diminish which-key-mode
   :config
   (setq which-key-idle-delay 0.3))
- 
+
 (defun tao/evil-hook ()
   (dolist (mode '(custom-mode
 		  eshell-mode
@@ -192,17 +200,17 @@
 
   ;; prefer general for futher keybinding
   (setq evil-want-keybinding nil)
-  
+
   ;; overrides universal argument in favor of C-u/C-v for scrolling
   (setq evil-want-C-u-scroll t)
-  
+
   (setq evil-want-C-i-jump nil)
   (setq evil-undo-system 'undo-redo)
   :hook (evil-mode . tao/evil-hook)
   :config
   (evil-mode 1)
   (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
-  
+
   ;; help will just be from normal mode
   (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
 
@@ -556,7 +564,7 @@
 (use-package lsp-treemacs
   :after (treemacs lsp))
 
-(use-package rustic 
+(use-package rustic
   :bind (:map rustic-mode-map
 	      ("<f6>" . rustic-format-buffer)
 	      ("M-j" . lsp-ui-imenu)
