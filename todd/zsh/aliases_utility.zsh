@@ -113,7 +113,7 @@ function pgd {
 # Usage: pgr
 # Verify environment variables in the command below
 function pgr {
-  pg_restore -U $USERNAME -d $DB_NAME --no-owner -Fc ~/db_${MYENV:-local}.dump
+  pg_restore -U $USERNAME -d $DB_NAME --no-privileges --no-owner -Fc ~/db_${MYENV:-local}.dump
 }
 
 # Switch to main database for this environment
