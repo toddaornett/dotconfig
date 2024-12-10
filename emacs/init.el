@@ -14,6 +14,7 @@
 (setq disabled-command-function 'ignore)
 (setq confirm-kill-emacs 'y-or-n-p)
 (setq-default require-final-newline t)
+
 (electric-pair-mode 1)
 
 (add-to-list 'load-path "~/.config/emacs/site-lisp/")
@@ -181,6 +182,8 @@
   :config
   (setq which-key-idle-delay 0.3))
 
+(setq evil-want-keybinding nil)
+
 (defun tao/evil-hook ()
   (dolist (mode '(custom-mode
 		  eshell-mode
@@ -198,14 +201,12 @@
   :init
   (setq evil-want-integration t)
 
-  ;; prefer general for futher keybinding
-  (setq evil-want-keybinding nil)
-
   ;; overrides universal argument in favor of C-u/C-v for scrolling
   (setq evil-want-C-u-scroll t)
 
   (setq evil-want-C-i-jump nil)
   (setq evil-undo-system 'undo-redo)
+  (setq evil-want-keybinding nil)
   :hook (evil-mode . tao/evil-hook)
   :config
   (evil-mode 1)
