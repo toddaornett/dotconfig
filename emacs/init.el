@@ -17,9 +17,12 @@
 
 (electric-pair-mode 1)
 
-(add-to-list 'load-path "~/.config/emacs/site-lisp/")
-(let ((default-directory  "~/.config/emacs/site-lisp/"))
+;; add local site packages
+(add-to-list 'load-path (expand-file-name "~/.config/emacs/site-lisp/"))
+(let ((default-directory (expand-file-name "~/.config/emacs/site-lisp/")))
   (normal-top-level-add-subdirs-to-load-path))
+(require 'insert-random-uuid-into-buffer)
+(require 'insert-port-number-for-directory-into-buffer)
 
 ;; Set up modifier key, macport/railwaycat specifics for macOS
 (when (boundp 'mac-carbon-version-string)
@@ -28,14 +31,6 @@
 
 ;; Initialize package sources
 (require 'package)
-(setq package-user-dir "~/.cache/emacs/packages")
-(setq package-archives '(("melpa" . "https://melpa.org/packages/")
-			 ("org" . "https://orgmode.org/elpa/")
-			 ("elpa" . "https://elpa.gnu.org/packages/")))
-
-;; Local packages
-(require 'insert-random-uuid-into-buffer)
-
 (package-initialize)
 (unless package-archive-contents
   (package-refresh-contents))
@@ -69,6 +64,11 @@
     (exec-path-from-shell-initialize)))
 
 (use-package no-littering)
+
+(setq package-user-dir "~/.cache/emacs/packages")
+(setq package-archives '(("melpa" . "https://melpa.org/packages/")
+			 ("org" . "https://orgmode.org/elpa/")
+			 ("elpa" . "https://elpa.gnu.org/packages/")))
 
 ;; Set up the visible bell
 (setq visible-bell t)
@@ -148,7 +148,6 @@
   ([remap describe-command] . helpful-command)
   ([remap describe-variable] . counsel-describe-variable)
   ([remap describe-key] . helpful-key))
-
 ;; backslash for jis style keyboard8
 (defun insert-backslash ()
   "Insert back-slash."
@@ -167,7 +166,7 @@
 
 (load-file "~/.local/config/emacs/config.el")
 
-;; copy/paste stuff - keep killring separate from system pasteboard
+;; copy/paste stuff - keep killring separate from system pasteboardA
 (use-package simpleclip)
 (simpleclip-mode 1)
 
