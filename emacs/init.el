@@ -355,6 +355,8 @@
 (defun tao/org-mode-setup ()
   (org-indent-mode)
   (variable-pitch-mode 1)
+  (modify-syntax-entry ?- "w")
+  (modify-syntax-entry ?' ".")
   (setq org-clock-sound (getenv "POMODORO_BREAK_SOUNDFILE"))
   (visual-line-mode 1))
 
