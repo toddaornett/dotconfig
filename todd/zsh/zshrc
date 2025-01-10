@@ -4,11 +4,6 @@ export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
 
 ##########
-# fnm for node version management
-##########
-eval "$(fnm env --use-on-cd --version-file-strategy=recursive)"
-
-##########
 # install rust and diesel
 ##########
 if ! type "rustup" > /dev/null; then
@@ -85,6 +80,34 @@ fi
 source "$HOMEBREW/opt/fzf/shell/key-bindings.zsh"
 
 export _ZO_EXCLUDE_DIRS="$HOME/private/*"
+
+##########
+# node version manager
+##########
+if [ ! -d $HOME/.nvm ]
+then
+  mkdir $HOME/.nvm
+fi
+if ! command -v nvm &> /dev/null; then
+  brew install nvm
+fi
+export NVM_DIR="$HOME/.nvm"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"                                       # This loads nvm
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" # This loads nvm bash_completion
+autoload -U add-zsh-hook
+load-nvmrc() {
+  if [[ -f .nvmrc && -r .nvmrc ]]; then
+    local nvmrc_node_version
+    nvmrc_node_version=$(<.nvmrc)
+    local current_node_version
+    current_node_version=$(nvm version)
+
+    if [[ $nvmrc_node_version != "$current_node_version" ]]; then
+      nvm install "$nvmrc_node_version"
+    fi
+  fi
+}
+add-zsh-hook chpwd load-nvmrc
 
 ##########
 # preset folders
