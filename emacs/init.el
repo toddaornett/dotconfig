@@ -615,5 +615,10 @@
   :config
   (bind-key "C-=" 'er/expand-region))
 
+(use-package editorconfig
+  :ensure t
+  :config
+  (editorconfig-mode 1))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
