@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: src_jp_shell
+# key: srcjsh
+# --
+#+begin_src shell :results output
+curl "http://localhost:8001/uri?q=$(echo -n '日本' | jq -sRr @uri)"
+#+end_src
