@@ -1,0 +1,15 @@
+# -*- mode: snippet -*-
+# name: src_shell
+# key: srcsh
+# --
+#+begin_src shell :results output
+curl 'http://localhost:8001/uri' -w "%{http_code}" \
+  --header 'Content-Type: application/json' \
+  --header 'x-api-key: 'X' \
+  --data '[
+    {
+      "X": "Y",
+      "Y": "Z"
+    }
+  ]'
+#+end_src
