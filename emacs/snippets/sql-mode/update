@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: update command
+# key: upd
+# --
+UPDATE schema.tbl SET foo = 'bar';
