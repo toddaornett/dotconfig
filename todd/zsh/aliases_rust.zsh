@@ -5,6 +5,56 @@
 ##########
 autoload -U add-zsh-hook
 
+cuupr() {
+  git checkout main
+  git pull
+  if ! git checkout -b build/deps; then
+    return $?
+  fi
+  git checkout main
+
+  temp_file=$(mktemp -t tmp_cuupr)
+
+  if [[ ! -e $temp_file ]]; then
+    echo "Failed to create temporary file."
+    return 1
+  fi
+
+  echo "cargo upgrade and update" >"$temp_file"
+  echo "\`\`\`sh" >>"$temp_file"
+
+  prompt="➜  $(basename "$PWD") git:(main) ✗"
+  echo "$prompt cargo upgrade" >>"$temp_file"
+  cargo upgrade &>>"$temp_file"
+
+  if grep -q "note: Re-run with \`--incompatible\` to upgrade incompatible version requirements" "$temp_file"; then
+    echo "$prompt cargo upgrade --incompatible" >>"$temp_file"
+    cargo upgrade --incompatible &>>"$temp_file"
+  fi
+
+  echo "$prompt cargo update" >>"$temp_file"
+  cargo update &>>"$temp_file"
+
+  echo "\`\`\`" >>"$temp_file"
+
+  if git checkout build/deps; then
+    commit_message_file=$(mktemp -t tmp_cuupr_message)
+    echo "build(deps): update all dependencies" >"$commit_message_file"
+    echo "" >>"$commit_message_file"
+    cat "$temp_file" >>"$commit_message_file"
+
+    if git diff --quiet; then
+      echo "No changes to commit."
+    else
+      git add .
+      git commit -F "$commit_message_file"
+      echo "Dependencies upgraded, updated and git committed"
+    fi
+    rm -f "$commit_message_file"
+  fi
+  rm -f "$temp_file"
+}
+
 create_run_aliases() {
   if [ -f Cargo.toml ]; then
     local suffix=""
