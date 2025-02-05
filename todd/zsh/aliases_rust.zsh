@@ -6,15 +6,24 @@
 autoload -U add-zsh-hook
 
 cuupr() {
-  git checkout main
-  git pull
-  if ! git checkout -b build/deps; then
+  # first make sure are intended branch does not remotely exist
+  # and create it locally
+  local branch_name="build/deps"
+  git fetch origin
+  if git show-ref --verify --quiet refs/remotes/origin/$branch_name; then
+    echo "Aborting, the branch '$branch_name' exists on the remote origin."
+  fi
+  if ! git checkout -b $branch_name; then
     return $?
   fi
-  git checkout main
 
-  temp_file=$(mktemp -t tmp_cuupr)
+  # get latest code from the main branch
+  git checkout $(git_main_branch)
+  git pull
 
+  # create temporary file for git commit message body that
+  # includes cargo command output
+  local temp_file=$(mktemp -t tmp_cuupr)
   if [[ ! -e $temp_file ]]; then
     echo "Failed to create temporary file."
     return 1
@@ -23,13 +32,18 @@ cuupr() {
   echo "cargo upgrade and update" >"$temp_file"
   echo "\`\`\`sh" >>"$temp_file"
 
-  prompt="➜  $(basename "$PWD") git:(main) ✗"
+  local prompt="➜  $(basename "$PWD") git:($(git_main_branch)) ✗"
   echo "$prompt cargo upgrade" >>"$temp_file"
   cargo upgrade &>>"$temp_file"
 
+  # support -C option to provide a view of incompatible changes without updating them
   if grep -q "note: Re-run with \`--incompatible\` to upgrade incompatible version requirements" "$temp_file"; then
-    echo "$prompt cargo upgrade --incompatible" >>"$temp_file"
-    cargo upgrade --incompatible &>>"$temp_file"
+    local compatibility="--incompatible"
+    if [ "$1" = "-C" ]; then
+      compatibility="--dry-run --incompatible"
+    fi
+    echo "$prompt cargo upgrade $compatibility" >>"$temp_file"
+    cargo upgrade $(echo $compatibility | xargs) &>>"$temp_file"
   fi
 
   echo "$prompt cargo update" >>"$temp_file"
@@ -37,8 +51,9 @@ cuupr() {
 
   echo "\`\`\`" >>"$temp_file"
 
-  if git checkout build/deps; then
-    commit_message_file=$(mktemp -t tmp_cuupr_message)
+  # switch to the new branch and create git commit
+  if git checkout $branch_name; then
+    local commit_message_file=$(mktemp -t tmp_cuupr_message)
     echo "build(deps): update all dependencies" >"$commit_message_file"
     echo "" >>"$commit_message_file"
     cat "$temp_file" >>"$commit_message_file"
