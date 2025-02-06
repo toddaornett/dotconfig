@@ -7,4 +7,5 @@ cargo install cargo-audit --locked --features=fix
 cargo install cargo-llvm-cov
 cargo install cargo-nextest
 cargo install diesel_cli
+RUSTFLAGS='-L /opt/homebrew/opt/libpq/lib' cargo install diesel_cli --no-default-features --features postgres
 cargo install rusty-hook
