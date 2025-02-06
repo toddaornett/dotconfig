@@ -46,6 +46,16 @@ cuupr() {
     cargo upgrade $(echo $compatibility | xargs) &>>"$temp_file"
   fi
 
+  # cargo update for packages in special registries that need explicit updating
+  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep 'registry')"}
+  do
+    parts=(${(s: :)line})
+    package_name=${parts[2]}
+    version=${parts[-1]#v}
+    echo "$prompt cargo upgrade -p ${package_name}@${version}" >>"$temp_file"
+    cargo upgrade -p ${package_name}@${version} &>>"$temp_file"
+  done
+
   echo "$prompt cargo update" >>"$temp_file"
   cargo update &>>"$temp_file"
 
