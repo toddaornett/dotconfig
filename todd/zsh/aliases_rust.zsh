@@ -6,9 +6,16 @@
 autoload -U add-zsh-hook
 
 churlpr() {
-  # first make sure are intended branch does not remotely exist
+  # config from environment variables
+  local url_from=$CHURLPR_FROM
+  local url_to=$CHURLPR_TO
+  local commit_check_limit=${CHURLPR_COMMIT_CHECK_LIMIT:-10}
+  local commit_title=${CHURLPR_TITLE:-"chore: update url"}
+  local branch_name=$(echo "$commit_title" | sed -E 's/([^:]+): (([^ ]+ )*url).*/\1\/\2/; s/ /-/g')
+  local cfg_file_path=${CHURLPR_FILE_PATH:-.cargo/config.toml}
+
+  # make sure are intended branch does not remotely exist
   # and create it locally
-  local branch_name="chore/artifactory-url"
   git fetch origin
   if git show-ref --verify --quiet refs/remotes/origin/$branch_name; then
     echo "Aborting, the branch '$branch_name' exists on the remote origin."
@@ -21,24 +28,30 @@ churlpr() {
   git checkout $(git_main_branch)
   git pull
 
+  # abort if this change was already merged
+  if git log -n $commit_check_limit --pretty=format:%s | grep -q "$commit_title"; then
+    echo "Aborting, change has already been made"
+    return 1
+  fi
+
   # make the url change
-  sed -i '' -e "s!$CHURLPR_FROM!$CHURLPR_TO!" .cargo/config.toml
-  cargo clean
-  cargo build
+  if sed -i '' -e "s!$url_from!$url_to!" $cfg_file_path; then
+    cargo clean
+    cargo build
+  fi
 
-  # switch to the new branch and create git commit
-  if git checkout $branch_name; then
-    local commit_message_file=$(mktemp -t tmp_cuupr_message)
-    echo "$CHURLPR_TITLE" >"$commit_message_file"
-
-    if git diff --quiet; then
-      echo "No changes to commit."
-    else
+  if git diff --quiet; then
+    echo "No changes to commit."
+  else
+    # switch to the new branch and create git commit
+    if git checkout $branch_name; then
+      local commit_message_file=$(mktemp -t tmp_cuupr_message)
+      echo "$CHURLPR_TITLE" >"$commit_message_file"
       git add .
       git commit -F "$commit_message_file"
-      echo "Dependencies upgraded, updated and git committed"
+      echo "Url updated and git committed with any lock file changes"
+      rm -f "$commit_message_file"
     fi
-    rm -f "$commit_message_file"
   fi
 }
 
