@@ -5,6 +5,43 @@
 ##########
 autoload -U add-zsh-hook
 
+churlpr() {
+  # first make sure are intended branch does not remotely exist
+  # and create it locally
+  local branch_name="chore/artifactory-url"
+  git fetch origin
+  if git show-ref --verify --quiet refs/remotes/origin/$branch_name; then
+    echo "Aborting, the branch '$branch_name' exists on the remote origin."
+  fi
+  if ! git checkout -b $branch_name; then
+    return $?
+  fi
+
+  # get latest code from the main branch
+  git checkout $(git_main_branch)
+  git pull
+
+  # make the url change
+  sed -i '' -e "s!$CHURLPR_FROM!$CHURLPR_TO!" .cargo/config.toml
+  cargo clean
+  cargo build
+
+  # switch to the new branch and create git commit
+  if git checkout $branch_name; then
+    local commit_message_file=$(mktemp -t tmp_cuupr_message)
+    echo "$CHURLPR_TITLE" >"$commit_message_file"
+
+    if git diff --quiet; then
+      echo "No changes to commit."
+    else
+      git add .
+      git commit -F "$commit_message_file"
+      echo "Dependencies upgraded, updated and git committed"
+    fi
+    rm -f "$commit_message_file"
+  fi
+}
+
 cuupr() {
   # first make sure are intended branch does not remotely exist
   # and create it locally
