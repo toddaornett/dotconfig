@@ -251,9 +251,9 @@ function doff {
 # stay awake
 ###########
 function nodoze {
-    local w=$(($1 * 3600))
-    echo "Stay active for $1 hours ($w seconds)"
-    caffeinate -d -i -m -s -u -t $w
+  local w=$(($1 * 3600))
+  echo "Stay active for $1 hours ($w seconds)"
+  caffeinate -d -i -m -s -u -t $w
 }
 
 ###########
@@ -269,6 +269,18 @@ function start_tmux {
   then
     exec tmux new -As0 && exit
   fi
+}
+
+##########
+# list Rust project paths
+##########
+function lsrp {
+  base_dir=~/Projects
+  for dir in "$base_dir"/*/; do
+    if [[ -f "$dir/Cargo.toml" ]]; then
+      echo "$dir"
+    fi
+  done
 }
 
 ##########
