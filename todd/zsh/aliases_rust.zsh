@@ -6,6 +6,11 @@
 autoload -U add-zsh-hook
 
 churlpr() {
+  if [[ ! -f "Cargo.toml" ]]; then
+    echo "Aborting, this is not a Rust project"
+    return 1;
+  fi
+
   # config from environment variables
   local url_from=$CHURLPR_FROM
   local url_to=$CHURLPR_TO
@@ -56,6 +61,11 @@ churlpr() {
 }
 
 cuupr() {
+  if [[ ! -f "Cargo.toml" ]]; then
+    echo "Aborting, this is not a Rust project"
+    return 1;
+  fi
+
   # first make sure are intended branch does not remotely exist
   # and create it locally
   local branch_name="build/deps"
@@ -111,21 +121,20 @@ cuupr() {
 
   echo "\`\`\`" >>"$temp_file"
 
-  # switch to the new branch and create git commit
-  if git checkout $branch_name; then
-    local commit_message_file=$(mktemp -t tmp_cuupr_message)
-    echo "build(deps): update all dependencies" >"$commit_message_file"
-    echo "" >>"$commit_message_file"
-    cat "$temp_file" >>"$commit_message_file"
-
-    if git diff --quiet; then
-      echo "No changes to commit."
-    else
+  if git diff --quiet; then
+    echo "No changes to commit."
+  else
+    # switch to the new branch and create git commit
+    if git checkout $branch_name; then
+      local commit_message_file=$(mktemp -t tmp_cuupr_message)
+      echo "build(deps): update all dependencies" >"$commit_message_file"
+      echo "" >>"$commit_message_file"
+      cat "$temp_file" >>"$commit_message_file"
       git add .
       git commit -F "$commit_message_file"
       echo "Dependencies upgraded, updated and git committed"
+      rm -f "$commit_message_file"
     fi
-    rm -f "$commit_message_file"
   fi
   rm -f "$temp_file"
 }
