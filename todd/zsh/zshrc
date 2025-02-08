@@ -2,32 +2,38 @@
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
+export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-$HOME/Projects}
 
 ##########
-# install rust and diesel
+# append specified path both to users .zprofile without any variables
+# and append to path of current session with any variables interpolated
 ##########
-if ! type "rustup" > /dev/null; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  export PATH=$PATH:~/.cargo/bin
-  rustup component add rust-src
-  rustup component add rust-analyzer
-  cargo install cargo-audit
-  cargo install cargo-edit
-fi
-if ! type "diesel" > /dev/null; then
-  cargo install diesel_cli --no-default-features --features postgres
-fi
+append_path() {
+  local new_path="$1"
+
+  # Ensure the exact string with the variable reference is written to ~/.zprofile
+  if ! grep -Fxq "path+=($new_path)" "$HOME/.zprofile"; then
+    echo "path+=($new_path)" >> "$HOME/.zprofile"
+  fi
+
+  # Expand variables and append to the current session’s path
+  local expanded_path
+  eval "expanded_path=$new_path"
+  if [[ -d "$expanded_path" && ":$path:" != *":$expanded_path:"* ]]; then
+    path+=("$expanded_path")
+  fi
+}
 
 ##########
-# autocomplete for rust tools
+# emacs source path
 ##########
-if [ ! -e ~/.config/zsh/_rustup.zsh -o ! -e ~/.config/zsh/_cargo.zsh -a $commands[rustup] ]; then
-  mkdir -p ~/.config/zsh 2>&1 >/dev/null
-  rustup completions zsh cargo >> ~/.config/zsh/_cargo.zsh
-  rustup completions zsh > ~/.config/zsh/_rustup.zsh
-  diesel completions zsh > ~/.config/zsh/_diesel.zsh
-  fpath+=~/.config/zsh
-fi
+append_path '$OPENPROJECTS_PATH/emacs/src'
+append_path '$OPENPROJECTS_PATH/emacs/lib-src'
+
+##########
+# zsf custom functions path
+##########
+fpath+=$HOME/.config/zsh
 
 ##########
 # autocomplete and history
@@ -55,21 +61,18 @@ setopt hist_reduce_blanks # remove superfluous blanks from history items
 setopt inc_append_history # save history entries as soon as they are entered
 setopt share_history # share history between different instances of the shell
 
+export HOMEBREW=$(brew --prefix)
+
 setopt auto_cd
 eval "$(zoxide init zsh)"
-export HOMEBREW=$(brew --prefix)
 if [ ! -d $HOMEBREW/opt/fzf ]
 then
   brew install fzf
   # To install useful key bindings and fuzzy completion:
   $HOMEBREW/opt/fzf/install
-  # not really related to brew, but just want to run this once sometime
-  # to disable the minimize app shortcut keys
-  defaults write -g NSUserKeyEquivalents -dict-add 'Minimize' '\0'
-  defaults write -g NSUserKeyEquivalents -dict-add 'Minimize All' '\0'
 fi
 if [[ ! "$PATH" == */homebrew/opt/fzf/bin* ]]; then
-  PATH="${PATH:+${PATH}:}$HOMEBREW/opt/fzf/bin"
+  append_path '$HOMEBREW/opt/fzf/bin'
 fi
 
 # Auto-completion
@@ -288,7 +291,7 @@ function lsrp {
 ##########
 autoload -U add-zsh-hook
 
-load_companion_env() {
+function load_companion_env {
   local currentdir=$(pwd)
   local parentdir="$(dirname "$currentdir")"
   if [[ $parentdir == *Projects ]]
