@@ -1,13 +1,19 @@
 #!/usr/bin/env sh
 
 ##########
+# disable minimize app key bindings (I prefer hide)
+##########
+defaults write -g NSUserKeyEquivalents -dict-add 'Minimize' '\0'
+defaults write -g NSUserKeyEquivalents -dict-add 'Minimize All' '\0'
+
+##########
 # install the missing package manager brew if missing
 ##########
 if ! type brew &>/dev/null
 then
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-  echo 'path=("/opt/homebrew/bin" $path)' >> $HOME/.zprofile
-  path=("/opt/homebrew/bin" $path)
+  echo 'path+=("/opt/homebrew/bin")' >> $HOME/.zprofile
+  path+=("/opt/homebrew/bin")
 fi
 
 brew bundle
