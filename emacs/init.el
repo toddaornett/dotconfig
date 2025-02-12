@@ -620,5 +620,8 @@
   :config
   (editorconfig-mode 1))
 
+(use-package session
+  :config (add-hook 'after-init-hook 'session-initialize))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
