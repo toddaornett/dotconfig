@@ -12,8 +12,8 @@ append_path() {
   local new_path="$1"
 
   # Ensure the exact string with the variable reference is written to ~/.zprofile
-  if ! grep -Fxq "path+=($new_path)" "$HOME/.zprofile"; then
-    echo "path+=($new_path)" >> "$HOME/.zprofile"
+  if ! grep -Fxq "path+=($new_path)" "$HOME/.config/zsh/.zprofile"; then
+    echo "path+=($new_path)" >> "$HOME/.config/zsh/.zprofile"
   fi
 
   # Expand variables and append to the current session’s path
@@ -29,6 +29,13 @@ append_path() {
 ##########
 append_path '$OPENPROJECTS_PATH/emacs/src'
 append_path '$OPENPROJECTS_PATH/emacs/lib-src'
+
+##########
+# load all aliases sources
+##########
+for f in $HOME/.config/todd/zsh/aliases*; do
+  source $f
+done
 
 ##########
 # zsf custom functions path
