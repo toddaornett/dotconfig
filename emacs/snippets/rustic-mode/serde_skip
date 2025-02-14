@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: serde skip serializing if none
+# key: sdskip
+# type: snippet
+# --
+#[serde(skip_serializing_if = "Option::is_none", default)]
