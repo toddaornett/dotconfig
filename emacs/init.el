@@ -31,28 +31,39 @@
 
 ;; Initialize package sources
 (require 'package)
+(setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                         ("org" . "https://orgmode.org/elpa/")
+                         ("elpa" . "https://elpa.gnu.org/packages/")))
 (package-initialize)
+
+;; Refresh package contents if needed
 (unless package-archive-contents
   (package-refresh-contents))
 
-;; Initialize use-package on non-Linux platforms
+;; Install use-package if it's not already installed
 (unless (package-installed-p 'use-package)
   (package-install 'use-package))
 
+;; Configure use-package
 (require 'use-package)
 (setq use-package-always-ensure t)
 (setq use-package-always-defer nil)
 (setq use-package-verbose t)
 (setq use-package-compute-statistics t)
 
+;; Configure auto-package-update
 (use-package auto-package-update
-  :ensure t
   :config
   (setq auto-package-update-delete-old-versions t)
   (setq auto-package-update-interval 7)
   (setq auto-package-update-prompt-before-update t)
   (auto-package-update-maybe))
 
+;; Use no-littering to keep .emacs.d clean
+(use-package no-littering)
+
+;; Set package user directory
+(setq package-user-dir "~/.cache/emacs/packages")
 (use-package exec-path-from-shell
   :config
   (dolist (var '("SSH_AUTH_SOCK" "LANG" "LANGUAGE" "LC_CTYPE" "LC_TIME"))
@@ -61,13 +72,6 @@
     (exec-path-from-shell-initialize))
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize)))
-
-(use-package no-littering)
-
-(setq package-user-dir "~/.cache/emacs/packages")
-(setq package-archives '(("melpa" . "https://melpa.org/packages/")
-			 ("org" . "https://orgmode.org/elpa/")
-			 ("elpa" . "https://elpa.gnu.org/packages/")))
 
 ;; Set up the visible bell
 (setq visible-bell t)
@@ -266,7 +270,9 @@
   :init
   (when (file-directory-p "~/Projects")
     (setq projectile-project-search-path '("~/Projects" "~/OpenProjects" "~/.config")))
-  (setq projectile-switch-project-action #'projectile-dired))
+  (setq
+    projectile-enable-caching t
+    projectile-switch-project-action #'projectile-dired))
 
 (use-package counsel-projectile
   :config (counsel-projectile-mode))
