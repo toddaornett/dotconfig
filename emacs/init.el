@@ -414,19 +414,18 @@
 (use-package lsp-mode
   :commands (lsp lsp-deferred)
   :custom
+  ;; Rust-specific settings
   (lsp-rust-analyzer-cargo-watch-command "clippy")
-  (lsp-eldoc-render-all t)
-  (lsp-idle-delay 0.6)
-  (lsp-inlay-hint-enable t)
-  ;; These are optional configurations. See
-  ;; https://emacs-lsp.github.io/lsp-mode/page/lsp-rust-analyzer/#lsp-rust-analyzer-display-chaining-hints
-  ;; for a full list
   (lsp-rust-analyzer-display-lifetime-elision-hints-enable "skip_trivial")
   (lsp-rust-analyzer-display-chaining-hints t)
   (lsp-rust-analyzer-display-lifetime-elision-hints-use-parameter-names nil)
-  (lsp-rust-analyzer-display-display-closure-return-type-hints t)
+  (lsp-rust-analyzer-display-closure-return-type-hints t)
   (lsp-rust-analyzer-display-parameter-hints nil)
   (lsp-rust-analyzer-display-reborrow-hints nil)
+  ;; General settings
+  (lsp-eldoc-render-all t)
+  (lsp-idle-delay 0.6)
+  (lsp-inlay-hint-enable t)
   :config
   (setq lsp-keymap-prefix "C-c l") ;; Or 'C-l', 's-l'
   (lsp-enable-which-key-integration t)
@@ -445,6 +444,18 @@
   :hook (typescript-mode . lsp-deferred)
   :config
   (setq typescript-indent-level 2))
+
+(use-package lsp-treemacs
+  :after lsp)
+
+;; dap-mode for debugging support
+(use-package dap-mode
+  :after lsp-mode
+  :config
+  (dap-ui-mode)
+  (dap-tooltip-mode)
+  (require 'dap-node) ;; For Node.js debugging
+  (dap-node-setup))
 
 (use-package company
   :after lsp-mode
