@@ -3,5 +3,6 @@
 # key: srcjsh
 # --
 #+begin_src shell :results output
-curl "http://localhost:8001/uri?q=$(echo -n '日本' | jq -sRr @uri)"
+curl "http://localhost:8001/uri?q=$(echo -n '日本' | jq -sRr @uri)" \
+  --no-progress-meter -w "%{http_code}"
 #+end_src
