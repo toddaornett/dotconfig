@@ -8,6 +8,9 @@ function pgc() {
   local postgres_default_port="5432"
   local default_db_port=${DB_DEFAULT_PORT:-$postgres_default_port}
   local db_port=${4:-$default_db_port}
+  if [[ $db_env = "local" ]]; then
+    db_user=${3:-$USER}
+  fi
   local passpath=db/$db_name/$db_env/$db_user
   export PGPASSWORD="$(pass $passpath | head -1)"
   local db_host=$(pass $passpath | grep host | cut -d ' ' -f2)
