@@ -639,5 +639,18 @@
 (use-package session
   :config (add-hook 'after-init-hook 'session-initialize))
 
+(use-package yaml-mode
+  :ensure t
+  :mode ("\\.\\(yml\\|yaml\\)\\'" . yaml-mode)
+  :config
+  (add-hook 'yaml-mode-hook
+            (lambda ()
+              (setq yaml-indent-offset 2)
+              (setq indent-tabs-mode nil)
+              (setq-local fill-column 100)
+              (setq-local whitespace-line-column 100)
+              (setq-local whitespace-style '(face lines-tail))
+              (whitespace-mode 1))))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
