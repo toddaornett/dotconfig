@@ -670,5 +670,9 @@
               (setq-local whitespace-style '(face lines-tail))
               (whitespace-mode 1))))
 
+(use-package sql-indent
+  :ensure t
+  :hook (sql-mode . sqlind-minor-mode))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
