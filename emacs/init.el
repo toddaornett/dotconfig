@@ -40,6 +40,10 @@
 (unless package-archive-contents
   (package-refresh-contents))
 
+(unless (package-installed-p 'counsel)
+  (package-refresh-contents)
+  (package-install 'counsel))
+
 ;; Install use-package if it's not already installed
 (unless (package-installed-p 'use-package)
   (package-install 'use-package))
@@ -90,7 +94,15 @@
 			    (column-number-mode)))
 
 ;; Appearance
-(use-package doom-themes)
+(use-package doom-themes
+  :ensure t
+  :config
+  (load-theme 'doom-one t))
+
+(unless (package-installed-p 'doom-themes)
+  (package-refresh-contents)
+  (package-install 'doom-themes)
+  (load-theme 'doom-one t))
 
 (use-package all-the-icons
   :init
@@ -408,6 +420,12 @@
                           (display-line-numbers-mode -1) ; Emacs 26.1+
                           (setq left-fringe-width 0 right-fringe-width 0)
                           (setq left-margin-width 2 right-margin-width 0)
+                          (setq pomidor-play-sound-file
+                            (lambda (file)
+                              (start-process "my-pomidor-play-sound"
+                                nil
+                                "afplay"
+                                file)))
                           ;; force fringe update
                           (set-window-buffer nil (current-buffer)))))
 
