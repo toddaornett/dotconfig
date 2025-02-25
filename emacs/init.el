@@ -670,9 +670,14 @@
               (setq-local whitespace-style '(face lines-tail))
               (whitespace-mode 1))))
 
-(use-package sql-indent
+(use-package sqlformat
   :ensure t
-  :hook (sql-mode . sqlind-minor-mode))
+  :config
+  (setq sqlformat-command 'pgformatter)
+  ;; Optionally, set the path to pg_format if it's not in your PATH
+  ;; (setq sqlformat-pgformatter-command "/path/to/pg_format")
+  :hook (sql-mode . (lambda ()
+                      (local-set-key (kbd "C-c C-f") 'sqlformat))))
 
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
