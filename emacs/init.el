@@ -321,7 +321,7 @@
     "gP"  'magit-push-current
     "gp"  'magit-pull-branch
     "gf"  'magit-fetch
-    "gF"  'magit-fech-all
+    "gF"  'magit-fetch-all
     "gr"  'magit-rebase
     ;; projectile
     "pd" 'counsel-projectile-find-dir
@@ -429,6 +429,7 @@
                           ;; force fringe update
                           (set-window-buffer nil (current-buffer)))))
 
+;; LSP Mode for both Rust and TypeScript
 (use-package lsp-mode
   :commands (lsp lsp-deferred)
   :custom
@@ -449,6 +450,7 @@
   (lsp-enable-which-key-integration t)
   (add-hook 'lsp-mode-hook 'lsp-ui-mode))
 
+;; LSP UI for enhanced UI features
 (use-package lsp-ui
   :commands lsp-ui-mode
   :custom
@@ -457,16 +459,18 @@
   (lsp-ui-doc-enable t)
   (lsp-ui-doc-position 'bottom))
 
+;; TypeScript mode with LSP support
 (use-package typescript-mode
   :mode "\\.ts\\'"
   :hook (typescript-mode . lsp-deferred)
   :config
   (setq typescript-indent-level 2))
 
+;; LSP Treemacs for project management
 (use-package lsp-treemacs
   :after lsp)
 
-;; dap-mode for debugging support
+;; DAP Mode for debugging support
 (use-package dap-mode
   :after lsp-mode
   :config
@@ -475,16 +479,29 @@
   (require 'dap-node) ;; For Node.js debugging
   (dap-node-setup))
 
+;; Company mode for auto-completion
 (use-package company
   :after lsp-mode
   :hook (lsp-mode . company-mode)
   :bind (:map company-active-map
-	      ("<tab>" . company-complete-selection))
+              ("TAB" . company-complete-selection))
   (:map lsp-mode-map
-	("<tab>" . company-indent-or-complete-common))
+        ("TAB" . company-indent-or-complete-common))
   :custom
   (company-minimum-prefix-length 1)
   (company-idle-delay 0.0))
+
+;; Optional: JS2 Mode for JavaScript support
+(use-package js2-mode
+  :ensure t
+  :mode "\\.js\\'"
+  :hook (js2-mode . lsp-deferred)
+  :config
+  (setq js2-basic-offset 2))
+
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode))
 
 (use-package company-box
   :hook (company-mode . company-box-mode))
