@@ -1,3 +1,4 @@
+(set-language-environment "English")
 (setq custom-file "~/.cache/emacs/custom.el")
 (setq inhibit-startup-screen t)
 (setq backup-directory-alist `(("." . ,(expand-file-name "tmp/backups/" user-emacs-directory))))
