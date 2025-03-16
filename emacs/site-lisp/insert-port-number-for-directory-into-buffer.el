@@ -1,4 +1,4 @@
-;;; insert-port-number-for-directory-into-buffer.el --- generate port number based on current directory name
+;;; insert-port-number-for-directory-into-buffer.el --- generate port number based on current directory name -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024
 ;; Author: Todd Ornett
