@@ -51,7 +51,8 @@
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
                          ("org" . "https://orgmode.org/elpa/")
                          ("elpa" . "https://elpa.gnu.org/packages/")))
-(package-initialize)
+(when (< emacs-major-version 27)
+  (package-initialize))
 
 ;; Refresh package contents if needed
 (unless package-archive-contents
