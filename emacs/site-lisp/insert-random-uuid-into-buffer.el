@@ -1,4 +1,4 @@
-;;; insert-random-uuid-into-buffer.el --- generate uuid and insert in buffer
+;;; insert-random-uuid-into-buffer.el --- generate uuid and insert in buffer -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2014  Nic Ferrier
 
