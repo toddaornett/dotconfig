@@ -1,4 +1,13 @@
-(set-language-environment "English")
+;;; init.el --- My initialization file -*- lexical-binding: t -*-
+;;
+;; Author: Todd Ornett <toddgh@acquirus.com>
+;; Version: 1.0
+;;
+;;; Commentary:
+;; This is my init file.
+;;
+;;; Code:
+;;
 (setq custom-file "~/.cache/emacs/custom.el")
 (setq inhibit-startup-screen t)
 (setq backup-directory-alist `(("." . ,(expand-file-name "tmp/backups/" user-emacs-directory))))
@@ -18,10 +27,17 @@
 
 (electric-pair-mode 1)
 
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode))
+
 ;; add local site packages
 (add-to-list 'load-path (expand-file-name "~/.config/emacs/site-lisp/"))
 (let ((default-directory (expand-file-name "~/.config/emacs/site-lisp/")))
   (normal-top-level-add-subdirs-to-load-path))
+(eval-after-load 'flycheck
+  '(add-to-list 'flycheck-emacs-lisp-load-path (expand-file-name "~/.config/emacs/site-lisp/")))
+
 (require 'insert-random-uuid-into-buffer)
 (require 'insert-port-number-for-directory-into-buffer)
 
@@ -57,7 +73,7 @@
 (setq use-package-compute-statistics t)
 
 ;; Configure auto-package-update
-(use-package auto-package-update
+(use-package auto-package-updat
   :config
   (setq auto-package-update-delete-old-versions t)
   (setq auto-package-update-interval 7)
@@ -70,13 +86,16 @@
 ;; Set package user directory
 (setq package-user-dir "~/.cache/emacs/packages")
 (use-package exec-path-from-shell
+  :ensure t
   :config
-  (dolist (var '("SSH_AUTH_SOCK" "LANG" "LANGUAGE" "LC_CTYPE" "LC_TIME"))
+  (dolist (var '("SSH_AUTH_SOCK" "LANG" "LANGUAGE" "LC_CTYPE" "LC_TIME" "PATH"))
     (add-to-list 'exec-path-from-shell-variables var))
+  (add-to-list 'exec-path "/opt/homebrew/bin" t)
   (when (daemonp)
     (exec-path-from-shell-initialize))
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize)))
+(add-to-list 'exec-path "/opt/homebrew/bin" t)
 
 ;; Set up the visible bell
 (setq visible-bell t)
@@ -247,6 +266,16 @@
   :config
   (global-evil-surround-mode 1))
 
+(use-package eradio
+  :ensure t
+  :init
+  (setq eradio-player '("mpv" "--no-video" "--no-terminal"))
+  :config
+  (setq eradio-channels '(("Totally 80s FM" . "https://stream.zeno.fm/4r73usts108uv")
+                           ("NDR DE" . "https://www.ndr.de/resources/metadaten/audio/aac/ndrblue.m3u")
+                           ("JPOP" . "https://cast1.torontocast.com:2170/")
+                           ("J1Extra" . "https://www.internet-radio.com/servers/tools/playlistgenerator/?u=http://jenny.torontocast.com:8058/listen.pls?sid=1&t=.m3u"))))
+
 (use-package magit
   :custom
   (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
@@ -293,17 +322,18 @@
 (use-package general
   :config
   (general-create-definer tao/leader-keys
-    :keymaps '(normal insert visual emacs)
+    :keymaps '(normal)
     :prefix "SPC"
-    :global-prefix "C-SPC")
+    :global-prefix "C-SPC"
+    :override t)
   (general-def universal-argument-map
     "SPC u" 'universal-argument-more)
   (tao/leader-keys
     "cc" 'comment-or-uncomment-region
     "bd" 'kill-this-buffer
     "bi" 'ibuffer-list-buffers
-    "fd" 'init-file
-    "ff" 'find-file
+    "fd" '(init-file :which-key "init file")
+    "ff" '(find-file :which-key "find file")
     "fs" 'save-buffer
     "k"  'switch-to-buffer
     "ps" 'org-pomodoro
@@ -335,6 +365,12 @@
 
 (use-package hydra)
 
+(defhydra hydra-radio (:timeout 4)
+  "eradio"
+   ("p" eradio-play "Eradio play" :exit t)
+   ("s" eradio-stop "Eradio stop" :exit t)
+   ("t" eradio-toggle "Eradio toggle" :exit t))
+
 (defhydra hydra-text-scale (:timeout 4)
   "scale text"
   ("j" text-scale-increase "in")
@@ -342,10 +378,10 @@
   ("f" nil "finished" :exit t))
 
 (tao/leader-keys
-  "ts" '(hydra-text-scale/body :which-key "scale text"))
+  "ts" '(hydra-text-scale/body :which-key "scale text")
+  "r" '(hydra-radio/body :which-key "eradio"))
 
 (defun tao/org-font-setup ()
-  ;; Replace list hyphen with dot
   (font-lock-add-keywords 'org-mode
                           '(("^ *\\([-]\\) "
                              (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
@@ -499,10 +535,6 @@
   :hook (js2-mode . lsp-deferred)
   :config
   (setq js2-basic-offset 2))
-
-(use-package flycheck
-  :ensure t
-  :init (global-flycheck-mode))
 
 (use-package company-box
   :hook (company-mode . company-box-mode))
@@ -697,5 +729,10 @@
   :hook (sql-mode . (lambda ()
                       (local-set-key (kbd "C-c C-f") 'sqlformat))))
 
+(add-hook 'dired-mode-hook (lambda () (dired-hide-details-mode 1)))
+
 (custom-set-variables
   '(markdown-command (substring (shell-command-to-string "which pandoc") 0 -1)))
+
+(provide 'init)
+;;; init.el ends here
