@@ -84,6 +84,11 @@
 ;; Use no-littering to keep .emacs.d clean
 (use-package no-littering)
 
+(use-package alert
+  :ensure t
+  :config
+  (setq alert-default-style 'osx-notifier))
+
 ;; Set package user directory
 (setq package-user-dir "~/.cache/emacs/packages")
 (use-package exec-path-from-shell
@@ -449,6 +454,8 @@
 
 (use-package org-pomodoro
   :after org)
+;;;; load local version which includes display of pomodoro count
+(require 'org-pomodoro)
 
 (use-package pomidor
   :bind (("<f12>" . pomidor))
