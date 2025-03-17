@@ -74,7 +74,7 @@
 (setq use-package-compute-statistics t)
 
 ;; Configure auto-package-update
-(use-package auto-package-updat
+(use-package auto-package-update
   :config
   (setq auto-package-update-delete-old-versions t)
   (setq auto-package-update-interval 7)
