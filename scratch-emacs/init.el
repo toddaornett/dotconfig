@@ -219,198 +219,178 @@
 (use-package which-key
   :init (which-key-mode)
   :diminish which-key-mode
-  :config
-  (setq which-key-idle-delay 0.3))
-
-(setq evil-want-keybinding nil)
+  :config (setq which-key-idle-delay 0.3))
 
 (defun tao/evil-hook ()
-  (dolist (mode '(custom-mode
-		  eshell-mode
-		  vterm-mode
-		  term-mode
-		  git-rebase-mode
-		  erc-mode
-		  circe-server-mode
-		  circe-chat-mode
-		  circe-query-mode
-		  sauron-mode))
+  (dolist (mode '(custom-mode eshell-mode vterm-mode term-mode
+                   git-rebase-mode erc-mode circe-server-mode circe-chat-mode
+                   circe-query-mode sauron-mode))
     (add-to-list 'evil-emacs-state-modes mode)))
 
 (use-package evil
-  :init
+  :ensure t
+  :init (setq evil-want-keybinding nil)
   (setq evil-want-integration t)
 
   ;; overrides universal argument in favor of C-u/C-v for scrolling
   (setq evil-want-C-u-scroll t)
-
   (setq evil-want-C-i-jump nil)
   (setq evil-undo-system 'undo-redo)
   (setq evil-want-keybinding nil)
   :hook (evil-mode . tao/evil-hook)
-  :config
-  (evil-mode 1)
-  (define-key evil-insert-state-map (kbd "C-g") 'evil-normal-state)
+  :config (evil-mode 1)
+  ;; Keybindings configuration
+  (eval-after-load 'evil '(progn
+                            ;; Insert state keybindings
+                            (define-key evil-insert-state-map (kbd "C-g")
+                              'evil-normal-state)
+                            (define-key evil-insert-state-map (kbd "C-h")
+                              'evil-delete-backward-char-and-join)
 
-  ;; help will just be from normal mode
-  (define-key evil-insert-state-map (kbd "C-h") 'evil-delete-backward-char-and-join)
+                            ;; Motion keybindings
+                            (when (fboundp 'evil-global-set-key)
+                              (evil-global-set-key 'motion (kbd "j")
+                                'evil-next-visual-line)
+                              (evil-global-set-key 'motion (kbd "k")
+                                'evil-previous-visual-line))))
 
-  ;; Use visual line motions even outside of visual-line-mode buffers
-  (evil-global-set-key 'motion "j" 'evil-next-visual-line)
-  (evil-global-set-key 'motion "k" 'evil-previous-visual-line)
-
-  (evil-set-initial-state 'messages-buffer-mode 'normal)
-  (evil-set-initial-state 'dashboard-mode 'normal))
+  ;; Initial state configuration
+  (eval-after-load 'evil '(progn (when (fboundp 'evil-set-initial-state)
+                                   (evil-set-initial-state
+                                     'messages-buffer-mode 'normal)
+                                   (evil-set-initial-state
+                                     'dashboard-mode 'normal)))))
 
 (use-package evil-collection
   :after evil
-  :config
-  (evil-collection-init))
+  :config (evil-collection-init))
 
 (use-package evil-surround
   :ensure t
-  :config
-  (global-evil-surround-mode 1))
+  :config (global-evil-surround-mode 1))
 
 (use-package eradio
   :ensure t
-  :init
-  (setq eradio-player '("mpv" "--no-video" "--no-terminal"))
-  :config
-  (setq eradio-channels '(("Totally 80s FM" . "https://stream.zeno.fm/4r73usts108uv")
-                           ("NDR DE" . "https://www.ndr.de/resources/metadaten/audio/aac/ndrblue.m3u")
-                           ("JPOP" . "https://cast1.torontocast.com:2170/")
-                           ("J1Extra" . "https://www.internet-radio.com/servers/tools/playlistgenerator/?u=http://jenny.torontocast.com:8058/listen.pls?sid=1&t=.m3u"))))
+  :init (setq eradio-player '("mpv" "--no-video" "--no-terminal"))
+  :config (setq eradio-channels '(
+                                   ("Totally 80s FM" . "https://stream.zeno.fm/4r73usts108uv")
+                                   ("NDR DE" . "https://www.ndr.de/resources/metadaten/audio/aac/ndrblue.m3u")
+                                   ("JPOP" . "https://cast1.torontocast.com:2170/")
+                                   ("J1Extra" . "https://www.internet-radio.com/servers/tools/playlistgenerator/?u=http://jenny.torontocast.com:8058/listen.pls?sid=1&t=.m3u"))))
 
 (use-package magit
-  :custom
-  (magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1))
+  :custom (magit-display-buffer-function
+            #'magit-display-buffer-same-window-except-diff-v1))
 (setq magit-define-global-key-bindings 'recommended)
 
 (use-package projectile
   :diminish projectile-mode
   :config (projectile-mode)
   :custom ((projectile-completion-system 'ivy)
-	   (projectile-globally-ignored-directories
-	    '("^\\.idea$"
-	      "^\\.vscode$"
-	      "^\\.ensime_cache$"
-	      "^\\.eunit$"
-	      "^\\.git$"
-	      "^\\.hg$"
-	      "^\\.fslckout$"
-	      "^_FOSSIL_$"
-	      "^\\.bzr$"
-	      "^_darcs$"
-	      "^\\.pijul$"
-	      "^\\.tox$"
-	      "^\\.svn$"
-	      "^\\.stack-work$"
-	      "^\\.ccls-cache$"
-	      "^\\.cache$"
-	      "^\\.clangd$"
-	      "^\\.sl$"
-	      "^\\.jj$"
-	      "^target$")
-	    ))
-  :bind-keymap
-  ("C-c p" . projectile-command-map)
-  :init
-  (when (file-directory-p "~/Projects")
-    (setq projectile-project-search-path '("~/Projects" "~/OpenProjects" "~/.config")))
-  (setq
-    projectile-enable-caching t
-    projectile-switch-project-action #'projectile-dired))
+            (projectile-globally-ignored-directories '("^\\.idea$" "
+^\\.vscode$" "^\\.ensime_cache$" "^\\.eunit$" "^\\.git$" "^\\.hg$" "
+^\\.fslckout$" "^_FOSSIL_$" "^\\.bzr$" "^_darcs$" "^\\.pijul$" "^\\.tox$" "
+^\\.svn$" "^\\.stack-work$" "^\\.ccls-cache$" "^\\.cache$" "^\\.clangd$" "
+^\\.sl$" "^\\.jj$" "^target$")))
+  :bind-keymap ("C-c p" . projectile-command-map)
+  :init (when (file-directory-p "~/Projects")
+          (setq projectile-project-search-path '("~/Projects" "
+~/OpenProjects" "~/.config")))
+  (setq projectile-enable-caching t projectile-switch-project-action
+    #'projectile-dired))
 
 (use-package counsel-projectile
   :config (counsel-projectile-mode))
 
 (use-package general
-  :config
-  (general-create-definer tao/leader-keys
-    :keymaps '(normal)
-    :prefix "SPC"
-    :global-prefix "C-SPC"
-    :override t)
-  (general-def universal-argument-map
-    "SPC u" 'universal-argument-more)
-  (tao/leader-keys
-    "cc" 'comment-or-uncomment-region
-    "bd" 'kill-this-buffer
-    "bi" 'ibuffer-list-buffers
-    "fd" '(init-file :which-key "init file")
-    "ff" '(find-file :which-key "find file")
-    "fs" 'save-buffer
-    "k"  'switch-to-buffer
-    "ps" 'org-pomodoro
-    "t"  '(:ignore t :which-key "toggles")
-    "tt" '(counsel-load-theme :which-key "choose theme")
-    "xh" 'mark-whole-buffer
-    ;; magit
-    "g"   '(:ignore t :which-key "git")
-    "gs"  'magit-status
-    "gd"  'magit-diff-untaged
-    "gc"  'magit-branch-or-checkout
-    "gl"  '(:ignore t :which-key "log")
-    "glc" 'magit-log-current
-    "glf" 'magit-log-buffer-file
-    "gb"  'magit-branch
-    "gP"  'magit-push-current
-    "gp"  'magit-pull-branch
-    "gf"  'magit-fetch
-    "gF"  'magit-fetch-all
-    "gr"  'magit-rebase
-    ;; projectile
-    "pd" 'counsel-projectile-find-dir
-    "pf" 'counsel-projectile-find-file
-    "pp" 'counsel-projectile-switch-project))
+  :config (general-create-definer tao/leader-keys
+            :keymaps '(normal)
+            :prefix "SPC"
+            :global-prefix "C-SPC"
+            :override t)
+  (general-def universal-argument-map "SPC u" 'universal-argument-more)
+  (tao/leader-keys "cc" 'comment-or-uncomment-region "bd"
+    'kill-this-buffer "bi" 'ibuffer-list-buffers "fd" '(init-file
+                                                         :which-key "
+init file") "ff" '(find-file :which-key "find file") "fs"
+    'save-buffer "k"  'switch-to-buffer "ps" 'org-pomodoro "t"  '(:ignore t
 
-(general-define-key
- "C-s" 'counsel-grep-or-swiper
- "C-M-j" 'counsel-switch-buffer)
+                                                                   :which-key "
+toggles") "tt" '(counsel-load-theme :which-key "choose theme") "xh"
+    'mark-whole-buffer
+    ;; magit
+    "g"   '(:ignore t
+             :which-key "git") "gs"  'magit-status "gd"
+    'magit-diff-untaged "gc"  'magit-branch-or-checkout "gl"  '(:ignore t
+
+                                                                 :which-key "
+log") "glc" 'magit-log-current "glf"
+    'magit-log-buffer-file "gb"  'magit-branch "gP"  'magit-push-current "
+gp"  'magit-pull-branch "gf"  'magit-fetch "gF"  'magit-fetch-all "gr"
+    'magit-rebase
+    ;; projectile
+    "pd" 'counsel-projectile-find-dir "pf" 'counsel-projectile-find-file "
+pp" 'counsel-projectile-switch-project))
+
+(general-define-key "C-s" 'counsel-grep-or-swiper "C-M-j"
+  'counsel-switch-buffer)
 
 (use-package hydra)
 
-(defhydra hydra-radio (:timeout 4)
-  "eradio"
-   ("p" eradio-play "Eradio play" :exit t)
-   ("s" eradio-stop "Eradio stop" :exit t)
-   ("t" eradio-toggle "Eradio toggle" :exit t))
+(defhydra hydra-radio (:timeout 4) "eradio" ("p" eradio-play "Eradio play"
+                                              :exit t)
+  ("s" eradio-stop "Eradio stop"
+    :exit t)
+  ("t" eradio-toggle "Eradio toggle"
+    :exit t))
 
-(defhydra hydra-text-scale (:timeout 4)
-  "scale text"
-  ("j" text-scale-increase "in")
+(defhydra hydra-text-scale (:timeout 4) "scale text" ("j"
+                                                       text-scale-increase "in")
   ("k" text-scale-decrease "out")
-  ("f" nil "finished" :exit t))
+  ("f" nil "finished"
+    :exit t))
 
-(tao/leader-keys
-  "ts" '(hydra-text-scale/body :which-key "scale text")
-  "r" '(hydra-radio/body :which-key "eradio"))
+(tao/leader-keys "ts" '(hydra-text-scale/body :which-key "scale text") "
+r" '(hydra-radio/body :which-key "eradio"))
 
 (defun tao/org-font-setup ()
-  (font-lock-add-keywords 'org-mode
-                          '(("^ *\\([-]\\) "
-                             (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+  (font-lock-add-keywords 'org-mode '(("^ *\\([-]\\) " (0 (prog1 ()
+                                                            (compose-region (match-beginning
+                                                                              1)
+                                                              (match-end
+                                                                1) "•"))))))
 
   ;; Set faces for heading levels
   (dolist (face '((org-level-1 . 1.2)
-                  (org-level-2 . 1.1)
-                  (org-level-3 . 1.05)
-                  (org-level-4 . 1.0)
-                  (org-level-5 . 1.1)
-                  (org-level-6 . 1.1)
-                  (org-level-7 . 1.1)
-                  (org-level-8 . 1.1)))
-    (set-face-attribute (car face) nil :font "Cantarell" :weight 'regular :height (cdr face)))
+                   (org-level-2 . 1.1)
+                   (org-level-3 . 1.05)
+                   (org-level-4 . 1.0)
+                   (org-level-5 . 1.1)
+                   (org-level-6 . 1.1)
+                   (org-level-7 . 1.1)
+                   (org-level-8 . 1.1)))
+    (set-face-attribute (car face) nil
+      :font "Cantarell"
+      :weight 'regular
+      :height (cdr face)))
 
-  ;; Make sure that anything that should be fixed-pitch in Org files appears that way
-  (set-face-attribute 'org-block nil :foreground nil :inherit 'fixed-pitch)
-  (set-face-attribute 'org-code nil   :inherit '(shadow fixed-pitch))
-  (set-face-attribute 'org-table nil   :inherit '(shadow fixed-pitch))
-  (set-face-attribute 'org-verbatim nil :inherit '(shadow fixed-pitch))
-  (set-face-attribute 'org-special-keyword nil :inherit '(font-lock-comment-face fixed-pitch))
-  (set-face-attribute 'org-meta-line nil :inherit '(font-lock-comment-face fixed-pitch))
-  (set-face-attribute 'org-checkbox nil :inherit 'fixed-pitch))
+  ;; Make sure that anything that should be fixed-pitch in Org files appears
+  ;; that way
+  (set-face-attribute 'org-block nil
+    :foreground nil
+    :inherit 'fixed-pitch)
+  (set-face-attribute 'org-code nil
+    :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-table nil
+    :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-verbatim nil
+    :inherit '(shadow fixed-pitch))
+  (set-face-attribute 'org-special-keyword nil
+    :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-meta-line nil
+    :inherit '(font-lock-comment-face fixed-pitch))
+  (set-face-attribute 'org-checkbox nil
+    :inherit 'fixed-pitch))
 
 (defun tao/org-mode-setup ()
   (org-indent-mode)
