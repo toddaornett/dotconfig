@@ -3,14 +3,15 @@
 (scroll-bar-mode -1)        ; Disable visible scrollbar
 (tool-bar-mode -1)          ; Disable the toolbar
 (tooltip-mode -1)           ; Disable tooltips
-(set-fringe-mode 10)        ; Give some breathing room
+(which-key-mode 1)
+(which-key-setup-side-window-right-bottom)
 
-(menu-bar-mode -1)            ; Disable the menu bar
+(menu-bar-mode -1)          ; Disable the menu bar
 
 ;; Set up the visible bell
 (setq visible-bell t)
 
-(set-face-attribute 'default nil :font "Fira Code Retina" :height 280)
+(set-face-attribute 'default nil :font "Fira Code Retina" :height 140)
 
 (load-theme 'wombat)
 
@@ -21,7 +22,7 @@
 (require 'package)
 
 (setq package-archives '(("melpa" . "https://melpa.org/packages/")
-                         ("org" . "https://orgmode.org/elpa/")
+                         ("org" . "https://orgmodek.org/elpa/")
                          ("elpa" . "https://elpa.gnu.org/packages/")))
 
 (package-initialize)
@@ -70,6 +71,9 @@
   :ensure t
   :init (doom-modeline-mode 1)
   :custom ((doom-modeline-height 15)))
+
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
