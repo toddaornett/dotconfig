@@ -13,8 +13,6 @@
 
 (set-face-attribute 'default nil :font "Fira Code Retina" :height 140)
 
-(load-theme 'wombat)
-
 ;; Make ESC quit prompts
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
@@ -72,8 +70,49 @@
   :init (doom-modeline-mode 1)
   :custom ((doom-modeline-height 15)))
 
+(use-package doom-themes
+  :config
+  (setq doom-themes-enable-bold t
+	doom-themes-enable-italic t)
+  (load-theme 'doom-gruvbox t)
+
+  ;; Enable flashing mode-line on errors
+  (doom-themes-visual-bell-config)
+
+  ;; Enable custom neotree theme (nerd-icons must be installed)
+					;(doom-themes-neotree-config)
+
+  ;; or for treemacs users
+					;(setq doom-themes-treemacs-theme "doom-atom") ; use "doom-colors" for less minimal icon theme
+  ;(doom-themes-treemacs-config)
+  ;; Corrects (and improves) org-mode's native fontification.
+  ;(doom-themes-org-config)
+  )
+  
 (use-package rainbow-delimiters
   :hook (prog-mode . rainbow-delimiters-mode))
+
+(use-package ivy-rich
+  :init
+  (ivy-rich-mode 1))
+
+(use-package counsel
+  :bind (("M-x" . counsel-M-x)
+	 ("C-x b" . counsel-ibuffer)
+	 :map minibuffer-local-map
+	 ("C-r" . 'counsel-minibuffer-history))
+  :config
+  (setq ivy-initial-inputs-alist nil))  ;; Don't start searches within ^
+
+(use-package helpful
+  :custom
+  (counsel-describe-function-function #'helpful-callable)
+  (counsel-describe-variable-function #'helpful-variable)
+  :bind
+  ([remap describe-function] . counsel-describe-function)
+  ([remap describe-command] . helpful-command)
+  ([remap desribe-variable] . counsel-describe-variable)
+  ([remap describe-key] . helpful-key))
 
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
@@ -82,7 +121,8 @@
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    '(alert auto-package-update command-log-mode counsel doom-modeline
-	   flycheck no-littering rainbow-delimiters)))
+	   doom-themes flycheck helpful ivy-rich no-littering
+	   rainbow-delimiters)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
