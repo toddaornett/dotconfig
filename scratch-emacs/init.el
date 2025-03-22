@@ -25,13 +25,11 @@
 
 (package-initialize)
 (unless package-archive-contents
-  (when (assoc "en0" (network-interface-list))
-    (package-refresh-contents)))
+  (package-refresh-contents))
 
 ;; Initialize use-package on non-Linux platforms
 (unless (package-installed-p 'use-package)
-  (when (assoc "en0" (network-interface-list))
-   (package-install 'use-package)))
+   (package-install 'use-package))
 
 (require 'use-package)
 (setq use-package-always-ensure t)
@@ -65,8 +63,29 @@
          ("C-d" . ivy-reverse-i-search-kill))
   :config (ivy-mode 1))
 
+;; NOTE: The first time you load your configurations on a new machine, run
+;; the following command interactively if the automatic function
+;; 'check-install-all-the-icons-fonts' fails somehow (like on Windows):
+;;
+;; M-x all-the-icons-install-fonts
+;;
+;; This is needed so that mode line icons display correctly.
+(defun check-install-all-the-icons-fonts ()
+  "Install all-the-icons fonts if they are not already installed."
+  (let* ((font-dir (if (eq system-type 'darwin)
+                       (concat (getenv "HOME") "/Library/Fonts/")
+                     (concat (getenv "HOME") "/.local/share/fonts/")))
+         (font-file (concat font-dir "all-the-icons.ttf")))
+    (unless (file-exists-p font-file)
+      (when (y-or-n-p "All-the-icons fonts are missing. Install them now? ")
+        (all-the-icons-install-fonts t)))))
+
+(use-package all-the-icons
+  :if (display-graphic-p)
+  :init
+  (check-install-all-the-icons-fonts))
+
 (use-package doom-modeline
-  :ensure t
   :init (doom-modeline-mode 1)
   :custom ((doom-modeline-height 15)))
 
@@ -120,9 +139,9 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
-   '(alert auto-package-update command-log-mode counsel doom-modeline
-	   doom-themes flycheck helpful ivy-rich no-littering
-	   rainbow-delimiters)))
+   '(alert all-the-icons auto-package-update command-log-mode counsel
+	   doom-modeline doom-themes flycheck helpful ivy-rich
+	   no-littering rainbow-delimiters)))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
