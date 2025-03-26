@@ -10,7 +10,7 @@
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
 (setq user-full-name "Todd Ornett"
-      user-mail-address "todd@acquirus.com")
+      user-mail-address "toddgh@acquirus.com")
 
 ;; Doom exposes five (optional) variables for controlling fonts in Doom:
 ;;
@@ -146,9 +146,6 @@
       (load (file-name-sans-extension my-private-config-file))
     (message "Ignoring missing local configration expected in %s" my-private-config-file)))
 
-(after! rustic
-  (setq lsp-rust-server 'rust-analyzer))
-
 (defun url-decode-region (start end)
   "Replace a region with the same contents, only URL decoded."
   (interactive "r")
@@ -164,6 +161,12 @@
     (insert text)))
 
 (after! rustic
+  (setq lsp-rust-server 'rust-analyzer)
+  (setq rustic-lsp-server 'rust-analyzer)
+  (setq lsp-rust-analyzer-cargo-watch-enable t)
+  (setq lsp-rust-analyzer-imports-merge-glob t)
+  (setq lsp-rust-analyzer-imports-group t)
+  (setq rustic-format-on-save t)
   (map! :map rustic-mode-map
         "M-j" #'lsp-ui-imenu
         "M-?" #'lsp-find-references
@@ -176,17 +179,4 @@
         "C-c C-c s" #'lsp-rust-analyzer-status)
   (setq lsp-enable-symbol-highlighting nil)
   (setq rustic-format-trigger nil)
-  (add-hook 'rustic-mode-hook 'tao/rustic-mode-hook)
-  (setq lsp-rust-analyzer-server-display-inlay-hints t)
-  ;; (customize-set-variable 'lsp-ui-doc-enable nil)
-  ;; (add-hook 'lsp-ui-mode-hook #'(lambda () (lsp-ui-sideline-enable nil)))
-  )
-
-
-(defun tao/rustic-mode-hook ()
-  ;; so that run C-c C-c C-r works without having to confirm, but don't try to
-  ;; save rust buffers that are not file visiting. Once
-  ;; https://github.com/brotzeit/rustic/issues/253 has been resolved this should
-  ;; no longer be necessary.
-  (when buffer-file-name
-    (setq-local buffer-save-without-query t)))
+  (setq lsp-rust-analyzer-server-display-inlay-hints t))
