@@ -11,3 +11,5 @@ karabiner/automatic_backups
 .DS_Store
 zsh/
 !todd/zsh/
+configstore
+.projectile-cache.eld
