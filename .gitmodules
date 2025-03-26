@@ -1,0 +1,6 @@
+[submodule "doom-emacs"]
+	path = doom-emacs
+	url = git@github.com:doomemacs/doomemacs.git
+[submodule "emacs"]
+	path = emacs
+	url = https://github.com/plexus/chemacs2.git
