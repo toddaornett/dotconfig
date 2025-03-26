@@ -26,8 +26,8 @@
 ;;
 ;;(setq doom-font (font-spec :family "Fira Code" :size 12 :weight 'semi-light)
 ;;      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 13))
-(setq doom-font (font-spec :family "Monaco" :size 16 :weight 'medium))
-
+(setq doom-font (font-spec :family "Fira Code" :size 16 :weight 'medium)
+      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16))
 ;;
 ;; If you or Emacs can't find your font, use 'M-x describe-font' to look them
 ;; up, `M-x eval-region' to execute elisp code, and 'M-x doom/reload-font' to
@@ -179,4 +179,18 @@
         "C-c C-c s" #'lsp-rust-analyzer-status)
   (setq lsp-enable-symbol-highlighting nil)
   (setq rustic-format-trigger nil)
-  (setq lsp-rust-analyzer-server-display-inlay-hints t))
+  (setq lsp-rust-analyzer-server-display-inlay-hints t)
+  (add-hook 'rustic-mode-hook #'flycheck-mode))
+
+(after! company
+  (setq company-idle-delay 0.2)
+  (setq company-minimum-prefix-length 1)
+  (setq company-tooltip-align-annotations t)
+  (add-to-list 'company-backends 'company-capf))
+
+(after! evil
+  (add-hook 'evil-insert-state-entry-hook #'company-mode))
+
+(after! company-box
+  (setq company-box-enable-icon t)
+  (setq company-box-icons-alist 'company-box-icons-all-the-icons))
