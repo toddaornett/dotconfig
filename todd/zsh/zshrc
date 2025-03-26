@@ -31,6 +31,11 @@ append_path '$OPENPROJECTS_PATH/emacs/src'
 append_path '$OPENPROJECTS_PATH/emacs/lib-src'
 
 ##########
+# doom emacs scripts
+##########
+append_path '$HOME/.config/doom-emacs/bin'
+
+##########
 # load all aliases sources
 ##########
 for f in $HOME/.config/todd/zsh/aliases*; do
