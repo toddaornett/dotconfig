@@ -8,5 +8,6 @@ brew reinstall emacs-mac --with-dbus\
    --with-emacs-icons-project-EmacsIcon7\
    --with-native-comp\
    --with-mac-metal\
-   --with-xwidgets
-ln -sf $HOMEBREW/opt/emacs-mac/Emacs.app /Applications/Emacs.app
+   --with-xwidgets\
+  --with-tree-sitter
+ln -sfn $HOMEBREW/opt/emacs-mac/Emacs.app /Applications/Emacs.app
