@@ -194,3 +194,5 @@
 (after! company-box
   (setq company-box-enable-icon t)
   (setq company-box-icons-alist 'company-box-icons-all-the-icons))
+
+(load! "lisp/nodoze")
