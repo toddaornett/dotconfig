@@ -6,6 +6,7 @@
 ;; sync' after modifying this file!
 
 (add-to-list 'load-path "~/.config/doom/lisp")
+(add-to-list 'load-path "~/.config/elisp")
 
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
@@ -207,12 +208,14 @@
   (setq company-box-enable-icon t)
   (setq company-box-icons-alist 'company-box-icons-all-the-icons))
 
-(load! "lisp/nodoze")
-
 (setq-hook! 'typescript-mode-hook +format-with :prettier)
 
 (use-package! treesit-auto
   :config
   (setq treesit-auto-install t)
   (global-treesit-auto-mode))
+
+(use-package! port-number)
+
+(use-package! nodoze)
 

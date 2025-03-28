@@ -1,4 +1,4 @@
-;;; insert-port-number-for-directory-into-buffer.el --- generate port number based on current directory name -*- lexical-binding: t -*-
+;;; port-number.el --- generate port number based on current directory name -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024
 ;; Author: Todd Ornett
@@ -22,24 +22,25 @@
 ;; If needed, map to a keybinding of choice for convenience.
 
 ;;; Code:
-(defun hash-directory-name-to-port (directory-name)
-  "Generate a port number from the DIRECTORY-NAME using SHA-256 hashing."
-  (let* ((hash (secure-hash 'sha256 directory-name))
+(defun port-number-from-string (string)
+  "Generate a port number from the STRING using SHA-256 hashing."
+  (let* ((hash (secure-hash 'sha256 string))
          (hash-integer (string-to-number (substring hash 0 8) 16))
          (min-port 8000)
          (max-port 8999)
          (port-number (+ min-port (mod hash-integer (- max-port min-port)))))
     port-number))
 
-(defun insert-port-number-for-directory-into-buffer (&optional directory-name)
+(defun port-number-for-directory-insert (&optional directory-name)
   "Insert a generated port number for DIRECTORY-NAME into the current buffer.
 If DIRECTORY-NAME is not provided, use the last part of the current
 directory path."
   (interactive)
   (let* ((dir (or directory-name default-directory))
          (base-dir-name (file-name-nondirectory (directory-file-name dir)))
-         (port-number (hash-directory-name-to-port base-dir-name)))
+         (port-number (port-number-from-string base-dir-name)))
     (insert (format "%d" port-number))))
 
-(provide 'insert-port-number-for-directory-into-buffer)
-;;; insert-port-number-for-directory-into-buffer.el ends here
+(provide 'port-number)
+
+;;; port-number.el ends here
