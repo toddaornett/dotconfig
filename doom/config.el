@@ -24,10 +24,18 @@
 ;; See 'C-h v doom-font' for documentation and more examples of what they
 ;; accept. For example:
 ;;
-;;(setq doom-font (font-spec :family "Fira Code" :size 12 :weight 'semi-light)
+;;(setq doom-font (font-spec :family "FiraCode" :size 12 :weight 'semi-light)
 ;;      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 13))
-(setq doom-font (font-spec :family "Fira Code" :size 16 :weight 'medium)
-      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16))
+(setq doom-font (font-spec :family "FiraCode Nerd Font" :size 16 :weight 'medium)
+      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
+      doom-big-font (font-spec :family "Fira Sans" :size 24))
+(after! doom-themes
+  (setq doom-themes-enable-bold t
+        doom-themes-enable-italic t))
+(custom-set-faces!
+  '(font-lock-comment-face :slant italic)
+  '(font-lock-keyword-face :slant italic))
+
 ;;
 ;; If you or Emacs can't find your font, use 'M-x describe-font' to look them
 ;; up, `M-x eval-region' to execute elisp code, and 'M-x doom/reload-font' to
@@ -80,14 +88,18 @@
 ;; You can also try 'gd' (or 'C-c c d') to jump to their definition and see how
 ;; they are implemented.
 (after! treesit
-  (setq treesit-language-source-alist
-        '((typescript "https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src" nil nil)
-          (tsx "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src" nil nil))))
+  (add-to-list 'treesit-language-source-alist
+               '((rust . ("https://github.com/tree-sitter/tree-sitter-rust" "master" "src"))
+                 (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
+                 (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")))))
+
 (use-package typescript-ts-mode
-  :mode (("\\.ts\\'" . typescript-ts-mode)
+  :mode (("\\.js\\'" . typescript-ts-mode)
+         ("\\.ts\\'" . typescript-ts-mode)
          ("\\.tsx\\'" . tsx-ts-mode))
   :config
-  (add-hook! '(typescript-ts-mode-hook tsx-ts-mode-hook) #'lsp!))
+  (add-hook! '(typescript-ts-mode-hook tsx-ts-mode-hook)
+    #'lsp!))
 
 (defadvice! workaround--+lookup--xref-show (fn identifier &optional show-fn)
   :override #'+lookup--xref-show
@@ -196,3 +208,11 @@
   (setq company-box-icons-alist 'company-box-icons-all-the-icons))
 
 (load! "lisp/nodoze")
+
+(setq-hook! 'typescript-mode-hook +format-with :prettier)
+
+(use-package! treesit-auto
+  :config
+  (setq treesit-auto-install t)
+  (global-treesit-auto-mode))
+
