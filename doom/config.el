@@ -144,6 +144,8 @@
 (yas-global-mode t)
 (add-hook 'yas-minor-mode-hook (lambda ()
                                  (yas-activate-extra-mode 'fundamental-mode)))
+(setq yas-snippet-dirs
+      '("~/.config/yasnippets/"))
 
 (defun add-yasnippet-ac-sources ()
   (add-to-list 'ac-sources 'ac-source-yasnippet))

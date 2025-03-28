@@ -1,0 +1,6 @@
+# -*- mode: snippet -*-
+# name: test setup_config();
+# key: tfcsc
+# type: snippet
+# --
+setup_config().expect("Unable to setup config");
