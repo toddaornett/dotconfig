@@ -1,0 +1,77 @@
+# -*- mode: snippet -*-
+# name: postman_add_index_to_arrays
+# key:
+# --
+function addIndexToArrays(obj) {
+    if (Array.isArray(obj)) {
+        obj.forEach((item, index) => {
+            if (typeof item === 'object' && item !== null) {
+                item.index = index; // Add index to each object in the array
+                addIndexToArrays(item); // Recursively process nested objects or arrays
+            }
+        });
+    } else if (typeof obj === 'object' && obj !== null) {
+        Object.values(obj).forEach(value => addIndexToArrays(value));
+    }
+}
+
+function reorderProperties(obj) {
+    if (Array.isArray(obj)) {
+        return obj.map(item => reorderProperties(item));
+    } else if (typeof obj === 'object' && obj !== null) {
+        const reordered = {};
+        if ('index' in obj) {
+            reordered.index = obj.index;
+        }
+        for (const key in obj) {
+            if (key !== 'index') {
+                reordered[key] = obj[key];
+            }
+        }
+        return reordered;
+    }
+    return obj;
+}
+
+try {
+    let responseJson = pm.response.json();
+
+    // Add index properties
+    addIndexToArrays(responseJson);
+
+    // Reorder properties to ensure index appears first
+    const reorderedJson = reorderProperties(responseJson);
+
+    // Log the modified JSON for verification
+    console.log(JSON.stringify(reorderedJson, null, 2));
+
+pm.visualizer.set(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        body {
+            background-color: #1e1e1e; /* Dark background */
+            color: #d4d4d4; /* Light text color */
+            font-family: Arial, sans-serif;
+            padding: 10px;
+        }
+        pre {
+            color: #d4d4d4;
+            background-color: #1e1e1e;
+            border: 1px solid #d4d4d4;
+            padding: 10px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <pre>{{json}}</pre>
+</body>
+</html>
+`, {
+    json: JSON.stringify(responseJson, null, 2)
+});
+} catch (error) {
+    console.error("Error processing JSON response:", error);
+}
