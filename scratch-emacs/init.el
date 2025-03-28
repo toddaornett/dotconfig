@@ -34,6 +34,8 @@
 (require 'use-package)
 (setq use-package-always-ensure t)
 
+(add-to-list 'load-path "~/.config/elisp")
+
 (column-number-mode)
 (global-display-line-numbers-mode t)
 
