@@ -10,17 +10,18 @@ export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-$HOME/Projects}
 ##########
 append_path() {
   local new_path="$1"
+  if [[ -d "$new_path" ]]; then
+    # Ensure the exact string with the variable reference is written to ~/.zprofile
+    if ! grep -Fxq "path+=($new_path)" "$HOME/.config/zsh/.zprofile"; then
+      echo "path+=($new_path)" >> "$HOME/.config/zsh/.zprofile"
+    fi
 
-  # Ensure the exact string with the variable reference is written to ~/.zprofile
-  if ! grep -Fxq "path+=($new_path)" "$HOME/.config/zsh/.zprofile"; then
-    echo "path+=($new_path)" >> "$HOME/.config/zsh/.zprofile"
-  fi
-
-  # Expand variables and append to the current session’s path
-  local expanded_path
-  eval "expanded_path=$new_path"
-  if [[ -d "$expanded_path" && ":$path:" != *":$expanded_path:"* ]]; then
-    path+=("$expanded_path")
+    # Expand variables and append to the current session’s path
+    local expanded_path
+    eval "expanded_path=$new_path"
+    if [[ -d "$expanded_path" && ":$path:" != *":$expanded_path:"* ]]; then
+      path+=("$expanded_path")
+    fi
   fi
 }
 
