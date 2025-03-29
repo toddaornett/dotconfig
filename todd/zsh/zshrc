@@ -1,4 +1,6 @@
-########## # character encoding ##########
+##########
+# character encoding
+##########
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
@@ -209,17 +211,14 @@ function nuke-config-nvim {
 # building from varous sources
 ###########
 function make-my-nvim {
-  if [ ! -d ~/Projects/neovim/ ]
-  then
-    if [ ! -d ~/Projects ]
-    then
+  if [ ! -d ~/Projects/neovim/ ]; then
+    if [ ! -d ~/Projects ]; then
       mkdir ~/Projects
     fi
     cd Projects
     git clone https://github.com/neovim/neovim.git
   fi
-  if [[ "$#" -gt 0 ]] || [[ ! $(git pull | grep "Already up to date." &>/dev/null) ]]
-  then
+  if [[ "$#" -gt 0 ]] || [[ ! $(git pull | grep "Already up to date." &>/dev/null) ]]; then
     cd ~/Projects/neovim
     make CMAKE_BUILD_TYPE=Release CMAKE_INSTALL_PREFIX=$HOME/Neovim install
   fi
@@ -229,8 +228,7 @@ function make-my-nvim {
 # swagger editor
 ###########
 function swage {
-  if ! docker images | grep swaggerapi/swagger-editor 2>/dev/null
-  then
+  if ! docker images | grep swaggerapi/swagger-editor 2>/dev/null; then
     docker pull swaggerapi/swagger-editor
   fi
   docker run -p 80:8080 swaggerapi/swagger-editor
@@ -284,8 +282,7 @@ eval "$(rbenv init - zsh)"
 # start tmux
 ##########
 function start_tmux {
-  if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]
-  then
+  if command -v tmux &>/dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
     exec tmux new -As0 && exit
   fi
 }
@@ -310,8 +307,7 @@ autoload -U add-zsh-hook
 function load_companion_env {
   local currentdir=$(pwd)
   local parentdir="$(dirname "$currentdir")"
-  if [[ $parentdir == *Projects ]]
-  then
+  if [[ $parentdir == *Projects ]]; then
     local project="$(basename "$currentdir")"
     local myenv=${MYENV:-local}
     local envars="$HOME/myenv/$project/${myenv}.zsh"
