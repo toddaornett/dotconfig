@@ -221,3 +221,14 @@
 
 (use-package! nodoze)
 
+(after! projectile
+  (let* ((projects-path "~/Projects")
+         (open-projects-path (getenv "OPENPROJECTS_PATH"))
+         (paths (delq nil (list projects-path
+                                (unless (string= projects-path open-projects-path)
+                                  open-projects-path)))))
+    (dolist (path paths)
+      (let ((entry (cons path 2)))
+        (unless (assoc path projectile-project-search-path)
+          (add-to-list 'projectile-project-search-path entry)))))
+  (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))

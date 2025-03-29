@@ -2,7 +2,7 @@
 export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
-export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-$HOME/Projects}
+export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-~/Projects}
 
 ##########
 # append specified path both to users .zprofile without any variables
