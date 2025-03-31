@@ -85,6 +85,7 @@
        grammar             ; tasing grammar mistake every you make
 
        :tools
+       projectile          ; easy way to tell trees from the forest
        ;;ansible
        ;;biblio            ; Writes a PhD for you (citation needed)
        ;;debugger          ; FIXME stepping through code, to help you add bugs
@@ -102,6 +103,7 @@
        ;;pdf               ; pdf enhancements
        ;;prodigy           ; FIXME managing external services & code builders
        rgb                 ; creating color strings
+       (ripgrep +extra)    ; faster searching, r.i.p. grep
        ;;taskrunner        ; taskrunner for all your projects
        ;;terraform         ; infrastructure as code
        ;;tmux              ; an API for interacting with tmux
