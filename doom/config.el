@@ -234,3 +234,12 @@
         (unless (assoc path projectile-project-search-path)
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
+
+(use-package! exec-path-from-shell
+  :init
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
+
+(after! exec-path-from-shell
+  (setenv "PATH" (concat (getenv "HOMEBREW") "bin/rg:" (getenv "PATH")))
+  (add-to-list 'exec-path (concat (getenv "HOMEBREW") "/bin/rg")))

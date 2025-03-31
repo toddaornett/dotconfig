@@ -51,3 +51,5 @@
 (package! evil-tutor)
 
 (package! treesit-auto)
+
+(package! exec-path-from-shell)
