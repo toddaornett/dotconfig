@@ -221,6 +221,8 @@
 
 (use-package! nodoze)
 
+(use-package! colima)
+
 (after! projectile
   (let* ((projects-path "~/Projects")
          (open-projects-path (getenv "OPENPROJECTS_PATH"))
