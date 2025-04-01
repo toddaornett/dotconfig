@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: iadd_checkbox
+# key: cb 
+# --
+- [ ] 

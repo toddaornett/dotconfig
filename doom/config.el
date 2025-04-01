@@ -4,17 +4,16 @@
 
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
-
 (after! straight
   (setq straight-repository-remap
         '(("git.savannah.gnu.org" . "github.com/emacsmirror")))
-  ;; Explicitly override nongnu
   (straight-override-recipe
    '(:type git :host "git.savannah.gnu.org" :repo "emacs/nongnu.git")
    '(:type git :host "github.com" :repo "emacsmirror/nongnu")))
 
-(add-to-list 'load-path "~/.config/doom/lisp")
-(add-to-list 'load-path "~/.config/elisp")
+(after! emacs
+  (add-load-path! "lisp")
+  (add-load-path! "../elisp"))
 
 ;; Some functionality uses this to identify you, e.g. GPG configuration, email
 ;; clients, file templates and snippets. It is optional.
@@ -62,7 +61,7 @@
 
 ;; If you use `org' and don't want your org files in the default location below,
 ;; change `org-directory'. It must be set before org loads!
-(setq org-directory "~/org/")
+(setq org-directory "~/Notes/")
 
 
 ;; Whenever you reconfigure a package, make sure to wrap your config in an
@@ -248,6 +247,46 @@
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-initialize)))
 
+(after! org-pomodoro
+  :defer t
+  (defcustom org-pomodoro-display-count-p t
+  "When non-nil, display the total number of pomodoros in the modeline."
+  :group 'org-pomodoro
+  :type 'boolean)
+
+  (defcustom org-pomodoro-count-format "[%s] "
+  "The format of the total pomodoro count if enabled."
+  :group 'org-pomodoro
+  :type 'string)
+
+  (defun org-pomodoro-format-count ()
+  "Format the total number of pomodoros or empty string if not shown."
+  (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
+      (format org-pomodoro-count-format org-pomodoro-count)
+    ""))
+
+  (defun org-pomodoro-update-mode-line ()
+    "Set the modeline accordingly to the current state.
+
+     Note that this version supports the number of completed pomodoros
+     to be displayed on the modeline."
+    (let ((s (cl-case org-pomodoro-state
+               (:pomodoro
+                 (propertize org-pomodoro-format 'face 'org-pomodoro-mode-line))
+               (:overtime
+                 (propertize org-pomodoro-overtime-format
+                            'face 'org-pomodoro-mode-line-overtime))
+               (:short-break
+                (propertize org-pomodoro-short-break-format
+                            'face 'org-pomodoro-mode-line-break))
+               (:long-break
+                (propertize org-pomodoro-long-break-format
+                            'face 'org-pomodoro-mode-line-break)))))
+      (setq org-pomodoro-mode-line
+            (when (and (org-pomodoro-active-p) (> (length s) 0))
+              (list "[" (format s (org-pomodoro-format-seconds)) "] " (org-pomodoro-format-count))))
+    (force-mode-line-update t))))
+
 (after! exec-path-from-shell
   (setenv "PATH" (concat (getenv "HOMEBREW") "bin/rg:" (getenv "PATH")))
   (add-to-list 'exec-path (concat (getenv "HOMEBREW") "/bin/rg")))
@@ -261,3 +300,75 @@
       :desc "UpperCamelCase"  :n "p" #'string-inflection-upper-camelcase
       :desc "snake_case"      :n "s" #'string-inflection-underscore
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
+
+(after! org
+  (setq
+    ;; Define stages for todo tasks
+    org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE" ))
+
+    ;; When item enters DONE, add a CLOSED: property with current date-time stamp
+    org-log-done 'time
+
+    ;; Make TODO states easier to distinguish by using different colours
+    ;; Using X11 colour names from: https://en.wikipedia.org/wiki/Web_colors
+    org-todo-keyword-faces
+    '(("TODO" . "Teal")
+      ("DOING" . "Green")
+      ("BLOCKED" . "Red")
+      ("REVIEW" . "Aqua")
+      ("DONE" . "SlateGray"))
+
+    ;; Allows full cycle with C-c C-t
+    org-use-fast-todo-selection t)
+
+  (map! :map org-mode-map
+        :n "t" #'org-todo)
+
+  (defun tao/org-prettify-symbols ()
+    "Set up prettify symbols for Org buffers."
+    (when (derived-mode-p 'org-mode)
+      (setq-local prettify-symbols-alist
+                  (append prettify-symbols-alist
+                          '(("[ ]" . "☐")
+                            ("[X]" . "☑")
+                            ("[-]" . "❍"))))
+      (prettify-symbols-mode 1)))
+  (add-hook! 'org-mode-hook #'tao/org-prettify-symbols)
+
+  ;; Define a custom face for tasks with clock entries
+  (defface org-task-with-clock
+    '((t :foreground "Cyan"))
+    "Face for Org tasks with clock entries.")
+
+  ;; Function to check if a headline has clock entries
+  (defun tao/org-has-clock-entries-p ()
+    "Return non-nil if the current headline has clock entries."
+    (save-excursion
+      (org-back-to-heading t)
+      (let ((end (org-entry-end-position)))
+        (re-search-forward "^[ \t]*CLOCK:" end t))))
+
+  ;; Function to fontify only the headline text, preserving prettified asterisks
+  (defun tao/org-fontify-clock-tasks ()
+    "Fontify Org tasks with clock entries, skipping the asterisks."
+    (when (derived-mode-p 'org-mode)
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward org-heading-regexp nil t)
+          (let* ((beg (match-beginning 0))  ;; Start of the full headline
+                 (end (match-end 0))        ;; End of the full headline
+                 (text-beg (progn           ;; Start of the text (after asterisks/TODO)
+                             (goto-char beg)
+                             (skip-chars-forward "*[:space:]")
+                             (when (looking-at org-todo-regexp)
+                               (goto-char (match-end 0))
+                               (skip-chars-forward "[:space:]"))
+                             (point))))
+            (when (tao/org-has-clock-entries-p)
+              (add-text-properties text-beg end '(font-lock-face org-task-with-clock))))))))
+  (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
+  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks))
+
+(setq custom-file (expand-file-name "custom.el" doom-private-dir))
+(when (file-exists-p custom-file)
+  (load custom-file))
