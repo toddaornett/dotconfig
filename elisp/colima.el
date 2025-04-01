@@ -23,7 +23,7 @@
                   `(,(s-trim colima-command) ,(s-trim command))
                 `(,(s-trim colima-command) ,(s-trim command) ,(s-trim args)))))
 
-(defun colima-do (command arguments)
+(defun colima (command arguments)
   "Run a colima COMMAND with optional ARGUMENTS."
   (interactive "sEnter colima command: \nsEnter optional arguments: ")
   (let* ((buffer-name "*colima output*")
