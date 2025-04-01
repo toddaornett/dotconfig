@@ -55,5 +55,3 @@
 (package! exec-path-from-shell)
 
 (package! string-inflection)
-
-(package! sound-wav)
