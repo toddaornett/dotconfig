@@ -5,6 +5,14 @@
 ;; Place your private configuration here! Remember, you do not need to run 'doom
 ;; sync' after modifying this file!
 
+(after! straight
+  (setq straight-repository-remap
+        '(("git.savannah.gnu.org" . "github.com/emacsmirror")))
+  ;; Explicitly override nongnu
+  (straight-override-recipe
+   '(:type git :host "git.savannah.gnu.org" :repo "emacs/nongnu.git")
+   '(:type git :host "github.com" :repo "emacsmirror/nongnu")))
+
 (add-to-list 'load-path "~/.config/doom/lisp")
 (add-to-list 'load-path "~/.config/elisp")
 
@@ -115,7 +123,7 @@
           'deferred
         t))))
 
-(add-hook 'focus-out-hook (lambda () (save-some-buffers t)))
+(add-function :after after-focus-change-function (lambda () (save-some-buffers t)))
 
 ;; I'm not sure why this is needed, but it throws an error if I remove it
 (cl-defmethod project-root ((project (head eglot-project)))
@@ -243,3 +251,13 @@
 (after! exec-path-from-shell
   (setenv "PATH" (concat (getenv "HOMEBREW") "bin/rg:" (getenv "PATH")))
   (add-to-list 'exec-path (concat (getenv "HOMEBREW") "/bin/rg")))
+
+(map! :leader
+      :prefix ("z" . "string inflection")
+      :desc "all cases"       :n "a" #'string-inflection-all-cycle
+      :desc "camelCase"       :n "c" #'string-inflection-camelcase
+      :desc "kebab-case"      :n "k" #'string-inflection-kebab-case
+      :desc "lowerCamelCase"  :n "l" #'string-inflection-lower-camelcase
+      :desc "UpperCamelCase"  :n "p" #'string-inflection-upper-camelcase
+      :desc "snake_case"      :n "s" #'string-inflection-underscore
+      :desc "UPCASE"          :n "u" #'string-inflection-upcase)

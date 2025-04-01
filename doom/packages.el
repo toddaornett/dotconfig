@@ -53,3 +53,5 @@
 (package! treesit-auto)
 
 (package! exec-path-from-shell)
+
+(package! string-inflection)
