@@ -248,7 +248,6 @@
     (exec-path-from-shell-initialize)))
 
 (after! org-pomodoro
-  :defer t
   (defcustom org-pomodoro-display-count-p t
   "When non-nil, display the total number of pomodoros in the modeline."
   :group 'org-pomodoro
@@ -366,8 +365,16 @@
                              (point))))
             (when (tao/org-has-clock-entries-p)
               (add-text-properties text-beg end '(font-lock-face org-task-with-clock))))))))
+
+  ;; Function to run when pomodoro starts
+  (defun tao/org-pomodoro-start-or-finished-hook ()
+    "Hook to run when org-pomodoro starts or finishes."
+    (when (org-entry-is-todo-p)
+      (tao/org-fontify-clock-tasks)))
   (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
-  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks))
+  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
+  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-hook)
+  (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
