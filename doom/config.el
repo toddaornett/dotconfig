@@ -375,7 +375,7 @@
       (tao/org-fontify-clock-tasks)))
   (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
   (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
-  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-hook)
+  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
   (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
