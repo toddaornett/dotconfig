@@ -230,6 +230,8 @@
 
 (use-package! colima)
 
+(use-package! git-tools)
+
 (after! projectile
   (let* ((projects-path "~/Projects")
          (open-projects-path (getenv "OPENPROJECTS_PATH"))
