@@ -371,8 +371,7 @@
   ;; Function to run when pomodoro starts
   (defun tao/org-pomodoro-start-or-finished-hook ()
     "Hook to run when org-pomodoro starts or finishes."
-    (when (org-entry-is-todo-p)
-      (tao/org-fontify-clock-tasks)))
+    (tao/org-fontify-clock-tasks))
   (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
   (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
   (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
