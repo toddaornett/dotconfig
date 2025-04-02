@@ -15,9 +15,11 @@
 ;;
 ;;; Commentary:
 ;;
-;;  This package provides some git tools and workflows.
+;; This package provides some git tools and workflows.
 ;;
 ;;; Code:
+
+(require 'magit)
 
 (defun git-tools-main-branch-name ()
   "Determine the effective main branch for the current repository.
@@ -30,11 +32,82 @@
        ((magit-branch-p "trunk") "trunk")  ;; Check if 'trunk' exists
        (t "master")))))                    ;; Default to 'master'
 
+(defun git-tools-discard-unstaged-changes (&optional parent-dir force)
+  "Discard all unstaged work in Git repos under a parent directory.
+
+If PARENT-DIR is nil, defaults to '~/Projects'. If FORCE is non-nil,
+the function skips the confirmation prompt; otherwise, it asks for
+confirmation for each repository using 'y-or-n-p'. The results are
+displayed in the '*Git Discarded Unstaged Changes*' buffer."
+  (interactive "P") ; 'P' allows prefix arg (e.g., C-u) to set force
+  (let* ((parent-dir (or parent-dir "~/Projects"))
+         (default-directory (expand-file-name parent-dir))
+         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+         (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
+         (discarded-dirs nil))
+    ;; Ensure parent directory exists
+    (unless (file-directory-p default-directory)
+      (error "Parent directory '%s' does not exist" default-directory))
+    ;; Check each subdirectory and discard unstaged changes
+    (dolist (dir dirs)
+      (let ((full-path (expand-file-name dir default-directory)))
+        (when (and (file-directory-p full-path)
+                   (file-exists-p (expand-file-name ".git" full-path)))
+          (let ((status (shell-command-to-string
+                         (format "cd %s && git status --porcelain" full-path))))
+            (unless (string-empty-p status)
+              (when (or force (y-or-n-p (format "Discard unstaged changes in %s? " full-path)))
+                ;; Discard only unstaged changes
+                (shell-command (format "cd %s && git checkout -- ." full-path))
+                (push dir discarded-dirs)))))))
+    ;; Display results
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert (format "Directories with discarded unstaged changes in %s:\n\n" parent-dir))
+      (if discarded-dirs
+          (insert (mapconcat #'identity (nreverse discarded-dirs) "\n"))
+        (insert "No directories with unstaged changes found."))
+      (goto-char (point-min))
+      (display-buffer buffer))))
+
+(defun git-tools-any-changes (&optional parent-dir)
+  "List subdirectories under PARENT-DIR with work.
+
+  List subdirectories under PARENT-DIR (default '~/Projects')
+  with uncommitted Git changes. Displays results in a new buffer."
+  (interactive)
+  (let* ((parent-dir (or parent-dir "~/Projects"))
+         (default-directory (expand-file-name parent-dir))
+         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+         (buffer (get-buffer-create "*Git Changes*"))
+         (changed-dirs nil))
+    ;; Ensure parent directory exists
+    (unless (file-directory-p default-directory)
+      (error "Parent directory '%s' does not exist" default-directory))
+    ;; Check each subdirectory for Git changes
+    (dolist (dir dirs)
+      (let ((full-path (expand-file-name dir default-directory)))
+        (when (and (file-directory-p full-path)
+                   (file-exists-p (expand-file-name ".git" full-path)))
+          (let ((status (shell-command-to-string
+                         (format "cd %s && git status --porcelain" full-path))))
+            (unless (string-empty-p status)
+              (push dir changed-dirs))))))
+    ;; Display results
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert (format "Directories with uncommitted changes in %s:\n\n" parent-dir))
+      (if changed-dirs
+          (insert (mapconcat #'identity (nreverse changed-dirs) "\n"))
+        (insert "No directories with uncommitted changes found."))
+      (goto-char (point-min))
+      (display-buffer buffer))))
+
 (defun git-tools-pull-all-main (root-dir)
   "Iterate through all subdirectories in ROOT-DIR, switch to main branch, and pull.
 
   When iterating first switch to the effective main branch and then pull."
-  (interactive "DDirectory: ~/Projects ") ;; Prompt for directory, default to ~/Projects
+  (interactive "DDirectory: ~/Projects ")
   (let ((default-directory root-dir))
     (dolist (dir (directory-files root-dir t "\\`[^.]"))
       (when (and (file-directory-p dir)
