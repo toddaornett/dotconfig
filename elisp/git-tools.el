@@ -43,7 +43,7 @@ with files untracked by git. Displays results in a new buffer."
                           (read-string "Enter parent directory path (default '~/Projects'): " nil nil "~/Projects"))))
          (default-directory (expand-file-name parent-dir))
          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Changes*"))
+         (buffer (get-buffer-create "*Git Untracked Files*"))
          (changed-dirs nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
@@ -87,6 +87,7 @@ displayed in the '*Git Discarded Unstaged Changes*' buffer."
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
+                   (not (file-symlink-p full-path))
                    (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
                          (format "cd %s && git status --porcelain" full-path))))
@@ -112,7 +113,7 @@ displayed in the '*Git Discarded Unstaged Changes*' buffer."
   (let* ((parent-dir (or parent-dir "~/Projects"))
          (default-directory (expand-file-name parent-dir))
          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Changes*"))
+         (buffer (get-buffer-create "*Git Unstaged Changes*"))
          (changed-dirs nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
@@ -121,6 +122,7 @@ displayed in the '*Git Discarded Unstaged Changes*' buffer."
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
+                   (not (file-symlink-p full-path))
                    (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
                          (format "cd %s && git status --porcelain" full-path))))
@@ -144,6 +146,7 @@ displayed in the '*Git Discarded Unstaged Changes*' buffer."
   (let ((default-directory root-dir))
     (dolist (dir (directory-files root-dir t "\\`[^.]"))
       (when (and (file-directory-p dir)
+                 (not (file-symlink-p dir))
                  (file-exists-p (expand-file-name ".git" dir)))
         (let ((default-directory dir))
           (message "Processing: %s" dir)
