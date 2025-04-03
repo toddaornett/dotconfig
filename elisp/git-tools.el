@@ -103,11 +103,11 @@ displayed in the '*Git Discarded Unstaged Changes*' buffer."
       (goto-char (point-min))
       (display-buffer buffer))))
 
-(defun git-tools-any-changes (&optional parent-dir)
+(defun git-tools-show-unstaged (&optional parent-dir)
   "List subdirectories under PARENT-DIR with work.
 
   List subdirectories under PARENT-DIR (default '~/Projects')
-  with uncommitted Git changes. Displays results in a new buffer."
+  with unstaged Git changes. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir "~/Projects"))
          (default-directory (expand-file-name parent-dir))
