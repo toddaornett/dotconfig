@@ -32,6 +32,56 @@
        ((magit-branch-p "trunk") "trunk")  ;; Check if 'trunk' exists
        (t "master")))))                    ;; Default to 'master'
 
+(defun git-tools-discard-unstaged-changes (&optional parent-dir force)
+  "Discard all unstaged changes in tracked files in Git repos under a parent directory.
+
+If PARENT-DIR is nil, defaults to '~/Projects'. If FORCE is non-nil,
+the function skips the confirmation prompt; otherwise, it asks for
+confirmation for each repository with options: 'y' (yes), 'n' (no),
+or '!' (yes to all remaining). The results are displayed in the
+'*Git Discarded Unstaged Changes*' buffer. Untracked files and
+staged changes are not affected."
+  (interactive "P")
+  (let* ((parent-dir (or parent-dir "~/Projects"))
+         (default-directory (expand-file-name parent-dir))
+         (dirs (directory-files default-directory nil "^[^.]" t))
+         (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
+         (discarded-dirs nil)
+         (yes-to-all nil))
+    (unless (file-directory-p default-directory)
+      (error "Parent directory '%s' does not exist" default-directory))
+    (dolist (dir dirs)
+      (let ((full-path (expand-file-name dir default-directory)))
+        (when (and (file-directory-p full-path)
+                   (not (file-symlink-p full-path))
+                   (file-exists-p (expand-file-name ".git" full-path)))
+          (let ((status (shell-command-to-string
+                         (format "cd %s && git status --porcelain" full-path))))
+            (when (string-match-p "^.M" status)
+              (let ((proceed
+                     (or force
+                         yes-to-all
+                         (let ((response (read-string
+                                          (format "Discard unstaged changes in %s? (y/n/!): " full-path))))
+                           (cond
+                            ((string= response "!") (setq yes-to-all t) t)
+                            ((string-match-p "^[yY]" response) t)
+                            (t nil))))))
+                (when proceed
+                  (let ((restore-result (shell-command
+                                         (format "cd %s && git restore ." full-path))))
+                    (if (= restore-result 0)
+                        (setq discarded-dirs (cons dir discarded-dirs))
+                      (message "Failed to discard changes in %s" full-path))))))))))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert (format "Directories with discarded unstaged changes in %s:\n\n" parent-dir))
+      (if discarded-dirs
+          (insert (mapconcat #'identity (nreverse discarded-dirs) "\n"))
+        (insert "No directories with unstaged changes found."))
+      (goto-char (point-min))
+      (display-buffer buffer))))
+
 (defun git-tools-show-untracked (&optional parent-dir)
   "List subdirectories under PARENT-DIR with untracked files.
 
@@ -63,43 +113,6 @@ with files untracked by git. Displays results in a new buffer."
       (insert (format "Directories with untracked files in %s:\n\n" parent-dir))
       (if changed-dirs
           (insert (mapconcat #'identity (nreverse changed-dirs) "\n"))
-        (insert "No directories with untracked files found."))
-      (goto-char (point-min))
-      (display-buffer buffer))))
-
-(defun git-tools-discard-unstaged-changes (&optional parent-dir force)
-  "Discard all unstaged work in Git repos under a parent directory.
-
-If PARENT-DIR is nil, defaults to '~/Projects'. If FORCE is non-nil,
-the function skips the confirmation prompt; otherwise, it asks for
-confirmation for each repository using 'y-or-n-p'. The results are
-displayed in the '*Git Discarded Unstaged Changes*' buffer."
-  (interactive "P") ; 'P' allows prefix arg (e.g., C-u) to set force
-  (let* ((parent-dir (or parent-dir "~/Projects"))
-         (default-directory (expand-file-name parent-dir))
-         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
-         (discarded-dirs nil))
-    ;; Ensure parent directory exists
-    (unless (file-directory-p default-directory)
-      (error "Parent directory '%s' does not exist" default-directory))
-    ;; Check each subdirectory and discard untracked files
-    (dolist (dir dirs)
-      (let ((full-path (expand-file-name dir default-directory)))
-        (when (and (file-directory-p full-path)
-                   (not (file-symlink-p full-path))
-                   (file-exists-p (expand-file-name ".git" full-path)))
-          (let ((status (shell-command-to-string
-                         (format "cd %s && git status --porcelain" full-path))))
-              (when (or force (y-or-n-p (format "Discard files with unstaged changes in %s? " full-path)))
-                (shell-command (format "cd %s && git clean -f -d" full-path))
-                (push dir discarded-dirs))))))
-    ;; Display results
-    (with-current-buffer buffer
-      (erase-buffer)
-      (insert (format "Directories with discarded untracked files in %s:\n\n" parent-dir))
-      (if discarded-dirs
-          (insert (mapconcat #'identity (nreverse discarded-dirs) "\n"))
         (insert "No directories with untracked files found."))
       (goto-char (point-min))
       (display-buffer buffer))))
