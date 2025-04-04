@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: eslint-require-hook
+# key: eslrh
+# --
+// eslint-disable-next-line jest/require-hook
