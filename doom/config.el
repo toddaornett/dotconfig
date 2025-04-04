@@ -19,6 +19,8 @@
 ;; clients, file templates and snippets. It is optional.
 (setq user-full-name "Todd Ornett"
       user-mail-address "toddgh@acquirus.com")
+(setq epa-pinentry-mode 'loopback)
+(load "~/.emacs_private.el" t)
 
 ;; Doom exposes five (optional) variables for controlling fonts in Doom:
 ;;
