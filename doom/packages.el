@@ -55,3 +55,5 @@
 (package! exec-path-from-shell)
 
 (package! string-inflection)
+
+(package! tide)
