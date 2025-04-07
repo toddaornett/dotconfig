@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
 ;; Homepage: https://github.com/todd.ornett/git-tools
-;; Package-Requires: ((emacs "24.3") (magit))
+;; Package-Requires: ((emacs "24.4") (magit))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -31,6 +31,28 @@
        ((magit-branch-p "main") "main")    ;; Check if 'main' exists
        ((magit-branch-p "trunk") "trunk")  ;; Check if 'trunk' exists
        (t "master")))))                    ;; Default to 'master'
+
+(defun git-tools-raise-pr ()
+  "Raise a GitHub PR using gh command with main as base and current branch as head."
+  (interactive)
+  (let ((base "main")
+        (head (magit-get-current-branch)))
+    (let* ((commit-title (string-trim
+                          (shell-command-to-string
+                           "git log -1 --pretty=format:%s")))
+           (commit-body (string-trim
+                        (shell-command-to-string
+                         "git log -1 --pretty=format:%b")))
+           (body-arg (if (string-empty-p commit-body)
+                        "--body \"\""
+                        (format "--body %S" commit-body)))
+           (gh-command (format "gh pr create --base %s --head %s --title %S %s"
+                         base head commit-title body-arg)))
+      (if head
+          (when (y-or-n-p (format "Create PR with: %s? " gh-command))
+            (message "Creating PR with command: %s" gh-command)
+            (shell-command gh-command))
+          (error "No current branch found")))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
