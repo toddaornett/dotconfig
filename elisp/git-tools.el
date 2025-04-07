@@ -49,10 +49,24 @@
            (gh-command (format "gh pr create --base %s --head %s --title %S %s"
                          base head commit-title body-arg)))
       (if head
-          (when (y-or-n-p (format "Create PR with: %s? " gh-command))
-            (message "Creating PR with command: %s" gh-command)
-            (shell-command gh-command))
-          (error "No current branch found")))))
+          (if (zerop (shell-command "gh auth status 2>/dev/null"))
+              (when (y-or-n-p (format "Create PR with: %s? " gh-command))
+                (message "Creating PR with command: %s" gh-command)
+                (shell-command gh-command))
+            (when (y-or-n-p "GitHub CLI not authenticated. Run gh auth login? ")
+              (with-temp-buffer
+                (let ((proc (start-process "gh-auth" (current-buffer) "gh" "auth" "login")))
+                  (set-process-sentinel
+                   proc
+                   (lambda (p _)
+                     (when (eq (process-status p) 'exit)
+                       (if (zerop (process-exit-status p))
+                           (when (y-or-n-p (format "Create PR with: %s? " gh-command))
+                             (message "Creating PR with command: %s" gh-command)
+                             (shell-command gh-command))
+                         (error "GitHub authentication failed")))))))
+              (pop-to-buffer (current-buffer))))
+        (error "No current branch found")))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
