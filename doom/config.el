@@ -184,6 +184,8 @@
     (delete-region start end)
     (insert text)))
 
+(use-package! lsp)
+
 (after! rustic
   (setq lsp-rust-server 'rust-analyzer)
   (setq rustic-lsp-server 'rust-analyzer)
@@ -202,8 +204,10 @@
         "C-c C-c Q" #'lsp-workspace-shutdown
         "C-c C-c s" #'lsp-rust-analyzer-status)
   (setq lsp-enable-symbol-highlighting nil)
+  (setq rustic-lsp-server 'rust-analyzer)
   (setq rustic-format-trigger nil)
   (setq lsp-rust-analyzer-server-display-inlay-hints t)
+  (add-hook 'rustic-mode-hook 'font-lock-mode)
   (add-hook 'rustic-mode-hook #'flycheck-mode))
 
 (after! company
