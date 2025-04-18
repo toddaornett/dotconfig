@@ -405,6 +405,10 @@
   (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
   (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
+(after! indent-guides
+  (add-hook 'prog-mode-hook 'indent-guide-global-mode)
+  (setq indent-guide-recursive t))
+
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
   (load custom-file))
