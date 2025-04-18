@@ -2,15 +2,6 @@
 
 (set-language-environment "UTF-8")
 
-;; Place your private configuration here! Remember, you do not need to run 'doom
-;; sync' after modifying this file!
-(after! straight
-  (setq straight-repository-remap
-        '(("git.savannah.gnu.org" . "github.com/emacsmirror")))
-  (straight-override-recipe
-   '(:type git :host "git.savannah.gnu.org" :repo "emacs/nongnu.git")
-   '(:type git :host "github.com" :repo "emacsmirror/nongnu")))
-
 (after! emacs
   (add-load-path! "lisp")
   (add-load-path! "../elisp"))
