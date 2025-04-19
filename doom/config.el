@@ -180,6 +180,7 @@
 (after! rustic
   (setq lsp-rust-server 'rust-analyzer)
   (setq rustic-lsp-server 'rust-analyzer)
+  (setq rustic-lsp-client 'eglot)
   (setq lsp-rust-analyzer-cargo-watch-enable t)
   (setq lsp-rust-analyzer-imports-merge-glob t)
   (setq lsp-rust-analyzer-imports-group t)
@@ -408,6 +409,14 @@
 (after! indent-guides
   (add-hook 'prog-mode-hook 'indent-guide-global-mode)
   (setq indent-guide-recursive t))
+
+(after! lsp-mode
+  (setq lsp-prefer-capf t) ; Prioritize company-capf
+  (setq lsp-rust-analyzer-server-display-inlay-hints t))
+
+(after! company
+  (setq company-idle-delay 0.2)
+  (setq company-minimum-prefix-length 1))
 
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
