@@ -53,20 +53,23 @@
 (after! rustic
   (setq rustic-lsp-client 'eglot)
   (setq rustic-format-on-save t)
-  (add-hook 'rustic-mode-hook (lambda ()
-                                (yas-minor-mode 1)
-                                (setq-local company-backends '(company-capf company-yasnippet)))))
+  (add-hook 'rustic-mode-hook #'eglot-ensure)
+  (add-hook 'rustic-mode-hook
+            (lambda ()
+              (yas-minor-mode 1)
+              (setq-local company-backends '((company-capf company-yasnippet))))))
 
 (after! eglot
   (setq eglot-sync-connect 0)
   (setq eglot-autoshutdown t)
   (setq eglot-events-buffer-size 1000000)
   (add-to-list 'eglot-server-programs
-               '(rust-mode . ("rust-analyzer" :initializationOptions
-                              (:procMacro (:enable t)
-                               :diagnostics (:enable nil)
-                               :cargo (:watch (:enable nil))
-                               :completion (:autoimport (:enable t)))))))
+               '(rustic-mode . ("rust-analyzer"
+                                :initializationOptions
+                                (:procMacro (:enable t)
+                                 :diagnostics (:enable nil)
+                                 :cargo (:watch (:enable nil))
+                                 :completion (:autoimport (:enable t)))))))
 
 (after! yasnippet
   (yas-global-mode 1)
@@ -82,13 +85,11 @@
         '((typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
           (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src")))))
 
-(use-package! typescript-ts-mode
-  :mode (("\\.js\\'" . typescript-ts-mode)
-         ("\\.ts\\'" . typescript-ts-mode)
-         ("\\.tsx\\'" . tsx-ts-mode))
-  :config
-  (add-hook! '(typescript-ts-mode-hook tsx-ts-mode-hook)
-    #'lsp!))
+(use-package typescript-ts-mode
+  :mode ("\\.js\\'" "\\.ts\\'" "\\.tsx\\'")
+  :hook
+  ((typescript-ts-mode . lsp)
+   (tsx-ts-mode . lsp)))
 
 ;; Project root for Eglot
 (cl-defmethod project-root ((project (head eglot-project)))
