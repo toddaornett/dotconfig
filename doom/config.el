@@ -29,7 +29,7 @@
 (setq org-directory "~/Notes/")
 
 ;; Delay garbage collection for performance
-(setq gc-cons-threshold 100000000)
+(setq gc-cons-threshold (* 50 1000 1000))
 
 ;; Rust with Eglot
 (after! rustic
@@ -156,16 +156,28 @@
 
 ;; Org customizations
 (after! org
-  (setq org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE"))
-        org-log-done 'time
-        org-todo-keyword-faces '(("TODO" . "Teal")
-                                 ("DOING" . "Green")
-                                 ("BLOCKED" . "Red")
-                                 ("REVIEW" . "Aqua")
-                                 ("DONE" . "SlateGray"))
-        org-use-fast-todo-selection t)
+  (setq
+    ;; Define stages for todo tasks
+    org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE" ))
+
+    ;; When item enters DONE, add a CLOSED: property with current date-time stamp
+    org-log-done 'time
+
+    ;; Make TODO states easier to distinguish by using different colours
+    ;; Using X11 colour names from: https://en.wikipedia.org/wiki/Web_colors
+    org-todo-keyword-faces
+    '(("TODO" . "Teal")
+      ("DOING" . "Green")
+      ("BLOCKED" . "Red")
+      ("REVIEW" . "Aqua")
+      ("DONE" . "SlateGray"))
+
+    ;; Allows full cycle with C-c C-t
+    org-use-fast-todo-selection t)
+
   (map! :map org-mode-map
         :n "t" #'org-todo)
+
   (defun tao/org-prettify-symbols ()
     "Set up prettify symbols for Org buffers."
     (when (derived-mode-p 'org-mode)
@@ -176,24 +188,30 @@
                             ("[-]" . "❍"))))
       (prettify-symbols-mode 1)))
   (add-hook! 'org-mode-hook #'tao/org-prettify-symbols)
+
+  ;; Define a custom face for tasks with clock entries
   (defface org-task-with-clock
     '((t :foreground "Cyan"))
     "Face for Org tasks with clock entries.")
+
+  ;; Function to check if a headline has clock entries
   (defun tao/org-has-clock-entries-p ()
     "Return non-nil if the current headline has clock entries."
     (save-excursion
       (org-back-to-heading t)
       (let ((end (org-entry-end-position)))
         (re-search-forward "^[ \t]*CLOCK:" end t))))
+
+  ;; Function to fontify only the headline text, preserving prettified asterisks
   (defun tao/org-fontify-clock-tasks ()
     "Fontify Org tasks with clock entries, skipping the asterisks."
     (when (derived-mode-p 'org-mode)
       (save-excursion
         (goto-char (point-min))
         (while (re-search-forward org-heading-regexp nil t)
-          (let* ((beg (match-beginning 0))
-                 (end (match-end 0))
-                 (text-beg (progn
+          (let* ((beg (match-beginning 0))  ;; Start of the full headline
+                 (end (match-end 0))        ;; End of the full headline
+                 (text-beg (progn           ;; Start of the text (after asterisks/TODO)
                              (goto-char beg)
                              (skip-chars-forward "*[:space:]")
                              (when (looking-at org-todo-regexp)
@@ -202,8 +220,15 @@
                              (point))))
             (when (tao/org-has-clock-entries-p)
               (add-text-properties text-beg end '(font-lock-face org-task-with-clock))))))))
+
+  ;; Function to run when pomodoro starts
+  (defun tao/org-pomodoro-start-or-finished-hook ()
+    "Hook to run when org-pomodoro starts or finishes."
+    (tao/org-fontify-clock-tasks))
   (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
-  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks))
+  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
+  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
+  (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
 ;; Org-pomodoro
 (after! org-pomodoro

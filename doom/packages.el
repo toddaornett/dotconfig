@@ -57,3 +57,5 @@
 (package! string-inflection)
 
 (package! tide)
+
+(package! org-superstar)
