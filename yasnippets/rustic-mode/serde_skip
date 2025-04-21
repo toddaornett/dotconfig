@@ -3,4 +3,4 @@
 # key: sdskip
 # type: snippet
 # --
-#[serde(skip_serializing_if = "Option::is_none", default)]
+#[serde(default, skip_serializing_if = "Option::is_none")]
