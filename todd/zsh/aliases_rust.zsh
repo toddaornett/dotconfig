@@ -107,7 +107,7 @@ cuupr() {
   fi
 
   # cargo update for packages in special registries that need explicit updating
-  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep 'registry')"}
+  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}
   do
     parts=(${(s: :)line})
     package_name=${parts[2]}
