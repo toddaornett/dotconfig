@@ -151,7 +151,7 @@
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
 ;; Exec-path-from-shell
-(use-package! exec-path-from-shell
+(use-package exec-path-from-shell
   :init
   (when (memq window-system '(mac ns x))
     (setq exec-path-from-shell-arguments nil)
@@ -276,15 +276,14 @@
       :desc "snake_case"      :n "s" #'string-inflection-underscore
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
 
-
 ;; port-number => load from ~/.config/elisp
-(use-package! port-number)
+(use-package port-number)
 
 ;; nodoze => load from ~/.config/elisp
-(use-package! nodoze)
+(use-package nodoze)
 
 ;; colima => load from ~/.config/elisp
-(use-package! colima)
+(use-package colima)
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
