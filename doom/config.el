@@ -116,7 +116,7 @@
   (interactive)
   (end-of-line)
   (newline-and-indent))
-(global-set-key (kbd "C-<return>") #'/insert-blank-line-after-comment)
+(global-set-key (kbd "C-<return>") 'insert-blank-line-after-comment)
 
 ;; URL encoding/decoding
 (defun url-decode-region (start end)
