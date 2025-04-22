@@ -5,4 +5,5 @@
 # condition: t
 # --
 ;; ${1:P} => load from ~/.config/elisp
-(use-package $1)
+(use-package $1
+  :defer t)
