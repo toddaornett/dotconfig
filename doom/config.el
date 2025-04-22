@@ -2,6 +2,8 @@
 
 (set-language-environment "UTF-8")
 
+(add-to-list 'load-path "~/.config/elisp")
+
 (setq epa-pinentry-mode 'loopback)
 (load "~/.emacs_private.el" t)
 
@@ -269,6 +271,16 @@
       :desc "UpperCamelCase"  :n "p" #'string-inflection-upper-camelcase
       :desc "snake_case"      :n "s" #'string-inflection-underscore
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
+
+
+;; port-number => load from ~/.config/elisp
+(use-package! port-number)
+
+;; nodoze => load from ~/.config/elisp
+(use-package! nodoze)
+
+;; colima => load from ~/.config/elisp
+(use-package! colima)
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
