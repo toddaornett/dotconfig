@@ -5,7 +5,7 @@
 ;; Colima is a wrapper package for Colima (container runtimes on Linux and macOS).
 ;; This package assumes that the external command "colima" has been installed
 ;; somehow such as through Homebrew.
-;; 
+;;
 ;; See https://github.com/abiosoft/colima for the project.
 ;;
 ;;; Code:
@@ -34,16 +34,13 @@
     (start-process-shell-command "colima" buffer full-command)
     (with-current-buffer buffer
       (let ((proc (get-buffer-process buffer)))
-        (if proc
-            (set-process-sentinel
-             proc
-             (lambda (process event)
-               (when (string-match-p "finished" event)
-                 (with-current-buffer (process-buffer process)
-                   (goto-char start-pos)
-                   (recenter 0)))))
-          (goto-char start-pos)
-          (recenter 0))))
+        (when proc
+          (set-process-sentinel
+           proc
+           (lambda (process event)
+             (when (string-match-p "finished" event)
+               (with-current-buffer (process-buffer process)
+                 (goto-char start-pos))))))))
     (display-buffer buffer)))
 
 (provide 'colima)
