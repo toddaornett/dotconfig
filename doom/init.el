@@ -69,7 +69,7 @@
        (javascript +lsp)   ; Keep if used
        (typescript +lsp)   ; Keep if used
        markdown            ; Lightweight, keep
-       (org +pretty +pomodoro) ; Keep for note-taking
+       (org +pomodoro) ; Keep for note-taking
        (rust +eglot)       ; Use eglot only, remove +lsp and +cargo
        sh                  ; Lightweight, keep
        yaml                ; Lightweight, keep
