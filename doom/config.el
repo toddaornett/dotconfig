@@ -289,6 +289,12 @@
 (use-package colima
   :defer t)
 
+;; vterm
+(use-package vterm
+  :defer t
+  :config
+  (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
+
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
