@@ -237,10 +237,10 @@
     :group 'org-pomodoro
     :type 'string)
   (defun org-pomodoro-format-count ()
-    "Format the total number of pomodoros or empty string if not shown."
-    (if (and org-pomodoro-display-count-p ( org-pomodoro-count 0))
-        (format org-pomodoro-count-format org-pomodoro-count)
-      ""))
+  "Format the total number of pomodoros or empty string if not shown."
+  (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
+      (format org-pomodoro-count-format org-pomodoro-count)
+    ""))
   (defun org-pomodoro-update-mode-line ()
     "Set the modeline accordingly to the current state."
     (let ((s (cl-case org-pomodoro-state
@@ -256,14 +256,14 @@
                 (propertize org-pomodoro-long-break-format
                             'face 'org-pomodoro-mode-line-break)))))
       (setq org-pomodoro-mode-line
-            (when (and (org-pomodoro-active-p) ( (length s) 0))
+            (when (and (org-pomodoro-active-p) (> (length s) 0))
               (list "[" (format s (org-pomodoro-format-seconds)) "] " (org-pomodoro-format-count))))
       (force-mode-line-update t)))
   (defun tao/org-pomodoro-start-or-finished-hook ()
     "Hook to run when org-pomodoro starts or finishes."
     (tao/org-fontify-clock-tasks))
-  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
+  (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
+  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
 ;; Custom keybindings
 (map! :leader
