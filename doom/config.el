@@ -97,10 +97,10 @@
   (cdr project))
 
 (after! eglot
-  (defun tao-project-try-tsconfig-json (dir)
+  (defun tao/project-try-tsconfig-json (dir)
     (when-let* ((found (locate-dominating-file dir "tsconfig.json")))
       (cons 'eglot-project found)))
-  (add-hook 'project-find-functions 'tao-project-try-tsconfig-json nil nil)
+  (add-hook 'project-find-functions 'tao/project-try-tsconfig-json nil nil)
   (add-to-list 'eglot-server-programs
                '((typescript-mode) "typescript-language-server" "--stdio")))
 
@@ -111,12 +111,12 @@
   (insert "\\"))
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
-(defun tao/insert-blank-line-after-comment ()
+(defun insert-blank-line-after-comment ()
   "Insert a blank line after the current line without continuing a comment."
   (interactive)
   (end-of-line)
   (newline-and-indent))
-(global-set-key (kbd "C-<return>") #'tao/insert-blank-line-after-comment)
+(global-set-key (kbd "C-<return>") #'/insert-blank-line-after-comment)
 
 ;; URL encoding/decoding
 (defun url-decode-region (start end)
@@ -221,6 +221,7 @@
 
 ;; org-superstar
 (use-package org-superstar
+  :defer t
   :hook org-mode
   :config
   (setq org-superstar-headline-bullets-list '("✿" "✸" "⬢" "☯" "○" "◆" "▲" "■" "♦" "♢" "▫"))
@@ -277,13 +278,16 @@
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
 
 ;; port-number => load from ~/.config/elisp
-(use-package port-number)
+(use-package port-number
+  :defer t)
 
 ;; nodoze => load from ~/.config/elisp
-(use-package nodoze)
+(use-package nodoze
+  :defer t)
 
 ;; colima => load from ~/.config/elisp
-(use-package colima)
+(use-package colima
+  :defer t)
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
