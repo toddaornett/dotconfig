@@ -110,6 +110,13 @@
   (insert "\\"))
 (global-set-key (kbd "M-¥") 'insert-backslash)
 
+(defun tao/insert-blank-line-after-comment ()
+  "Insert a blank line after the current line without continuing a comment."
+  (interactive)
+  (end-of-line)
+  (newline-and-indent))
+(global-set-key (kbd "C-<return>") #'tao/insert-blank-line-after-comment)
+
 ;; URL encoding/decoding
 (defun url-decode-region (start end)
   "Replace a region with the same contents, only URL decoded."
