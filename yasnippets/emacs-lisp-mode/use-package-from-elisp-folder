@@ -1,8 +1,8 @@
 # -*- mode: snippet -*-
-# name: use-package! locally
+# name: use-package locally
 # uuid:
 # key: elup
 # condition: t
 # --
 ;; ${1:P} => load from ~/.config/elisp
-(use-package! $1)
+(use-package $1)
