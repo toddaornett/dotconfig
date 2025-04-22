@@ -419,11 +419,6 @@ key = "J"
 mods = "Command"
 
 [[keyboard.bindings]]
-chars = '\\'
-key = "Backslash"
-mods = "Alt"
-
-[[keyboard.bindings]]
 action = "None"
 key = "W"
 mods = "Command"
@@ -447,7 +442,6 @@ multiplier = 3
 
 [window]
 decorations = "none"
-option_as_alt = "Both"
 
 [general]
 live_config_reload = true
