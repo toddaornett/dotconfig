@@ -1,7 +1,0 @@
-# -*- mode: snippet -*-
-# name: private package
-# key: priv
-# --
-"private": true,
-"license": "UNLICENSED",
-
