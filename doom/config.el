@@ -1,5 +1,4 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
-
 (set-language-environment "UTF-8")
 
 (add-to-list 'load-path "~/.config/elisp")
@@ -158,69 +157,74 @@
     (setq exec-path-from-shell-arguments nil)
     (exec-path-from-shell-initialize)))
 
-;; Org customizations
+;; Org
 (after! org
-  (setq
-    org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE"))
-    org-log-done 'time
-    org-todo-keyword-faces
-    '(("TODO" . "Teal")
-      ("DOING" . "Green")
-      ("BLOCKED" . "Red")
-      ("REVIEW" . "Aqua")
-      ("DONE" . "SlateGray"))
-    org-use-fast-todo-selection t)
+  ;; Set custom TODO keywords and faces
+  (setq org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE"))
+        org-log-done 'time
+        org-todo-keyword-faces
+        '(("TODO" . (:foreground "#008080" :weight bold))
+          ("DOING" . (:foreground "#00ff00" :weight bold))
+          ("BLOCKED" . (:foreground "#ff0000" :weight bold))
+          ("REVIEW" . (:foreground "#00ffff" :weight bold))
+          ("DONE" . (:foreground "#708090" :weight bold)))
+        org-use-fast-todo-selection t)
 
-  (map! :map org-mode-map
-        :n "t" #'org-todo)
+  ;; Keybinding for toggling TODO states
+  (map! :map org-mode-map :n "t" #'org-todo)
 
+  ;; Prettify symbols in org-mode
   (defun tao/org-prettify-symbols ()
     "Set up prettify symbols for Org buffers."
-    (when (derived-mode-p 'org-mode)
-      (setq-local prettify-symbols-alist
-                  (append prettify-symbols-alist
-                          '(("[ ]" . "☐")
-                            ("[X]" . "☑")
-                            ("[-]" . "❍"))))
-      (prettify-symbols-mode 1)))
-  (add-hook! 'org-mode-hook #'tao/org-prettify-symbols)
+    (setq-local prettify-symbols-alist
+                '(("[ ]" . "☐")
+                  ("[X]" . "☑")
+                  ("[-]" . "❍")))
+    (prettify-symbols-mode 1))
+  (add-hook 'org-mode-hook #'tao/org-prettify-symbols)
 
+  ;; Highlight tasks with clock entries
   (defface org-task-with-clock
     '((t :foreground "Cyan"))
     "Face for Org tasks with clock entries.")
-
   (defun tao/org-has-clock-entries-p ()
     "Return non-nil if the current headline has clock entries."
     (save-excursion
       (org-back-to-heading t)
       (let ((end (org-entry-end-position)))
         (re-search-forward "^[ \t]*CLOCK:" end t))))
-
   (defun tao/org-fontify-clock-tasks ()
-    "Fontify Org tasks with clock entries, skipping the asterisks."
-    (when (derived-mode-p 'org-mode)
-      (save-excursion
-        (goto-char (point-min))
-        (while (re-search-forward org-heading-regexp nil t)
-          (let* ((beg (match-beginning 0))
-                 (end (match-end 0))
-                 (text-beg (progn
-                             (goto-char beg)
-                             (skip-chars-forward "*[:space:]")
-                             (when (looking-at org-todo-regexp)
-                               (goto-char (match-end 0))
-                               (skip-chars-forward "[:space:]"))
-                             (point))))
-            (when (tao/org-has-clock-entries-p)
-              (add-text-properties text-beg end '(font-lock-face org-task-with-clock))))))))
+    "Fontify Org tasks with clock entries."
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward org-heading-regexp nil t)
+        (let* ((beg (match-beginning 0))
+               (end (match-end 0))
+               (text-beg (progn
+                           (goto-char beg)
+                           (skip-chars-forward "*[:space:]")
+                           (when (looking-at org-todo-regexp)
+                             (goto-char (match-end 0))
+                             (skip-chars-forward "[:space:]"))
+                           (point))))
+          (when (tao/org-has-clock-entries-p)
+            (add-text-properties text-beg end '(font-lock-face org-task-with-clock)))))))
+  (add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
+  (add-hook 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
 
+  ;; Pomodoro hooks for fontifying clock tasks
   (defun tao/org-pomodoro-start-or-finished-hook ()
     "Hook to run when org-pomodoro starts or finishes."
     (tao/org-fontify-clock-tasks))
-  (add-hook! 'org-mode-hook #'tao/org-fontify-clock-tasks)
-  (add-hook! 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
-  (add-hook! 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook! 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
+  (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
+  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
+
+;; org-superstar
+(use-package org-superstar
+  :hook org-mode
+  :config
+  (setq org-superstar-headline-bullets-list '("✿" "✸" "⬢" "☯" "○" "◆" "▲" "■" "♦" "♢" "▫"))
+  (setq org-superstar-item-bullet-alist '((?* . ?•) (?+ . ?➤) (?- . ?–))))
 
 ;; Org-pomodoro
 (after! org-pomodoro
