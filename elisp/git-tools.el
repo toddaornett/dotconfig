@@ -203,7 +203,10 @@ with files untracked by git. Displays results in a new buffer."
                       (if (magit-anything-unstaged-p)
                           (message "Skipping pull in %s: unstaged changes detected" dir)
                         (let ((process-buffer (magit-process-buffer)))
-                          (magit-pull-from-upstream nil)
+                          (let ((upstream (magit-get-upstream-branch)))
+                            (if upstream
+                                (magit-git "pull" (magit-get-current-branch) upstream)
+                              (error "No upstream branch configured")))
                           (message "Successfully pulled %s in %s" main-branch dir)
                           (when (and process-buffer (buffer-live-p process-buffer))
                             (kill-buffer process-buffer)))))
