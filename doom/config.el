@@ -278,20 +278,16 @@
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
 
 ;; port-number => load from ~/.config/elisp
-(use-package port-number
-  :defer t)
+(use-package port-number)
 
 ;; nodoze => load from ~/.config/elisp
-(use-package nodoze
-  :defer t)
+(use-package nodoze)
 
 ;; colima => load from ~/.config/elisp
-(use-package colima
-  :defer t)
+(use-package colima)
 
 ;; vterm
 (use-package vterm
-  :defer t
   :config
   (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
 
