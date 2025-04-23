@@ -277,6 +277,16 @@
       :desc "snake_case"      :n "s" #'string-inflection-underscore
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
 
+(use-package! apheleia
+  :config
+  (setf (alist-get 'emacs-lisp-mode apheleia-formatters)
+        '("emacs" "--eval" "(progn
+                              (require 'emacs-lisp)
+                              (indent-region (point-min) (point-max))
+                              (untabify (point-min) (point-max))
+                              (buffer-string))"))
+  (apheleia-global-mode +1))
+
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
 
