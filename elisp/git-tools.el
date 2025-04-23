@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
 ;; Homepage: https://github.com/todd.ornett/git-tools
-;; Package-Requires: ((emacs "24.4") (magit) (projectile))
+;; Package-Requires: ((emacs "29.1") (magit "4.0.0") (projectile "2.8.0"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -190,7 +190,8 @@ with files untracked by git. Displays results in a new buffer."
 
   When iterating first switch to the effective main branch and then pull."
   (interactive "DDirectory: ~/Projects ")
-  (let ((default-directory root-dir))
+  (let ((default-directory root-dir)
+        (error-count 0))
     (dolist (dir (directory-files root-dir t "\\`[^.]"))
       (when (and (file-directory-p dir)
                  (not (file-symlink-p dir))
@@ -219,6 +220,51 @@ with files untracked by git. Displays results in a new buffer."
     (if (> error-count 0)
         (message "Completed with %d errors" error-count)
       (message "Completed successfully with no errors"))))
+
+(defun git-tools-set-yaml-value-of-variable-and-make-pr (variable value)
+  "Set VARIABLE to VALUE in all yaml files of project.
+
+  Once set, make a pull request for it."
+  (interactive "sSet variable: \nsSet to: ")
+  (let* ((project-name (projectile-project-name))
+         (project-root (projectile-project-root))
+         (project-files (projectile-project-files project-root)))
+    (unless project-root
+      (error "No project root found. Ensure a project is active"))
+    (message "Setting %s to %s in project %s" variable value project-name)
+    (dolist (relative-file project-files)
+      (let ((file (expand-file-name relative-file project-root)))
+        (when (and (file-exists-p file)
+                   (string-equal-ignore-case
+                    (or (file-name-extension file) "")
+                    "yaml"))
+          (git-tools-update-yaml-file file variable value)
+          ))))
+  ;; Placeholder: Add logic to create a pull request
+  ;; (git-tools-create-pull-request project-root)
+  )
+
+(defun git-tools-update-yaml-file (file variable value)
+  "Set all instances of VARIABLE to VALUE in YAML FILE.
+Scans FILE line by line for lines containing
+VARIABLE. The next line must start
+with `value: '. Replaces everything after `value: ' with
+VALUE, preserving formatting. Edits FILE in place."
+  (with-current-buffer (find-file-noselect file)
+    (goto-char (point-min))
+    (let ((found nil))
+      (let ((variable-line (concat (regexp-quote variable) ":")))
+        (while (re-search-forward variable-line nil t)
+          (setq found t)
+          (forward-line 1)
+          (when (looking-at-p "^[ \t]*value: ")
+            (re-search-forward "^[ \t]*value: " (line-end-position) t)
+            (delete-region (point) (line-end-position))
+            (insert value))))
+      (save-buffer)
+      (when found
+        (message "Updated YAML file: %s" file)))
+    (kill-buffer)))
 
 (provide 'git-tools)
 ;;; git-tools.el ends here
