@@ -296,6 +296,9 @@
 ;; colima => load from ~/.config/elisp
 (use-package colima)
 
+;; git-tools => load from ~/.config/elisp
+(use-package git-tools)
+
 ;; vterm
 (use-package vterm
   :config
