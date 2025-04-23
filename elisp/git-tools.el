@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
 ;; Homepage: https://github.com/todd.ornett/git-tools
-;; Package-Requires: ((emacs "24.4") (magit))
+;; Package-Requires: ((emacs "24.4") (magit) (projectile))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -20,15 +20,17 @@
 ;;; Code:
 
 (require 'magit)
+(require 'projectile)
 
 (defun git-tools-main-branch-name ()
   "Determine the effective main branch for the current repository.
 
-  The effective main branch is determined as main, trunk, or master."
+  The effective main branch is determined as main, develop, trunk, or master."
   (let ((git-dir (magit-git-dir))) ;; Check if we're in a Git repo
     (when git-dir
       (cond
        ((magit-branch-p "main") "main")    ;; Check if 'main' exists
+       ((magit-branch-p "develop") "develop") ;; Check if 'develop' exists
        ((magit-branch-p "trunk") "trunk")  ;; Check if 'trunk' exists
        (t "master")))))                    ;; Default to 'master'
 
@@ -45,17 +47,17 @@ staged changes are not affected."
   (let* ((parent-dir (or parent-dir
                          (expand-file-name
                           (read-string (concat "Git discard unstaged changes in "
-                                         "all sub-directories under path "
-                                         "(default '~/Projects'): ")
-                                         nil
-                                         nil
-                                         "~/Projects"))))
+                                               "all sub-directories under path "
+                                               "(default '~/Projects'): ")
+                                       nil
+                                       nil
+                                       "~/Projects"))))
          (default-directory (expand-file-name parent-dir))
          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
          (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
          (discarded-dirs nil)
          (yes-to-all nil))
-     (unless (file-directory-p default-directory)
+    (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
@@ -70,8 +72,8 @@ staged changes are not affected."
                          yes-to-all
                          (let ((response (read-string
                                           (format
-                                            "Discard unstaged changes in %s? (y/n/!): "
-                                            full-path))))
+                                           "Discard unstaged changes in %s? (y/n/!): "
+                                           full-path))))
                            (cond
                             ((string= response "!") (setq yes-to-all t) t)
                             ((string-match-p "^[yY]" response) t)
@@ -85,11 +87,11 @@ staged changes are not affected."
     (with-current-buffer buffer
       (erase-buffer)
       (if discarded-dirs
-        (progn
-          (insert (format "Discarded unstaged changes in %d git projects under %s:\n\n"
-                    (length discarded-dirs)
-                    parent-dir))
-          (insert (mapconcat #'identity (sort discarded-dirs) "\n")))
+          (progn
+            (insert (format "Discarded unstaged changes in %d git projects under %s:\n\n"
+                            (length discarded-dirs)
+                            parent-dir))
+            (insert (mapconcat #'identity (sort discarded-dirs) "\n")))
         (insert "No git projects with unstaged changes were found."))
       (goto-char (point-min))
       (display-buffer buffer))))
@@ -101,20 +103,20 @@ List subdirectories under PARENT-DIR (default '~/Projects')
 with files untracked by git. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir
-                       (expand-file-name
-                        (read-string (concat "Git show untracked files in all "
-                                      "sub-directories under path "
-                                      "(default '~/Projects'): ")
-                                     nil
-                                     nil
-                                     "~/Projects"))))
-       (default-directory (expand-file-name parent-dir))
-       (dirs (directory-files default-directory
-                              nil
-                              "^[^.]"
-                              t))  ; Exclude . and ..
-       (buffer (get-buffer-create "*Git Untracked Files*"))
-       (changed-dirs nil))
+                         (expand-file-name
+                          (read-string (concat "Git show untracked files in all "
+                                               "sub-directories under path "
+                                               "(default '~/Projects'): ")
+                                       nil
+                                       nil
+                                       "~/Projects"))))
+         (default-directory (expand-file-name parent-dir))
+         (dirs (directory-files default-directory
+                                nil
+                                "^[^.]"
+                                t))  ; Exclude . and ..
+         (buffer (get-buffer-create "*Git Untracked Files*"))
+         (changed-dirs nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
@@ -125,19 +127,19 @@ with files untracked by git. Displays results in a new buffer."
                    (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
                          (format
-                           "cd %s && git status --porcelain --untracked-files=all"
-                           full-path))))
+                          "cd %s && git status --porcelain --untracked-files=all"
+                          full-path))))
             (when (string-match-p "^\\?\\?" status)
               (push dir changed-dirs))))))
     ;; Display results
     (with-current-buffer buffer
       (erase-buffer)
       (if changed-dirs
-        (progn
-          (insert (format "Files untracked by git in %d projects under the %s directory:\n\n"
-                    (length changed-dirs)
-                    parent-dir))
-          (insert (mapconcat #'identity (sort changed-dirs) "\n")))
+          (progn
+            (insert (format "Files untracked by git in %d projects under the %s directory:\n\n"
+                            (length changed-dirs)
+                            parent-dir))
+            (insert (mapconcat #'identity (sort changed-dirs) "\n")))
         (insert "No projects with files untracked by git were found."))
       (goto-char (point-min))
       (display-buffer buffer))))
@@ -151,9 +153,9 @@ with files untracked by git. Displays results in a new buffer."
   (let* ((parent-dir (or parent-dir
                          (expand-file-name
                           (read-string (concat "Git show unstaged commits in all "
-                                         "sub-directories under path "
-                                         "(default '~/Projects'): ")
-                            nil nil "~/Projects"))))
+                                               "sub-directories under path "
+                                               "(default '~/Projects'): ")
+                                       nil nil "~/Projects"))))
          (default-directory (expand-file-name parent-dir))
          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
          (buffer (get-buffer-create "*Git Unstaged Files*"))
@@ -175,8 +177,8 @@ with files untracked by git. Displays results in a new buffer."
     (with-current-buffer buffer
       (erase-buffer)
       (insert (format "Uncommitted git changes in %d projects under the %s directory:\n\n"
-                (length changed-dirs)
-                parent-dir))
+                      (length changed-dirs)
+                      parent-dir))
       (if changed-dirs
           (insert (mapconcat #'identity (sort changed-dirs) "\n"))
         (insert "No git projects with uncommitted changes were found."))
