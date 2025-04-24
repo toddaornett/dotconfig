@@ -90,9 +90,7 @@
   :mode ("\\.js\\'" "\\.ts\\'" "\\.tsx\\'")
   :hook
   ((typescript-ts-mode . lsp)
-   (tsx-ts-mode . lsp))
-  :config
-  (apheleia-mode-maybe))
+   (tsx-ts-mode . lsp)))
 
 ;; Project root for Eglot
 (cl-defmethod project-root ((project (head eglot-project)))
