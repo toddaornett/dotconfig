@@ -90,7 +90,9 @@
   :mode ("\\.js\\'" "\\.ts\\'" "\\.tsx\\'")
   :hook
   ((typescript-ts-mode . lsp)
-   (tsx-ts-mode . lsp)))
+   (tsx-ts-mode . lsp))
+  :config
+  (apheleia-mode-maybe))
 
 ;; Project root for Eglot
 (cl-defmethod project-root ((project (head eglot-project)))
@@ -238,10 +240,10 @@
     :group 'org-pomodoro
     :type 'string)
   (defun org-pomodoro-format-count ()
-  "Format the total number of pomodoros or empty string if not shown."
-  (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
-      (format org-pomodoro-count-format org-pomodoro-count)
-    ""))
+    "Format the total number of pomodoros or empty string if not shown."
+    (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
+        (format org-pomodoro-count-format org-pomodoro-count)
+      ""))
   (defun org-pomodoro-update-mode-line ()
     "Set the modeline accordingly to the current state."
     (let ((s (cl-case org-pomodoro-state
@@ -277,15 +279,33 @@
       :desc "snake_case"      :n "s" #'string-inflection-underscore
       :desc "UPCASE"          :n "u" #'string-inflection-upcase)
 
-(use-package! apheleia
-  :config
+(after! apheleia
   (setf (alist-get 'emacs-lisp-mode apheleia-formatters)
         '("emacs" "--eval" "(progn
                               (require 'emacs-lisp)
                               (indent-region (point-min) (point-max))
                               (untabify (point-min) (point-max))
                               (buffer-string))"))
-  (apheleia-global-mode +1))
+  (setf (alist-get 'typescript-ts-mode apheleia-mode-alist)
+        'prettier)
+  (setf (alist-get 'tsx-ts-mode apheleia-mode-alist)
+        'prettier)
+  (setf (alist-get 'js-mode apheleia-mode-alist)
+        'prettier)
+  (setf (alist-get 'black apheleia-formatters)
+        '("black" "-"))
+  (setf (alist-get 'python-mode apheleia-mode-alist)
+        'black))
+
+(defun tao/conditionally-enable-apheleia ()
+  (when (and (derived-mode-p 'prog-mode)
+             (not (or (bound-and-true-p lsp-mode)
+                      (bound-and-true-p eglot--managed-mode)
+                      (member major-mode '(rust-mode rust-ts-mode
+                                           yaml-mode yaml-ts-mode)))))
+    (apheleia-mode-maybe)))
+
+(add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
