@@ -25,6 +25,7 @@
   (interactive "nHours to stay active: ")
   (let* ((seconds (* hours 3600))
          (command (format "nohup caffeinate -d -i -m -s -u -t %d > /dev/null 2>&1 &" seconds)))
+    (shell-command "pkill -u $USER caffeinate" nil nil)
     (start-process-shell-command "nodoze" nil command)
     (message "Caffeinate started to keep the system active for %d hours (%d seconds)" hours seconds)
     (run-at-time seconds nil (lambda ()
