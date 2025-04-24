@@ -25,7 +25,9 @@
 (defun git-tools-main-branch-name ()
   "Determine the effective main branch for the current repository.
 
-  The effective main branch is determined as main, develop, trunk, or master."
+The effective main branch is determined as main, develop, trunk, or master.
+
+return nil if not currently in directory managed with git."
   (let ((git-dir (magit-git-dir))) ;; Check if we're in a Git repo
     (when git-dir
       (cond
@@ -147,8 +149,8 @@ with files untracked by git. Displays results in a new buffer."
 (defun git-tools-show-unstaged (&optional parent-dir)
   "List subdirectories under PARENT-DIR with work.
 
-  List subdirectories under PARENT-DIR (default '~/Projects')
-  with unstaged Git changes. Displays results in a new buffer."
+List subdirectories under PARENT-DIR (default '~/Projects')
+with unstaged Git changes. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir
                          (expand-file-name
@@ -188,7 +190,7 @@ with files untracked by git. Displays results in a new buffer."
 (defun git-tools-pull-all-main (root-dir)
   "Iterate through all subdirectories in ROOT-DIR, switch to main branch, and pull.
 
-  When iterating first switch to the effective main branch and then pull."
+When iterating first switch to the effective main branch and then pull."
   (interactive "DDirectory: ~/Projects ")
   (let ((default-directory root-dir)
         (error-count 0))
@@ -208,7 +210,8 @@ with files untracked by git. Displays results in a new buffer."
                         (let ((process-buffer (magit-process-buffer)))
                           (let ((upstream (magit-get-upstream-branch)))
                             (if upstream
-                                (magit-git "pull" (magit-get-current-branch) upstream)
+                                (unless (string-equal-ignore-case (magit-get-current-branch) main-branch)
+                                  (magit-run-git "checkout" main-branch))
                               (error "No upstream branch configured")))
                           (message "Successfully pulled %s in %s" main-branch dir)
                           (when (and process-buffer (buffer-live-p process-buffer))
@@ -221,35 +224,15 @@ with files untracked by git. Displays results in a new buffer."
         (message "Completed with %d errors" error-count)
       (message "Completed successfully with no errors"))))
 
-(defun git-tools-set-yaml-value-of-variable-and-make-pr (variable value)
-  "Set VARIABLE to VALUE in all yaml files of project.
-
-  Once set, make a pull request for it."
-  (interactive "sSet variable: \nsSet to: ")
-  (let* ((project-name (projectile-project-name))
-         (project-root (projectile-project-root))
-         (project-files (projectile-project-files project-root)))
-    (unless project-root
-      (error "No project root found. Ensure a project is active"))
-    (message "Setting %s to %s in project %s" variable value project-name)
-    (dolist (relative-file project-files)
-      (let ((file (expand-file-name relative-file project-root)))
-        (when (and (file-exists-p file)
-                   (string-equal-ignore-case
-                    (or (file-name-extension file) "")
-                    "yaml"))
-          (git-tools-update-yaml-file file variable value)
-          ))))
-  ;; Placeholder: Add logic to create a pull request
-  ;; (git-tools-create-pull-request project-root)
-  )
-
-(defun git-tools-update-yaml-file (file variable value)
+(defun git-tools-update-yaml-file (current-file file variable value)
   "Set all instances of VARIABLE to VALUE in YAML FILE.
 Scans FILE line by line for lines containing
 VARIABLE. The next line must start
 with `value: '. Replaces everything after `value: ' with
-VALUE, preserving formatting. Edits FILE in place."
+VALUE, preserving formatting. Edits FILE in place.
+CURRENT-FILE is expected to prevent killing open buffer,
+
+Return t if any changes made, nil otherwise."
   (with-current-buffer (find-file-noselect file)
     (goto-char (point-min))
     (let ((found nil))
@@ -261,10 +244,91 @@ VALUE, preserving formatting. Edits FILE in place."
             (re-search-forward "^[ \t]*value: " (line-end-position) t)
             (delete-region (point) (line-end-position))
             (insert value))))
-      (save-buffer)
       (when found
-        (message "Updated YAML file: %s" file)))
-    (kill-buffer)))
+        (progn
+          (save-buffer)
+          (message "Updated YAML file: %s" (file-name-nondirectory file))))
+      (unless (string= current-file file)
+        (kill-buffer))
+      found)))
+
+(defun git-tools-set-yaml-and-commit (variable value)
+  "Update VARIABLE to VALUE in the current YAML file and commit."
+  (interactive
+   (let* ((default-variable
+           (or
+            (when (and (eq major-mode 'yaml-mode)
+                       (thing-at-point 'symbol))
+              (let ((symbol (thing-at-point 'symbol t)))
+                (if (string-match-p "^[a-zA-Z0-9_-]+$" symbol)
+                    symbol
+                  nil)))
+            ""))
+          (default-value
+           (when (eq major-mode 'yaml-mode)
+             (save-excursion
+               (forward-line 1)
+               (when (looking-at "[ \t]*value: \\(.*\\)")
+                 (let ((val (string-trim (match-string 1))))
+                   (cond
+                    ((string= val "true") "false")
+                    ((string= val "false") "true")
+                    (t val)))))))
+          (variable (read-string "Set variable: " default-variable))
+          (value (read-string "Set to: " default-value)))
+     (list variable value)))
+  (let* ((project-name (projectile-project-name))
+         (project-root (projectile-project-root))
+         (project-files (projectile-project-files project-root))
+         (updates-made nil)
+         (git-main-branch (git-tools-main-branch-name))
+         (target-branch (concat "build/update-env-" (string-replace "_" "-" (downcase  variable)))))
+    (unless project-root
+      (error "No project root found. Ensure a project is active"))
+    (message "Setting %s to %s in project %s" variable value project-name)
+
+    ;; Check for any working files for git and make branch from main
+    (when (and git-main-branch (not (magit-branch-p target-branch)))
+      (progn
+        (when (magit-anything-unstaged-p)
+          (error "Commit or discard changes first"))
+        (let ((process-buffer (magit-process-buffer)))
+          (unless (string= (magit-get-current-branch) git-main-branch)
+            (magit-run-git "checkout" git-main-branch))
+          (let ((upstream (magit-get-upstream-branch)))
+            (when upstream
+              (magit-run-git "pull" "origin" git-main-branch)))
+          (when (and process-buffer (buffer-live-p process-buffer))
+            (kill-buffer process-buffer)))))
+
+    ;; find yaml files in project to process
+    (dolist (relative-file project-files)
+      (let ((file (expand-file-name relative-file project-root)))
+        (when (and (file-exists-p file)
+                   (string-equal-ignore-case
+                    (or (file-name-extension file) "")
+                    "yaml"))
+          (when (git-tools-update-yaml-file (or buffer-file-name "") file variable value)
+            (setq updates-made t)))))
+
+    ;; update branch and commit
+    (if updates-made
+        (let ((process-buffer (magit-process-buffer)))
+          (unless (magit-branch-p target-branch)
+            (magit-run-git "branch" target-branch git-main-branch))
+          (unless (string-equal-ignore-case (magit-get-current-branch) target-branch)
+            (magit-run-git "checkout" target-branch))
+          (let ((commit-message (format "build(config): update %s\n\nset %s to %s" variable variable value)))
+            (condition-case err
+                (progn
+                  (magit-run-git "add" ".")
+                  (magit-run-git "commit" "-m" commit-message)
+                  (message "Committed changes with message 'build: update variable'"))
+              (error
+               (message "Failed to commit: %s" (error-message-string err))
+               (magit-run-git "reset")))
+            (when (and process-buffer (buffer-live-p process-buffer))
+              (kill-buffer process-buffer)))))))
 
 (provide 'git-tools)
 ;;; git-tools.el ends here
