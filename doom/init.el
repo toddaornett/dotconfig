@@ -29,7 +29,7 @@
        (evil +everywhere)  ; Core editing experience
        file-templates      ; Lightweight, keep
        fold                ; Useful for code navigation
-       (format +format-with-lsp) ; Keep for LSP-based formatting
+       (format +format-with-lsp +apheleia) ; Keep for LSP-based formatting
        snippets            ; Keep for productivity
        ;; Removed: multiple-cursors, parinfer (optional, add back if needed)
 
@@ -66,10 +66,10 @@
        :lang
        emacs-lisp          ; Keep for Elisp development
        json                ; Lightweight, keep
-       (javascript +lsp)   ; Keep if used
-       (typescript +lsp)   ; Keep if used
+       (javascript +lsp +tree-sitter)
+       (typescript +lsp +tree-sitter)
        markdown            ; Lightweight, keep
-       (org +pomodoro) ; Keep for note-taking
+       (org +pomodoro)     ; Keep for note-taking
        (rust +eglot)       ; Use eglot only, remove +lsp and +cargo
        sh                  ; Lightweight, keep
        yaml                ; Lightweight, keep
