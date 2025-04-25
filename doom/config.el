@@ -305,6 +305,13 @@
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
+(after! magit
+  (setq ediff-diff-options "")
+  (setq ediff-custom-diff-options "-u")
+  (setq ediff-window-setup-function 'ediff-setup-windows-plain)
+  (setq ediff-split-window-function 'split-window-vertically)
+  (setq magit-ediff-dwim-show-on-hunks t))
+
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
 
