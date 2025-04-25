@@ -13,22 +13,51 @@
 ;;   M-x nodoze RET
 ;;   Enter the number of hours (e.g., 1 or 0.0167 for 1 minute) when prompted.
 ;;
-;; The command displays progress messages in the minibuffer and logs errors
-;; to the `*nodoze-error*` buffer if `caffeinate` fails to start.
+;; The command displays progress messages in the minibuffer and logs activity
+;; to the `*nodoze*` buffer.
 ;; Note: This package requires `caffeinate`, which is macOS-specific.
 ;;
-
 ;;; Code:
-
 (defun nodoze (hours)
-  "Prevents the system from sleeping for HOURS."
+  "Prevents the system from sleeping for HOURS, logging to *nodoze* buffer."
   (interactive "nHours to stay active: ")
   (let* ((seconds (* hours 3600))
+         (buffer (get-buffer-create "*nodoze*"))
          (command (format "nohup caffeinate -d -i -m -s -u -t %d > /dev/null 2>&1 &" seconds)))
+    ;; Ensure buffer is visible and clean
+    (with-current-buffer buffer
+      (erase-buffer)
+      (display-buffer buffer))
+
+    ;; Log start message
+    (with-current-buffer buffer
+      (insert (format "[%s] Starting caffeinate for %d hours\n"
+                      (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))
+                      hours)))
+
+    ;; Kill existing caffeinate processes
     (shell-command "pkill -u $USER caffeinate" nil nil)
-    (start-process-shell-command "nodoze" nil command)
-    (message "Caffeinate started to keep the system active for %d hours (%d seconds)" hours seconds)
-    (run-at-time seconds nil (lambda ()
-                               (message "Caffeinate should have finished - system can now sleep")))))
+
+    ;; Start process with output redirection to buffer
+    (let ((process (start-process-shell-command "nodoze" buffer command)))
+      (set-process-filter process
+                          (lambda (proc output)
+                            (with-current-buffer (process-buffer proc)
+                              (goto-char (point-max))
+                              (insert (format "[%s] %s"
+                                              (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))
+                                              output))))))
+
+    ;; Schedule end message
+    (run-at-time seconds nil
+                 (lambda ()
+                   (with-current-buffer buffer
+                     (goto-char (point-max))
+                     (insert (format "[%s] Caffeinate finished - system can now sleep\n"
+                                     (format-time-string "%Y-%m-%d %H:%M:%S" (current-time)))))))
+
+    ;; Immediate feedback
+    (message "Caffeinate started, logging to *nodoze* buffer for %d hours" hours)))
+
 (provide 'nodoze)
 ;;; nodoze.el ends here
