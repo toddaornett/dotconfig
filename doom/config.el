@@ -327,6 +327,7 @@
 ;; vterm
 (use-package vterm
   :config
+  (setq vterm-always-compile-module t)
   (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
 
 ;; Custom file
