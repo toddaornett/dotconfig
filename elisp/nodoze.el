@@ -8,20 +8,35 @@
 ;; Requires macOS `caffeinate`.
 ;;
 ;;; Code:
+(defgroup nodoze nil
+  "Customize settings for the running of nodoze to keep the system awake."
+  :group 'hardware)
+
+(defcustom nodoze-command-options
+  "-d -i -m -s -u -t"
+  "The default arguments passed by nodoze to NODOZE_COMMAND_PROGRAM."
+  :group 'nodoze
+  :type "string")
+
+(defcustom nodoze-command-program
+  "caffeinate"
+  "The default program for nodoze to keep system awake."
+  :group 'nodoze
+  :type "string")
+
 (defun nodoze (hours)
   "Prevent the system from sleeping for HOURS, logging to *nodoze* buffer."
   (interactive "nHours to stay active: ")
   (let* ((seconds (round (* hours 3600))) ; Round to avoid floating-point issues
          (buffer (get-buffer-create "*nodoze*"))
-         (command (format "nohup caffeinate -d -i -m -s -u -t %d >/dev/null 2>&1 &" seconds))
-         (unit (if (= hours 1) "hour" "hours")) ; Singular for exactly 1, plural otherwise
-         (hours-display (if (= hours 1) "1" (format "%.2f" hours)))) ; Integer 1 for 1, else float
+         (command (format "nohup %s %s %d >/dev/null 2>&1 &" nodoze-command-program nodoze-command-options seconds))
+         (unit (if (= hours 1) "hour" "hours")))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
         (erase-buffer)
         (insert (format "[%s] Starting caffeinate for %s %s\n"
                         (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))
-                        hours-display unit))))
+                        hours unit))))
     (display-buffer buffer)
     (with-current-buffer buffer
       (redisplay t))
@@ -31,10 +46,10 @@
                  (lambda ()
                    (with-current-buffer buffer
                      (let ((inhibit-read-only t))
-                       (goto-char (point-max))
-                       (insert (format "[%s] Caffeinate finished - system can now sleep\n"
-                                       (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))))))))
-    (message "Caffeinate started for %s %s (logging to *nodoze* buffer)" hours-display unit)))
+                     (goto-char (point-max))
+                     (insert (format "[%s] Caffeinate finished - system can now sleep\n"
+                                     (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))))))))
+    (message "Caffeinate started for %s %s (logging to *nodoze* buffer)" hours unit)))
 
 (provide 'nodoze)
 ;;; nodoze.el ends here
