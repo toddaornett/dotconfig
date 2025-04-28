@@ -267,15 +267,24 @@
   (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
 ;; Custom keybindings
-(map! :leader
-      :prefix ("z" . "string inflection")
-      :desc "all cases"       :n "a" #'string-inflection-all-cycle
-      :desc "camelCase"       :n "c" #'string-inflection-camelcase
-      :desc "kebab-case"      :n "k" #'string-inflection-kebab-case
-      :desc "lowerCamelCase"  :n "l" #'string-inflection-lower-camelcase
-      :desc "UpperCamelCase"  :n "p" #'string-inflection-upper-camelcase
-      :desc "snake_case"      :n "s" #'string-inflection-underscore
-      :desc "UPCASE"          :n "u" #'string-inflection-upcase)
+(general-define-key
+ :states 'normal
+ :prefix "SPC z"
+ :which-key "string inflection"
+ "a" '(string-inflection-all-cycle :which-key "all cases")
+ "c" '(string-inflection-camelcase :which-key "camelCase")
+ "k" '(string-inflection-kebab-case :which-key "kebab-case")
+ "l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
+ "p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
+ "s" '(string-inflection-underscore :which-key "snake_case")
+ "u" '(string-inflection-upcase :which-key "UPCASE"))
+
+;; control which-key popup and pagination
+(after! which-key
+  (setq which-key-use-C-h-commands t)
+  (setq which-key-show-transient-maps t)
+  (setq which-key-max-display-columns nil)
+  (setq which-key-side-window-max-height 0.5))
 
 (after! apheleia
   (setf (alist-get 'emacs-lisp-mode apheleia-formatters)
