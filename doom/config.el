@@ -29,6 +29,10 @@
 ;; Delay garbage collection for performance
 (setq gc-cons-threshold (* 50 1000 1000))
 
+;; Make deleted files go to the trash can
+(setq delete-by-moving-to-trash t
+      trash-directory "~/.Trash")
+
 (after! company
   ;; Use C-<tab> for company completion if TAB is busy
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
