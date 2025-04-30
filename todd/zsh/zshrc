@@ -71,6 +71,51 @@ zstyle ':completion:*' menu select # select completions with arrow keys
 zstyle ':completion:*' group-name '' # group results by category
 zstyle ':completion:::::' completer _expand _complete _ignored _approximate # enable approximate matches for completion
 
+##########
+# autocomplete pass
+##########
+# Custom pass completion with fzf
+_pass_completion() {
+  local cur=${COMP_WORDS[$COMP_CWORD]}
+  local prev=${COMP_WORDS[$COMP_CWORD-1]}
+  local pass_dir="${PASSWORD_STORE_DIR:-$HOME/.password-store}"
+
+  # List of pass subcommands
+  local subcommands=(
+    init ls list find grep show insert generate edit rm mv cp git help version
+  )
+
+  # If only 'pass' is typed, complete with subcommands
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=($(compgen -W "${subcommands[*]}" -- "$cur"))
+    return
+  fi
+
+  # For subcommands that expect a password entry, provide fuzzy completion
+  case $prev in
+    show|edit|rm|cp|mv|grep|find)
+      # Find all password files (strip .gpg extension)
+      local passwords=($(find "$pass_dir" -type f -name '*.gpg' | sed "s|$pass_dir/||;s|\.gpg$||"))
+      # Use fzf for fuzzy completion
+      local selected=$(printf "%s\n" "${passwords[@]}" | fzf --query="$cur" --select-1 --exit-0)
+      if [[ -n "$selected" ]]; then
+        COMPREPLY=("$selected")
+      fi
+      ;;
+    insert)
+      # Optionally, handle insert differently (e.g., no completion or new entry suggestion)
+      COMPREPLY=()
+      ;;
+    *)
+      # No completion for other subcommands or unknown cases
+      COMPREPLY=()
+      ;;
+  esac
+}
+
+# Bind pass completion to the pass command
+complete -F _pass_completion pass
+
 export HISTFILE=$HOME/.zsh_history
 export HISTSIZE=100000
 export SAVEHIST=$HISTSIZE
