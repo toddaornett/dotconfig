@@ -10,7 +10,8 @@
 ;;; Code:
 (defgroup nodoze nil
   "Customize settings for the running of nodoze to keep the system awake."
-  :group 'hardware)
+  :group 'hardware
+  :prefix "nodoze-")
 
 (defcustom nodoze-command-options
   "-d -i -m -s -u -t"
@@ -46,9 +47,9 @@
                  (lambda ()
                    (with-current-buffer buffer
                      (let ((inhibit-read-only t))
-                     (goto-char (point-max))
-                     (insert (format "[%s] Caffeinate finished - system can now sleep\n"
-                                     (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))))))))
+                       (goto-char (point-max))
+                       (insert (format "[%s] Caffeinate finished - system can now sleep\n"
+                                       (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))))))))
     (message "Caffeinate started for %s %s (logging to *nodoze* buffer)" hours unit)))
 
 (provide 'nodoze)
