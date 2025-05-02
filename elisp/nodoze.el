@@ -34,11 +34,10 @@
          (unit (if (= hours 1) "hour" "hours")))
     (with-current-buffer buffer
       (let ((inhibit-read-only t))
-        (erase-buffer)
+        (goto-char (point-max))
         (insert (format "[%s] Starting caffeinate for %s %s\n"
                         (format-time-string "%Y-%m-%d %H:%M:%S" (current-time))
                         hours unit))))
-    (display-buffer buffer)
     (with-current-buffer buffer
       (redisplay t))
     (shell-command "pkill -u $USER caffeinate" nil nil)
