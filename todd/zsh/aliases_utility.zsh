@@ -163,3 +163,15 @@ function wipc {
 function uuidgen {
   /usr/bin/uuidgen | tr '[:upper:]' '[:lower:]' | tr -d '\n'
 }
+
+function clear_cache_ms_teams {
+  if [ -d "~/Library/Application\ Support/Microsoft/Teams" ]; then
+    rm -rf "~/Library/Application\ Support/Microsoft/Teams"
+  fi
+  if [ -d "~/Library/Group Containers/UBF8T346G9.com.microsoft.teams" ]; then
+    rm -rf "~/Library/Group Containers/UBF8T346G9.com.microsoft.teams"
+  fi
+  if [ -d "~/Library/Containers/com.microsoft.teams2" ]; then
+    rm -rf "~/Library/Containers/com.microsoft.teams2"
+  fi
+}
