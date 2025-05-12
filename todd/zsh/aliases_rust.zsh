@@ -209,6 +209,64 @@ cruupr() {
   rm -f "$temp_file"
 }
 
+cclippyfix() {
+  if [[ ! -f "Cargo.toml" ]]; then
+    echo "Aborting, this is not a Rust project"
+    return 1;
+  fi
+
+  # first make sure are intended branch does not remotely exist
+  # and create it locally
+  local branch_name="refactor/clippy"
+  git fetch origin
+  if git show-ref --verify --quiet refs/remotes/origin/$branch_name; then
+    echo "Aborting, the branch '$branch_name' exists on the remote origin."
+  fi
+  if ! git checkout -b $branch_name; then
+    return $?
+  fi
+
+  # get latest code from the main branch
+  git checkout $(git_main_branch)
+  git pull
+
+  # create temporary file for git commit message body that
+  # includes cargo command output
+  local temp_file=$(mktemp -t tmp_cclippyfix)
+  if [[ ! -e $temp_file ]]; then
+    echo "Failed to create temporary file."
+    return 1
+  fi
+
+  echo "\`\`\`sh" >"$temp_file"
+
+  local prompt="➜  $(basename "$PWD") git:($(git_main_branch)) ✗"
+  echo "$prompt cargo clippy --fix" >>"$temp_file"
+  cargo clippy --fix &>>"$temp_file"
+
+  echo "$prompt cargo clippy" >>"$temp_file"
+  cargo clippy &>>"$temp_file"
+
+  echo "\`\`\`" >>"$temp_file"
+
+  if git diff --quiet; then
+    echo "No changes to commit."
+  else
+    # switch to the new branch and create git commit
+    if git checkout $branch_name; then
+      local commit_message_file=$(mktemp -t tmp_cclippyfix_message)
+      echo "refactor: clippy fixes" >"$commit_message_file"
+      echo "" >>"$commit_message_file"
+      cat "$temp_file" >>"$commit_message_file"
+      git add .
+      git commit -F "$commit_message_file"
+      echo "Ran cargo clippy --fix and git committed"
+      rm -f "$commit_message_file"
+    fi
+  fi
+  rm -f "$temp_file"
+}
+
 create_run_aliases() {
   if [ -f Cargo.toml ]; then
     local suffix=""
