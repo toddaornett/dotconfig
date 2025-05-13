@@ -244,8 +244,8 @@ cclippyfix() {
   echo "$prompt cargo clippy --fix" >>"$temp_file"
   cargo clippy --fix &>>"$temp_file"
 
-  echo "$prompt cargo clippy" >>"$temp_file"
-  cargo clippy &>>"$temp_file"
+  echo "$prompt cargo clippy --all-targets --all-features -- -D warnings" >>"$temp_file"
+  cargo clippy --all-targets --all-features -- -D warnings &>>"$temp_file"
 
   echo "\`\`\`" >>"$temp_file"
 
@@ -325,7 +325,7 @@ add-zsh-hook chpwd create_run_aliases
 local cmd='cargo audit'
 alias ca="echo \"$cmd\" && $cmd"
 
-cmd='cargo fmt && cargo clippy --all-features -- -D warnings && cargo build'
+cmd='cargo fmt && cargo clippy --all-targets --all-features -- -D warnings && cargo build'
 alias cbd="echo \"$cmd\" && $cmd"
 
 cmd='cargo build --release'
