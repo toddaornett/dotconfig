@@ -154,6 +154,47 @@
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
+(use-package! ibuffer-projectile
+  :after ibuffer
+  :commands ibuffer-projectile-generate-filter-groups)
+
+(defun tao/ibuffer-custom-groups ()
+  (require 'projectile)
+  (require 'ibuffer-projectile)
+  (let* ((project-buffers (projectile-project-buffers))
+         (project-groups (or (ignore-errors (ibuffer-projectile-generate-filter-groups)) '()))
+         (default-group `(("Default" (predicate . (not (member (current-buffer) ',project-buffers))))))
+         (cleaned-groups (mapcar (lambda (group)
+                                   (cons (file-name-nondirectory (directory-file-name (car group))) (cdr group)))
+                                 (cl-remove-if (lambda (group) (string= (car group) "Default")) project-groups))))
+    (append cleaned-groups (list default-group))))
+
+(defun tao/ibuffer-toggle-project-buffers (project-root)
+  (interactive (list (projectile-completing-read "Select project: " (projectile-relevant-known-projects))))
+  (require 'ibuffer)
+  (let ((group-name (file-name-nondirectory (directory-file-name project-root))))
+    (with-current-buffer (get-buffer "*Ibuffer*")
+      (if (member group-name (mapcar #'car ibuffer-filter-groups))
+          (progn
+            (setq ibuffer-filter-groups
+                  (cl-remove-if (lambda (group) (string= (car group) group-name))
+                                ibuffer-filter-groups))
+            (ibuffer-update nil t))
+        (progn
+          (setq ibuffer-filter-groups (tao/ibuffer-custom-groups))
+          (ibuffer-update nil t))))))
+
+(use-package! ibuffer
+  :after projectile
+  :hook (ibuffer . (lambda ()
+                     (let ((groups (tao/ibuffer-custom-groups)))
+                       (when (proper-list-p groups)
+                         (setq ibuffer-filter-groups groups)))
+                     (unless (eq ibuffer-sorting-mode 'alphabetic)
+                       (ibuffer-do-sort-by-alphabetic))))
+  :bind (:map ibuffer-mode-map
+              ("C-c p t" . tao/ibuffer-toggle-project-buffers)))
+
 ;; Exec-path-from-shell
 (use-package exec-path-from-shell
   :init

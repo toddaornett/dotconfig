@@ -63,3 +63,5 @@
 (package! swagger
   :recipe (:local-repo "~/.config/elisp"
            :files ("swagger.el")))
+
+(package! ibuffer-projectile)
