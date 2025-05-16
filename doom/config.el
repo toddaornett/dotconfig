@@ -33,6 +33,13 @@
 (setq delete-by-moving-to-trash t
       trash-directory "~/.Trash")
 
+;; disable automatic linking of system clipboard to emacs
+(setq select-enable-clipboard nil)
+(map! :nvi
+      "s-c" #'clipboard-kill-ring-save
+      "s-v" #'clipboard-yank)
+(define-key minibuffer-local-map (kbd "s-v") #'clipboard-yank)
+
 (after! company
   ;; Use C-<tab> for company completion if TAB is busy
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
