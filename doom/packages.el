@@ -64,4 +64,8 @@
   :recipe (:local-repo "~/.config/elisp"
            :files ("swagger.el")))
 
+(package! insert-random-uuid-into-buffer
+  :recipe (:local-repo "~/.config/elisp"
+           :files ("insert-random-uuid-into-buffer.el")))
+
 (package! ibuffer-projectile)
