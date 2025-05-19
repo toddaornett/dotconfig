@@ -1,25 +1,11 @@
 ;;; flyway-version.el --- handle project flyway version migrations -*- lexical-binding: t; -*-
-;;
-;; Copyright (C) 2025 Todd Ornett
-;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
-;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 03, 2025
-;; Modified: April 03, 2025
-;; Version: 0.0.1
-;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/todd.ornett/flyway-tools
+;; Modified: May 16, 2025
+;; Version: 0.0.2
 ;; Package-Requires: ((emacs "24.3"))
 ;;
-;; This file is not part of GNU Emacs.
-;;
 ;;; Commentary:
-;;
-;;  Files that we will need to consider:
-;;    ~/Projects/carrier-model/.github/workflows/docker-build.yml
-;;    ~/Projects/carrier-model/.github/workflows/flyway-build.yml
-;;    ~/Projects/carrier-model/.github/workflows/rust-test.yml
-;;    ~/Projects/carrier-model/db-migration.Dockerfile"
 ;;
 ;;  Description
 ;;
@@ -56,7 +42,7 @@ If NEW-VERSION is not provided, defaults to '11.5-alpine'."
               (flyway-version-update-file flywayfile new-version)))
           (let ((flyway-build-file (concat dir "/.github/workflows/flyway-build.yml")))
             (when (file-exists-p flyway-build-file)
-              (flyway-version-update-file flyway-build-file new-version))))))))
+              (flyway-version-update-file-with-simple-version flyway-build-file new-version))))))))
 
 (defun flyway-version-update-file (filepath new-version)
   "Update all occurrences of the Flyway version in FILEPATH to NEW-VERSION."
