@@ -86,6 +86,7 @@
 (after! yasnippet
   (yas-global-mode 1)
   (setq yas-snippet-dirs '("~/.config/yasnippets/"))
+  (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
   (add-hook 'yas-minor-mode-hook
             (lambda ()
               (local-set-key (kbd "TAB") 'yas-expand)
