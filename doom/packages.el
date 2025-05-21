@@ -69,3 +69,5 @@
            :files ("insert-random-uuid-into-buffer.el")))
 
 (package! ibuffer-projectile)
+
+(package! yasnippet-snippets)
