@@ -358,11 +358,17 @@ alias ct="echo \"$cmd\" && $cmd"
 cmd='cargo test -- --nocapture'
 alias ctp="echo \"$cmd\" && $cmd"
 
-cmd='cargo llvm-cov nextest --all-features'
+cmd='cargo nextest run --all-features'
 alias cnt="echo \"$cmd\" && $cmd"
 
-cmd='cargo llvm-cov nextest --all-features --no-capture'
+cmd='cargo nextest run --all-features --no-capture'
 alias cntp="echo \"$cmd\" && $cmd"
+
+cmd='cargo llvm-cov nextest --all-features'
+alias cntc="echo \"$cmd\" && $cmd"
+
+cmd='cargo llvm-cov nextest --all-features --no-capture'
+alias cntcp="echo \"$cmd\" && $cmd"
 
 cmd='cargo llvm-cov report --html --output-dir coverage'
 alias cntr="echo \"$cmd\" && $cmd"
