@@ -130,6 +130,7 @@ function dbt {
   echo "Using $(env | grep DB | grep NAME | head -1)"
 }
 
+# save git project unstaged working files
 function wips {
   local dest="${HOME}/wip/$(basename `pwd`)"
   mkdir -p "$dest"
@@ -146,6 +147,7 @@ function wips {
   done
 }
 
+# retrieve files from wips saved files to current directory
 function wipc {
   local src="${HOME}/wip/$(basename `pwd`)"
   local folders=($(find "$src"/* -type d | sed -e "s|$src/||" | xargs))
@@ -174,4 +176,27 @@ function clear_cache_ms_teams {
   if [ -d "~/Library/Containers/com.microsoft.teams2" ]; then
     rm -rf "~/Library/Containers/com.microsoft.teams2"
   fi
+}
+
+# Remove duplicate entries from a list of strings
+#
+# Usage: dedupe [<input string> [<separator character]]
+#   <input string>         default PATH environment variable
+#   <separator character>  default ":"
+# Note that if <separator character> is specified, then
+# <input path style string> must also be specified.
+function dedupe {
+  echo "${1:-$PATH}" | awk \
+    -v sep="${2:-:}" '
+    BEGIN {
+      RS=sep
+    }
+    {
+      sub(/\n$/,"")
+      if (!A[$0]) {
+        A[$0]=1
+        printf((NR==1) ? "" : sep)
+        printf($0)
+      }
+    }'
 }
