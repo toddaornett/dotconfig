@@ -1,0 +1,62 @@
+# -*- mode: snippet -*-
+# name: test tokio function
+# key: ttest
+# --
+#[tokio::test]
+async fn test_arch_$1_ok() {
+    setup_env("true");
+    let customer_server = CUSTOMER_SERVER.lock().await;
+    let contract_id = Uuid::parse_str("85a36881-6d1b-40a3-b766-dd5cd65f9396").unwrap();
+    let get_customer_mock = customer_server.mock(|when, then| {
+        when.method(GET)
+            .path(format!("/api/internal/contract/{}", contract_id));
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(read_json_file(
+                "src/arch/test/sample/customer_get_subscriber_response.json",
+            ));
+    });
+    let support_session_server = SUPPORT_SESSION_SERVER.lock().await;
+    let get_support_sessions_mock = support_session_server.mock(|when, then| {
+        when.method(GET)
+            .path(format!("/api/contracts/{}/support/sessions", contract_id))
+            .query_param("supportType", "Chat")
+            .query_param("sessionStatus", "Open");
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(read_json_file(
+                "src/arch/test/sample/ss_get_contract_sessions_response.json",
+            ));
+    });
+    let arch_server = ARCH_SERVER.lock().await;
+    let expected_$1_response =
+        read_json_file("src/arch/test/sample/arch_$1_response.json");
+    let $1_mock = arch_server.mock(|when, then| {
+        when.method(POST)
+            .path(ARCH_PATH_$1)
+            .json_body(read_json_file(
+                "src/arch/test/sample/arch_$1_request.json",
+            ));
+        then.status(200)
+            .header("content-type", "application/json")
+            .json_body(expected_$1_response.clone());
+    });
+    let $1_response = arch_chat_$1(
+        contract_id,
+        Struct$1Input {
+            keywords: None,
+            metadata: None,
+        },
+        &REQWEST_CLIENT,
+    )
+        .await
+        .expect("Failed to $1");
+
+    assert_eq!(
+        to_value($1_response).expect("Failed to serialize ${1:$(replace-regexp-in-string "_" " " yas-text)}"),
+        expected_$1_response
+    );
+    get_customer_mock.assert();
+    get_support_sessions_mock.assert();
+    $1_mock.assert();
+}
