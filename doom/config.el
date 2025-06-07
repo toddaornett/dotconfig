@@ -367,12 +367,33 @@
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
+;; magit and forge
 (after! magit
+  ;; Ediff settings
   (setq ediff-diff-options "")
   (setq ediff-custom-diff-options "-u")
   (setq ediff-window-setup-function 'ediff-setup-windows-plain)
   (setq ediff-split-window-function 'split-window-vertically)
-  (setq magit-ediff-dwim-show-on-hunks t))
+  (setq magit-ediff-dwim-show-on-hunks t)
+
+  ;; Remove Forge's default PR section
+  (remove-hook 'magit-status-sections-hook 'forge-insert-pullreqs)
+
+  ;; Add custom PR section that shows only open PRs (not merged)
+  (add-hook 'magit-status-sections-hook
+            (defun +forge-insert-open-prs ()
+              "Show only open (non-merged) pull requests in Magit status."
+              (when (forge-get-repository nil t)
+                (magit-insert-section (forge-pullreqs)
+                  (magit-insert-heading "Open Pull Requests")
+                  (dolist (pr (forge-sql [:select [number title state author login created updated]
+                                          :from pullreq
+                                          :where (and (= repository $s1) (= state "open"))]
+                                         (forge-get-repository)))
+                    (insert (format "#%s  %s\n" (aref pr 0) (aref pr 1))))))))
+
+  ;; Limit pullreqs globally (still good practice)
+  (setq forge-topic-list-limit '((pullreq . 50) (issue . 0))))
 
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
