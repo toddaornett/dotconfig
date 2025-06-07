@@ -4,15 +4,15 @@ alias ua=unalias
 alias c=clear
 alias wl="wc -l"
 
-function ltrim () {
+function ltrim() {
   sed -E 's/^[[:blank:]]+//'
 }
 
-function rtrim () {
+function rtrim() {
   sed -E 's/[[:blank:]]+$//'
 }
 
-function trim () {
+function trim() {
   ltrim | rtrim
 }
 
@@ -32,7 +32,7 @@ function stomp {
   # Directory containing the migration files
   local MIGRATION_DIR="./db/sql"
 
-  local version_gt() {
+  version_gt() {
     [ "$(printf '%s\n' "$1" "$2" | sort -V | head -n 1)" != "$1" ]
   }
 
@@ -48,24 +48,24 @@ function stomp {
       local version=$(echo "$filename" | awk -F_ '{print $1}' | sed 's/^V//')
       if version_gt "$version" "$TARGET_VERSION"; then
         echo "DELETE FROM flyway_schema_history WHERE version='$version';"
-	local OLDIFS=$IFS
+        local OLDIFS=$IFS
         local command=""
         while IFS= read -r line; do
           # Check if the line contains a CREATE TABLE command
           if [[ "$line" =~ CREATE[[:space:]]+TABLE[[:space:]]+([_A-Za-z0-9]+).* ]]; then
-	    command=""
+            command=""
             echo "DROP TABLE IF EXISTS ${match[1]};"
           fi
 
           # Check if the line contains a CREATE INDEX command
           if [[ "$line" =~ CREATE[[:space:]]+INDEX[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?([_A-Za-z0-9]+).* ]]; then
-	    command=""
+            command=""
             echo "DROP INDEX IF EXISTS ${match[2]};"
           fi
 
           # Check if the line contains a CREATE UNIQUE INDEX command
           if [[ "$line" =~ CREATE[[:space:]]+UNIQUE[[:space:]]+INDEX[[:space:]]+(IF[[:space:]]+NOT[[:space:]]+EXISTS[[:space:]]+)?([^ ]+).* ]]; then
-	    command=""
+            command=""
             echo "DROP INDEX IF EXISTS ${match[2]};"
           fi
 
@@ -76,30 +76,31 @@ function stomp {
 
           # Check if the line contains a CREATE OR REPLACE FUNCTION command
           if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+FUNCTION[[:space:]]+([^ ]+)(\\\().* ]]; then
-	    command=""
+            command=""
             echo "DROP FUNCTION IF EXISTS ${match[1]} CASCADE;"
           fi
 
           # Check if the line contains a CREATE OR REPLACE PROCEDURE command
           if [[ "$line" =~ CREATE[[:space:]]+OR[[:space:]]+REPLACE[[:space:]]+PROCEDURE[[:space:]]+([^ ]+)(\\\().* ]]; then
-	    command=""
+            command=""
             echo "DROP PROCEDURE IF EXISTS ${match[1]} CASCADE;"
-	  fi
+          fi
 
           # Check there is ON <table name> for completing buffered command string
           if [[ "$line" =~ .*[[:space:]]ON[[:space:]]([^ ]+).* ]]; then
-	    if [ "$command" != "" ] ; then
-	      echo "$command ON ${match[1]} CASCADE;"
-	      command=""
-	    fi
+            if [ "$command" != "" ]; then
+              echo "$command ON ${match[1]} CASCADE;"
+              command=""
+            fi
           fi
         done <"$file"
-	IFS=$OLDIFS
+        IFS=$OLDIFS
       else
         break
       fi
     fi
   done
+  unset -f version_gt
   return 0
 }
 
@@ -132,10 +133,10 @@ function dbt {
 
 # save git project unstaged working files
 function wips {
-  local dest="${HOME}/wip/$(basename `pwd`)"
+  local dest="${HOME}/wip/$(basename $(pwd))"
   mkdir -p "$dest"
   local copy
-  if command -v -- gcp > /dev/null 2>&1; then
+  if command -v -- gcp >/dev/null 2>&1; then
     copy=gcp
   else
     copy=cp
@@ -149,7 +150,7 @@ function wips {
 
 # retrieve files from wips saved files to current directory
 function wipc {
-  local src="${HOME}/wip/$(basename `pwd`)"
+  local src="${HOME}/wip/$(basename $(pwd))"
   local folders=($(find "$src"/* -type d | sed -e "s|$src/||" | xargs))
   local d
   for d in $folders; do
@@ -199,4 +200,80 @@ function dedupe {
         printf($0)
       }
     }'
+}
+
+# convert arabic number to roman
+function d2r() {
+  emulate -L zsh
+  setopt KSH_ARRAYS
+  local num
+  local result
+  local i
+  local values
+  local numerals
+  values=(1000 900 500 400 100 90 50 40 10 9 5 4 1)
+  numerals=("M" "CM" "D" "CD" "C" "XC" "L" "XL" "X" "IX" "V" "IV" "I")
+
+  if [[ $# -eq 0 ]]; then
+    echo "Usage: d2r <number>"
+    return 1
+  fi
+
+  num=$1
+
+  if ! [[ "$num" =~ ^[0-9]+$ ]]; then
+    echo "Error: provide a positive integer."
+    return 1
+  fi
+
+  result=""
+  for ((i = 0; i < ${#values[@]}; i++)); do
+    while ((num >= values[i])); do
+      result+="${numerals[i]}"
+      ((num -= values[i]))
+    done
+  done
+
+  echo "$result"
+}
+
+# convert roman number to arabic
+r2d() {
+  if [ $# -eq 0 ]; then
+    echo "Usage: r2d <roman numeral>"
+    return 1
+  fi
+
+  local input result matched sym value i len
+  input=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')
+  result=0
+
+  emulate -L zsh
+  setopt KSH_ARRAYS
+  local -a symbols
+  local -a values
+  symbols=("M" "CM" "D" "CD" "C" "XC" "L" "XL" "X" "IX" "V" "IV" "I")
+  values=(1000 900 500 400 100 90 50 40 10 9 5 4 1)
+
+  while [ -n "$input" ]; do
+    matched=0
+    i=0
+    while [ $i -lt ${#symbols[@]} ]; do
+      sym="${symbols[$i]}"
+      value="${values[$i]}"
+      len=${#sym}
+      if [ "${input:0:$len}" = "$sym" ]; then
+        result=$((result + value))
+        input="${input:$len}"
+        matched=1
+        break
+      fi
+      i=$((i + 1))
+    done
+    if [ "$matched" -eq 0 ]; then
+      echo "Error: Invalid Roman numeral."
+      return 1
+    fi
+  done
+  echo "$result"
 }
