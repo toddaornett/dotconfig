@@ -12,15 +12,18 @@ export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-~/Projects}
 ##########
 append_path() {
   local new_path="$1"
-  if [[ -d "$new_path" ]]; then
-    # Ensure the exact string with the variable reference is written to ~/.zprofile
-    if ! grep -Fxq "path+=($new_path)" "$HOME/.config/zsh/.zprofile"; then
-      echo "path+=($new_path)" >> "$HOME/.config/zsh/.zprofile"
+  local expanded_path
+  local zdotdir="${ZDOTDIR:-$HOME}"
+  local zprofile_path="$zdotdir/.zprofile"
+
+  eval "expanded_path=$new_path"
+  if [[ -d "$expanded_path" ]]; then
+    # Ensure the exact string with the variable reference is persisted
+    if ! grep -Fxq "path+=($new_path)" "$zprofile_path"; then
+      echo "path+=($new_path)" >> "$zprofile_path"
     fi
 
-    # Expand variables and append to the current session’s path
-    local expanded_path
-    eval "expanded_path=$new_path"
+    # append expanded path to the current session’s path
     if [[ -d "$expanded_path" && ":$path:" != *":$expanded_path:"* ]]; then
       path+=("$expanded_path")
     fi
@@ -37,6 +40,11 @@ append_path '$OPENPROJECTS_PATH/emacs/lib-src'
 # doom emacs scripts
 ##########
 append_path '$HOME/.config/doom-emacs/bin'
+
+##########
+# local scripts
+##########
+append_path '$HOME/bin'
 
 ##########
 # load all aliases sources
