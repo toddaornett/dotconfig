@@ -47,9 +47,12 @@ append_path '$HOME/.config/doom-emacs/bin'
 append_path '$HOME/bin'
 
 ##########
-# load all aliases sources
+# load all aliases and functions sources
 ##########
 for f in $HOME/.config/todd/zsh/aliases*; do
+  source $f
+done
+for f in $HOME/.config/todd/zsh/*_functions.zsh; do
   source $f
 done
 
