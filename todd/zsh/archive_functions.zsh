@@ -50,7 +50,7 @@ function zsplit() {
   # Split the zip file into 100MB parts, outputting to the specified directory, suppressing verbose output
   input_file="$(realpath $zip_file)"
   cd "${output_dir}"
-  split -b 2048k "$input_file" "${file_name}-x"
+  split -b 100000k "$input_file" "${file_name}-x"
 
   # Check if the split operation was successful
   if [[ $? -ne 0 ]]; then
