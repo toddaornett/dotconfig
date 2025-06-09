@@ -277,3 +277,37 @@ r2d() {
   done
   echo "$result"
 }
+
+# switch aws profile
+function sap {
+  local env="dev"
+  local prod=false
+  while getopts "e:p" opt; do
+    case $opt in
+    e) env="$OPTARG" ;;
+    p) prod=true ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      return 1
+      ;;
+    esac
+  done
+  if [[ $env = "dev" ]]; then
+    export AWS_PROFILE="$AWS_DEFAULT_PROFILE_DEV.$env"
+  else
+    export AWS_PROFILE="$AWS_DEFAULT_PROFILE_NONDEV.$env"
+  fi
+  if $prod; then
+    export AWS_PROFILE="${AWS_PROFILE/nonprod/prod}"
+  fi
+  echo "Now AWS_PROFILE=$AWS_PROFILE"
+}
+
+# sso for aws
+function sso {
+  if ! type ssogenerator &>/dev/null; then
+    brew tap asurion/homebrew git@github.com:asurion-private/ah-homebrew-asurion.git
+    brew install ssogenerator
+  fi
+  $(brew --prefix)/bin/ssogenerator
+}
