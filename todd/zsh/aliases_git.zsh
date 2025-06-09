@@ -90,6 +90,39 @@ function gstD {
   fi
 }
 
+function prs {
+  local repo prs pr_number approvals sha checks
+  # Get the current repository's full name (e.g., owner/repo)
+  repo=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
+
+  # Fetch all open PRs created by you in the current repo
+  prs=$(gh api -H "Accept: application/vnd.github+json" \
+    "/repos/$repo/pulls?state=open&author=$(gh api user --jq .login)" \
+    --jq '.[] | {number: .number}')
+
+  # Loop through each PR to check approvals and status checks
+  echo "$prs" | jq -c '.' | while read -r pr; do
+    pr_number=$(echo "$pr" | jq -r '.number')
+
+    # Get the number of approvals
+    approvals=$(gh api -H "Accept: application/vnd.github+json" \
+      "/repos/$repo/pulls/$pr_number/reviews" \
+      --jq '[.[] | select(.state == "APPROVED")] | length')
+
+    # Get the head commit SHA using headRefOid
+    sha=$(gh pr view $pr_number --repo $repo --json headRefOid --jq '.headRefOid')
+
+    # Check if all required status checks have passed
+    checks=$(gh api -H "Accept: application/vnd.github+json" \
+      "/repos/$repo/commits/$sha/check-runs" \
+      --jq '.check_runs | all(.status == "completed" and .conclusion == "success")')
+
+    if [ "$checks" = "true" ]; then
+      echo "PR #$pr_number: $approvals approvals"
+    fi
+  done
+}
+
 #
 # Aliases
 #
