@@ -187,6 +187,63 @@ with unstaged Git changes. Displays results in a new buffer."
       (goto-char (point-min))
       (display-buffer buffer))))
 
+(defun git-tools-show-non-main-branches (&optional parent-dir)
+  "List subdirectories under PARENT-DIR with non-main branches.
+
+List subdirectories under PARENT-DIR (default '~/Projects')
+with non-main branches. Displays results in a new buffer."
+  (interactive)
+  (let* ((parent-dir (or parent-dir
+                         (expand-file-name
+                          (read-string (concat "Git show non-main branches in all "
+                                               "sub-directories under path "
+                                               "(default '~/Projects'): ")
+                                       nil nil "~/Projects"))))
+         (default-directory (file-truename (expand-file-name parent-dir)))
+         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+         (buffer (get-buffer-create "*Git Non-main Branches*"))
+         (results nil))
+    ;; Ensure parent directory exists
+    (unless (file-directory-p default-directory)
+      (error "Parent directory '%s' does not exist" default-directory))
+    ;; Check each subdirectory for non-main branches
+    (dolist (dir dirs)
+      (let ((full-path (expand-file-name dir default-directory)))
+        (when (and (file-directory-p full-path)
+                   (not (file-symlink-p full-path))
+                   (file-exists-p (expand-file-name ".git" full-path)))
+          (let* ((branch-names-raw (shell-command-to-string
+                                    (format "cd %s && git branch --list" full-path)))
+                 (branch-names (split-string branch-names-raw "\n" t))
+                 (filtered-branches (mapcar
+                                     (lambda (branch)
+                                       (string-trim (string-replace "*" "" branch)))
+                                     (seq-remove
+                                      (lambda (branch)
+                                        (let ((clean-branch (string-trim (string-replace "*" "" branch))))
+                                          (or (string-empty-p clean-branch)
+                                              (string= clean-branch "main")
+                                              (string= clean-branch "master")
+                                              (string= clean-branch "develop"))))
+                                      branch-names))))
+            (when filtered-branches
+              (push (cons dir filtered-branches) results))))))
+    ;; Display results
+    (with-current-buffer buffer
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (format "Non-main git branches in %d projects under the %s directory:\n\n"
+                        (length results)
+                        parent-dir))
+        (if results
+            (dolist (entry (sort results (lambda (a b) (string< (car a) (car b)))))
+              (insert (format "%s:\n" (car entry)))
+              (dolist (branch (cdr entry))
+                (insert (format "  - %s\n" branch))))
+          (insert "No git projects with non-main branches found."))
+        (goto-char (point-min))
+        (display-buffer buffer)))))
+
 (defun git-tools-pull-all-main (root-dir)
   "Iterate through all subdirectories in ROOT-DIR, switch to main branch, and pull.
 
