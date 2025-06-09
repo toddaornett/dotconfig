@@ -1,1 +1,2 @@
+source $HOME/.config/todd/zsh/archive_functions.zsh
 source $HOME/.config/todd/zsh/string_functions.zsh
