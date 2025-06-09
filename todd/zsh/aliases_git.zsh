@@ -398,7 +398,6 @@ function pclean {
         if [[ -n $(git -C "$p" status --porcelain) ]]; then
           echo "$(basename "$p"): Local changes, not pulling ${main_branch_name}"
         else
-          echo "$(basename "$p"): Pulling ${main_branch_name}"
           current_branch_name=$(git -C "$p" rev-parse --abbrev-ref HEAD)
           if [[ "$current_branch_name" != "$main_branch_name" ]]; then
             git -C "$p" checkout "${main_branch_name}"
