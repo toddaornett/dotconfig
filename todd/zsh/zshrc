@@ -356,6 +356,18 @@ function lsrp {
 }
 
 ##########
+# list Node project paths
+##########
+function lsnp {
+  base_dir=~/Projects
+  for dir in "$base_dir"/*/; do
+    if [[ -f "$dir/package.json" ]]; then
+      echo "$dir"
+    fi
+  done
+}
+
+##########
 # add hook for loading project companion env variables
 ##########
 autoload -U add-zsh-hook
