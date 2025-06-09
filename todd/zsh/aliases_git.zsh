@@ -409,7 +409,14 @@ function pclean {
             git -C "$p" branch -m "$main_branch_name" "$remote_main_branch_name"
           fi
 
-          git -C "$p" pull
+          git -C "${p}" fetch origin
+
+          if git -C "${p}" status --porcelain -b | grep -q "behind"; then
+            echo "$(basename "${p}"): Remote changes detected, pulling ${main_branch_name}"
+            git -C "${p}" pull
+          else
+            echo "$(basename "${p}"): No remote changes for ${main_branch_name}, skipping pull"
+          fi
         fi
 
         if git -C "$p" show-ref -q --verify refs/heads/release; then
