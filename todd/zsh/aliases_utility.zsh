@@ -4,24 +4,13 @@ alias ua=unalias
 alias c=clear
 alias wl="wc -l"
 
-function ltrim() {
-  sed -E 's/^[[:blank:]]+//'
-}
-
-function rtrim() {
-  sed -E 's/[[:blank:]]+$//'
-}
-
-function trim() {
-  ltrim | rtrim
-}
-
 # undo some sql create table and index commands in reverse version order of script files
 # Note that this is just a start and not particularly flexible at this stage
 # The drop commands are written on stdout.
 # Nothing else is handled. So, for example, there is no reversal of ALTER statements.
 function stomp {
   # Check if a version number is provided as an argument
+
   if [ -z "$1" ]; then
     echo "Usage: $(basename $0) <version-number>"
     return 1
