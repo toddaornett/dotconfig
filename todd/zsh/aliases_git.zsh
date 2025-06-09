@@ -377,7 +377,7 @@ function pclean {
   local current_branch_name
   local main_branch_name
   local remote_main_branch_name
-  local artifacts=("build" "dist" "distro" "target")
+  local artifacts=("build" "dist" "distro" "target" "node_modules")
   local projects_dir="${HOME}/Projects"
 
   if [ ! -d "$projects_dir" ]; then
