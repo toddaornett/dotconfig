@@ -355,49 +355,6 @@ alias gupa='git pull --rebase --autostash'
 alias gupav='git pull --rebase --autostash -v'
 alias glum='git pull upstream $(git_main_branch)'
 
-function pclean {
-  (
-  local p
-  local current_branch_name
-  local main_branch_name
-  local remote_main_branch_name
-  local artifacts=("build", "dist", "distro", "target")
-  cd "${HOME}/Projects"
-  for p in *; do
-    if [ -d "$p" ]; then
-      cd "$p"
-      if [ -d .git ]; then
-	main_branch_name=$(git_main_branch)
-	if [[ -n $(command git status --porcelain) ]]; then
-	  echo "${p}: Local changes so not pulling ${main_branch_name}"
-	else
-          echo "${p}: Pull $main_branch_name"
-	  if [[ "$(git_current_branch)" != "$main_branch_name" ]]; then
-	    command git checkout "${main_branch_name}"
-	  fi
-	  remote_main_branch_name=$(set -- `git ls-remote --symref origin HEAD` test $1 = ref: && echo $2 | cut -d '/' -f 3)
-	  if [[ "$main_branch_name)" != "$remote_main_branch_name" ]]; then
-	    command git branch -m "$main_branch_name" "$remote_main_branch_name"
-	  fi
-	  command git pull
-	fi
-	if command git show-ref -q --verify refs/heads/release ; then
-	  echo "Delete local release branch"
-	  command git branch -D release
-        fi
-      fi
-      for artifact in "${artifacts[@]}"; do
-        if [ -d $artifact ]; then
-          echo "Delete ${artifact} folder"
-	  rm -rf $artifact
-        fi
-      done
-      cd ..
-    fi
-  done
-  )
-}
-
 alias gwch='git whatchanged -p --abbrev-commit --pretty=medium'
 alias gwip='git add -A; git rm $(git ls-files --deleted) 2> /dev/null; git commit --no-verify --no-gpg-sign -m "--wip-- [skip ci]"'
 
@@ -413,6 +370,63 @@ alias gpro='git config --get remote.origin.url'
 alias gpru='git config --get remote.upstream.url'
 
 alias agit="( alias | grep '^g'; typeset +f | grep '^g' ) | sort"
+
+# cleanup git branches and artifacts for rust and node projects
+function pclean {
+  local p
+  local current_branch_name
+  local main_branch_name
+  local remote_main_branch_name
+  local artifacts=("build" "dist" "distro" "target")
+  local projects_dir="${HOME}/Projects"
+
+  if [ ! -d "$projects_dir" ]; then
+    echo "Error: ${projects_dir} does not exist"
+    return 1
+  fi
+
+  for p in "$projects_dir"/*; do
+    if [ -d "$p" ]; then
+      if [ -d "$p/.git" ]; then
+        main_branch_name=$(git -C "$p" rev-parse --abbrev-ref origin/HEAD 2>/dev/null | cut -d '/' -f 2)
+
+        if [ -z "$main_branch_name" ]; then
+          echo "Error: Failed to determine main branch for $(basename "$p") - invalid or missing origin/HEAD"
+          continue
+        fi
+
+        if [[ -n $(git -C "$p" status --porcelain) ]]; then
+          echo "$(basename "$p"): Local changes, not pulling ${main_branch_name}"
+        else
+          echo "$(basename "$p"): Pulling ${main_branch_name}"
+          current_branch_name=$(git -C "$p" rev-parse --abbrev-ref HEAD)
+          if [[ "$current_branch_name" != "$main_branch_name" ]]; then
+            git -C "$p" checkout "${main_branch_name}"
+          fi
+
+          remote_main_branch_name=$(git -C "$p" ls-remote --symref origin HEAD | awk '$1 == "ref:" {print $2}' | cut -d '/' -f 3)
+          if [[ "$main_branch_name" != "$remote_main_branch_name" ]]; then
+            git -C "$p" branch -m "$main_branch_name" "$remote_main_branch_name"
+          fi
+
+          git -C "$p" pull
+        fi
+
+        if git -C "$p" show-ref -q --verify refs/heads/release; then
+          echo "Deleting local release branch in $(basename "$p")"
+          git -C "$p" branch -D release
+        fi
+      fi
+
+      for artifact in "${artifacts[@]}"; do
+        if [ -d "$p/$artifact" ]; then
+          echo "Deleting ${artifact} folder in $(basename "$p")"
+          rm -rf "$p/$artifact"
+        fi
+      done
+    fi
+  done
+}
 
 function gForceSsh {
     git config --global url."git@github.com:".insteadOf "https://github.com/"
