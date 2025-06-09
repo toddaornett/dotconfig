@@ -148,7 +148,10 @@ cruupr() {
   # switch to build/deps
   local branch_name="build/deps"
   if ! git checkout $branch_name; then
-    return $?
+    branch_name="build/deps-all"
+    if ! git checkout $branch_name; then
+      return $?
+    fi
   fi
 
   # create temporary file for git commit message body that
