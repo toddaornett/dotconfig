@@ -123,7 +123,6 @@ function prs {
   done
 }
 
-# Bash function to clean up fix/workflowPermissions branches
 function nuke_branch() {
   # Default to ~/Projects if no directory provided
   local root_dir="${2:-$HOME/Projects}"
