@@ -22,19 +22,19 @@
 (require 'magit)
 (require 'projectile)
 
-(defun git-tools-main-branch-name ()
-  "Determine the effective main branch for the current repository.
-
-The effective main branch is determined as main, develop, trunk, or master.
-
-return nil if not currently in directory managed with git."
-  (let ((git-dir (magit-git-dir))) ;; Check if we're in a Git repo
-    (when git-dir
-      (cond
-       ((magit-branch-p "main") "main")    ;; Check if 'main' exists
-       ((magit-branch-p "develop") "develop") ;; Check if 'develop' exists
-       ((magit-branch-p "trunk") "trunk")  ;; Check if 'trunk' exists
-       (t "master")))))                    ;; Default to 'master'
+(defun git-tools-main-branch-name (&optional dir)
+  "Return the main branch name for the repository in DIR (or current directory).
+Tries several names or falls back to the default branch from git symbolic-ref."
+  (let ((default-directory (or dir default-directory)))
+    (cond
+     ((magit-branch-p "main") "main")
+     ((magit-branch-p "master") "master")
+     ((magit-branch-p "develop") "develop")
+     ((magit-branch-p "trunk") "trunk")
+     (t (condition-case nil
+            (string-trim
+             (shell-command-to-string "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'"))
+          (error nil))))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
@@ -244,13 +244,15 @@ with non-main branches. Displays results in a new buffer."
         (goto-char (point-min))
         (display-buffer buffer)))))
 
-(defun git-tools-pull-all-main (root-dir)
-  "Iterate through all subdirectories in ROOT-DIR, switch to main branch, and pull.
-
-When iterating first switch to the effective main branch and then pull."
-  (interactive "DDirectory: ~/Projects ")
+(defun git-tools-pull-all-main (root-dir &optional force-pull)
+  "Iterate through all subdirectories in ROOT-DIR and pull.
+With prefix argument FORCE-PULL, pull even if there are unstaged changes.
+Skips non-Git directories and symbolic links."
+  (interactive "DDirectory: ~/Projects \nP")
   (let ((default-directory root-dir)
-        (error-count 0))
+        (error-count 0)
+        (skipped-repos nil)
+        (success-repos nil))
     (dolist (dir (directory-files root-dir t "\\`[^.]"))
       (when (and (file-directory-p dir)
                  (not (file-symlink-p dir))
@@ -262,21 +264,31 @@ When iterating first switch to the effective main branch and then pull."
                 (condition-case err
                     (progn
                       (message "Switching to %s in %s" main-branch dir)
-                      (if (magit-anything-unstaged-p)
-                          (message "Skipping pull in %s: unstaged changes detected" dir)
-                        (let ((process-buffer (magit-process-buffer)))
-                          (let ((upstream (magit-get-upstream-branch)))
-                            (if upstream
-                                (unless (string-equal-ignore-case (magit-get-current-branch) main-branch)
-                                  (magit-run-git "checkout" main-branch))
-                              (error "No upstream branch configured")))
-                          (message "Successfully pulled %s in %s" main-branch dir)
-                          (when (and process-buffer (buffer-live-p process-buffer))
-                            (kill-buffer process-buffer)))))
+                      (if (and (not force-pull) (magit-anything-unstaged-p))
+                          (progn
+                            (message "Skipping pull in %s: unstaged changes detected" dir)
+                            (push dir skipped-repos))
+                        (unless (string-equal (magit-get-current-branch) main-branch)
+                          (magit-run-git "checkout" main-branch))
+                        (if (magit-get-upstream-branch)
+                            (progn
+                              (magit-run-git "pull")
+                              (message "Successfully pulled %s in %s" main-branch dir)
+                              (push dir success-repos))
+                          (message "Skipping pull in %s: no upstream branch configured" dir)
+                          (push dir skipped-repos))))
                   (error
                    (message "Error in %s: %s" dir (error-message-string err))
                    (setq error-count (1+ error-count))))
-              (message "No valid main branch found in %s" dir))))))
+              (message "No valid main branch found in %s" dir)
+              (push dir skipped-repos))))))
+    (message "\n=== Pull Summary ===")
+    (message "Successfully pulled: %d repos" (length success-repos))
+    (dolist (repo success-repos)
+      (message "  - %s" repo))
+    (message "Skipped: %d repos" (length skipped-repos))
+    (dolist (repo skipped-repos)
+      (message "  - %s" repo))
     (if (> error-count 0)
         (message "Completed with %d errors" error-count)
       (message "Completed successfully with no errors"))))
