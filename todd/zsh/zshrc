@@ -67,7 +67,11 @@ fpath+=$HOME/.config/zsh
 if type brew &>/dev/null; then
   FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
 fi
-autoload -Uz compinit && compinit
+if [ -n "$ZSH_VERSION" ]; then
+  autoload -U bashcompinit
+  bashcompinit
+fi
+autoload -Uz +X compinit && compinit
 typeset -i updated_at=$(date +'%j' -r ~/.zcompdump 2>/dev/null || stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null)
 if [ $(date +'%j') != $updated_at ]; then
   compinit -i
