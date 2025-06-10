@@ -123,7 +123,14 @@ function prs {
   done
 }
 
+# function to delete a specified branch in Git repositories
 function nuke_branch() {
+  # Check if branch name is provided
+  if [ -z "$1" ]; then
+    echo "Error: Branch name must be provided"
+    return 1
+  fi
+
   # Default to ~/Projects if no directory provided
   local root_dir="${2:-$HOME/Projects}"
 
@@ -152,12 +159,14 @@ function nuke_branch() {
       fi
 
       # Delete requested branch if it exists
-      if git show-ref --quiet "refs/heads/fix/$1"; then
+      if git show-ref --quiet "refs/heads/$1"; then
         if git branch -D "$1" > /dev/null 2>&1; then
           echo "Deleted branch $1 in $dir"
         else
           echo "Failed to delete $1 in $dir"
         fi
+      else
+        echo "No branch $1 found in $dir"
       fi
     fi
   done
