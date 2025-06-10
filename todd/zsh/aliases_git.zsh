@@ -123,6 +123,47 @@ function prs {
   done
 }
 
+# Bash function to clean up fix/workflowPermissions branches
+function nuke_branch() {
+  # Default to ~/Projects if no directory provided
+  local root_dir="${2:-$HOME/Projects}"
+
+  # Iterate through all subdirectories
+  for dir in "$root_dir"/*/ ; do
+    # Check if directory exists and contains .git
+    if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
+      echo "Processing repository: $dir"
+      cd "$dir" || continue
+
+      # Determine main branch (try main, then master)
+      local main_branch
+      if git show-ref --quiet refs/heads/main; then
+        main_branch="main"
+      elif git show-ref --quiet refs/heads/master; then
+        main_branch="master"
+      else
+        echo "No main or master branch found in $dir, skipping"
+        continue
+      fi
+
+      # Switch to main branch
+      if ! git checkout "$main_branch" > /dev/null 2>&1; then
+        echo "Failed to switch to $main_branch in $dir, skipping"
+        continue
+      fi
+
+      # Delete requested branch if it exists
+      if git show-ref --quiet "refs/heads/fix/$1"; then
+        if git branch -D "$1" > /dev/null 2>&1; then
+          echo "Deleted branch $1 in $dir"
+        else
+          echo "Failed to delete $1 in $dir"
+        fi
+      fi
+    fi
+  done
+}
+
 #
 # Aliases
 #
