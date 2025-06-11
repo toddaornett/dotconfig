@@ -40,6 +40,21 @@
       "s-v" #'clipboard-yank)
 (define-key minibuffer-local-map (kbd "s-v") #'clipboard-yank)
 
+(defun tao/dired-open-all-files-in-directory ()
+  "Open all regular files in the current Dired directory into buffers.
+Only works when called from a Dired buffer."
+  (interactive)
+  (unless (derived-mode-p 'dired-mode)
+    (error "This command must be run from a Dired buffer"))
+  (let ((dir (dired-current-directory))
+        (files (directory-files (dired-current-directory) t "^[^.]" t)))
+    (dolist (file files)
+      (when (and (file-regular-p file)
+                 (not (file-symlink-p file)))
+        (find-file-noselect file)))))
+(map! :map dired-mode-map
+      :n "o" #'my/open-all-files-in-directory)
+
 (after! company
   ;; Use C-<tab> for company completion if TAB is busy
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
