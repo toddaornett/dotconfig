@@ -47,6 +47,8 @@
   (setq company-idle-delay 0.2) ; Auto-popup with delay
   (setq company-minimum-prefix-length 1) ; Trigger after 1 character
   (setq company-tooltip-limit 10)
+  (setq company-dabbrev-ignore-buffers (lambda (buffer)
+                                         (string-match-p "^#" (buffer-name buffer))))
 
   ;; Use C-<tab> for explicit company completion
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
