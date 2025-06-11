@@ -123,7 +123,7 @@ function prs {
   done
 }
 
-# function to delete a specified branch in Git repositories
+# delete a specified branch in Git repositories
 function nuke_branch() {
   # Check if branch name is provided
   if [ -z "$1" ]; then
@@ -136,9 +136,13 @@ function nuke_branch() {
 
   # Iterate through all subdirectories
   for dir in "$root_dir"/*/ ; do
+    # TODO: remove this name check when no longer relevant
+    if [[ "$(basename $dir)" == "j"* ]]; then
+      continue
+    fi
     # Check if directory exists and contains .git
     if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
-      echo "Processing repository: $dir"
+      echo "Processing repository: $(basename $dir)"
       cd "$dir" || continue
 
       # Determine main branch (try main, then master)
@@ -172,10 +176,30 @@ function nuke_branch() {
   done
 }
 
+# find a specified branch in Git repositories
+function find_branch() {
+  if [ -z "$1" ]; then
+    echo "Error: Branch name must be provided"
+    return 1
+  fi
+  local root_dir="${2:-$HOME/Projects}"
+  for dir in "$root_dir"/*/ ; do
+    # TODO: remove this name check when no longer relevant
+    if [[ "$(basename $dir)" == "j"* ]]; then
+      continue
+    fi
+    if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
+      cd "$dir" || continue
+      if git show-ref --quiet "refs/heads/$1"; then
+        echo "Found branch \'$1\' in $(basename dir)"
+      fi
+    fi
+  done
+}
+
 #
 # Aliases
 #
-
 alias g='git'
 alias lg='lazygit'
 
