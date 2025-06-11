@@ -69,14 +69,19 @@ fix/workflowPermissions, add modified files, and commit."
           (when (file-directory-p gha-dir)
             (let ((main-branch (git-tools-main-branch-name dir)))
               (magit-call-git "checkout" main-branch)
-              (gha-add-granular-permissions gha-dir)
-              (let ((after-files (magit-git-lines "ls-files" "-m")))
-                (when after-files
-                  (message "Updated workflows in %s" dir)
-                  (magit-call-git "checkout" "-b" "fix/workflowPermissions")
-                  (dolist (file after-files)
-                    (magit-call-git "add" file))
-                  (magit-call-git "commit" "-m" "fix(ci): add permissions for workflows"))))))))))
+              (magit-call-git "pull")
+              (unless (magit-git-lines "branch" "--list" "fix/workflow-permissions")
+                (gha-add-granular-permissions gha-dir)
+                (let ((after-files (magit-git-lines "ls-files" "-m")))
+                  (when after-files
+                    (write-region (format "- [ ] %s\n" (file-name-nondirectory dir))
+                                  nil
+                                  "~/updated_workflows.txt"
+                                  'append)
+                    (magit-call-git "checkout" "-b" "fix/workflow-permissions")
+                    (dolist (file after-files)
+                      (magit-call-git "add" file))
+                    (magit-call-git "commit" "-m" "fix(ci): add permissions for workflows")))))))))))
 
 (provide 'gha)
 ;;; gha.el ends here
