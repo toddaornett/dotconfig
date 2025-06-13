@@ -1,0 +1,12 @@
+# -*- mode: snippet -*-
+# name: dummy test
+# key: tdummy
+# --
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn dummy_true_equals_true() {
+        assert_eq!(true, true);
+    }
+}
