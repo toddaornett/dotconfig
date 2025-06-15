@@ -227,7 +227,7 @@ Only works when called from a Dired buffer."
                      (unless (eq ibuffer-sorting-mode 'alphabetic)
                        (ibuffer-do-sort-by-alphabetic))))
   :bind (:map ibuffer-mode-map
-              ("C-c p t" . tao/ibuffer-toggle-project-buffers)))
+              '("C-c p t" . tao/ibuffer-toggle-project-buffers)))
 
 ;; Exec-path-from-shell
 (use-package exec-path-from-shell
