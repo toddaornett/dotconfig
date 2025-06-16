@@ -71,3 +71,7 @@
 (package! ibuffer-projectile)
 
 (package! yasnippet-snippets)
+
+(package! nvm)
+
+(package! vue-mode)
