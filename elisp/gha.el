@@ -9,7 +9,7 @@
 ;; Version: 0.0.2
 ;; Keywords: convenience data extensions files internal languages
 ;; Homepage: https://github.com/todd.ornett/dotconfig
-;; Package-Requires: ((emacs "24.3") (magit "3.3.0"))
+;; Package-Requires: ((emacs "24.4") (magit "3.3.0"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -92,6 +92,59 @@ fix/workflow-permissions, add modified files, and add commit"
                     (dolist (file after-files)
                       (magit-call-git "add" file))
                     (magit-call-git "commit" "-m" (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE") "fix(ci): add permissions to GHA workflows"))))))))))))
+
+(defun gha-update-publish-workflow (gha-dir &optional new-version)
+  "Update semantic release version in GHA-DIR publish workflow.
+If GHA-DIR is not provided, prompt interactively for the project directory.
+The default for NEW-VERSION is the major version found for replacement."
+  (interactive
+   (list (read-directory-name "Project directory: " "~/Projects/" nil t)
+         (read-string "New version (leave empty to use major version): " nil nil nil)))
+  (let* ((workflow-file (expand-file-name ".github/workflows/publish.yml" gha-dir))
+         (version-regex "@codedependant/semantic-release-docker@\\([0-9]+\\)\\(\\.[0-9]+\\)?\\(\\.[0-9]+\\)?")
+         (replacement (if (and new-version (not (string-empty-p new-version)))
+                          (concat "@codedependant/semantic-release-docker@" new-version)
+                        "@codedependant/semantic-release-docker@\\1")))
+    (when (file-exists-p workflow-file)
+      (with-current-buffer (find-file-noselect workflow-file)
+        (goto-char (point-min))
+        (when (re-search-forward version-regex nil t)
+          (replace-match replacement nil nil)
+          (save-buffer)
+          (message "Updated %s successfully" workflow-file))
+        (kill-buffer)))))
+
+(defun gha-update-all-publish-workflows (root-dir)
+  "Process Git repositories under ROOT-DIR to add GHA permissions.
+For each Git repository under ROOT-DIR (default ~/Projects), switch
+to the main branch using `git-tools-main-branch-name', run
+`gha-update-publish-workflow', and if changes are detected,
+create a new branch named fix/publish-workflow,
+add modified files, and add commit."
+  (interactive (list (expand-file-name (read-string "Root directory: " "~/Projects"))))
+  (let ((root-dir (expand-file-name (or root-dir "~/Projects"))))
+    (delete-file "~/updated_publish_workflows.txt")
+    (dolist (dir (directory-files root-dir t "^[^.]"))
+      (when (and (file-directory-p dir)
+                 (file-directory-p (expand-file-name ".git" dir)))
+        (let ((main-branch (git-tools-main-branch-name dir))
+              (default-directory dir))
+          (magit-call-git "checkout" main-branch)
+          (unless (magit-git-lines "branch" "--list" "fix/publish-workflow")
+            (magit-call-git "pull")
+            (gha-update-publish-workflow dir "5")
+            (let ((after-files (magit-git-lines "ls-files" "-m")))
+              (when after-files
+                (write-region (format "- [ ] %s\n" (file-name-nondirectory dir))
+                              nil
+                              "~/updated_publish_workflows.txt"
+                              'append)
+                (magit-call-git "checkout" "-b" "fix/publish-workflow")
+                (dolist (file after-files)
+                  (magit-call-git "add" file))
+                (magit-call-git "commit" "-m"
+                                (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE")
+                                    "fix(ci): update version in semantic-release-docker for publish workflow"))))))))))
 
 (provide 'gha)
 ;;; gha.el ends here
