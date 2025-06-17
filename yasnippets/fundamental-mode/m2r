@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+# name: gh message chore: main to release
+# key: m2r
+# type: command
+# --
+(let ((file (getenv "LATEST_RELEASE_FILEPATH"))
+      (result "chore: main to release"))
+  (when (and file (file-readable-p (expand-file-name file)))
+    (with-temp-buffer
+      (insert-file-contents (expand-file-name file))
+      (goto-char (point-min))
+      (when (re-search-forward "#?\\+?latest: \\(.*\\)$" nil t)
+        (setq result (concat result " " (match-string 1))))))
+   (insert result))

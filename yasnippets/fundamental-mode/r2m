@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: gh message chore: release to main
+# key: r2m
+# --
+chore: release to main
