@@ -1,0 +1,5 @@
+# -*- mode: snippet -*-
+# name: serde_string_trim
+# key: strim
+# --
+#[serde(deserialize_with = "string_trim")]
