@@ -14,18 +14,17 @@
 (require 'magit)
 (require 'git-tools)
 
-(defun flyway-version-upgrade-all-projects (new-version)
+(defun flyway-version-upgrade-all-projects (new-version &optional projects-dir)
   "Update Flyway version to NEW-VERSION for all projects.
-If NEW-VERSION is not provided, defaults to '11.5-alpine'."
+If NEW-VERSION is not provided, defaults to '11.5-alpine'.
+If PROJECTS-DIR is not provided, defaults to '~/Projects'."
   (interactive
    (list
-    (let ((input (read-string "Enter new Flyway version (default 11.5-alpine): ")))
-      (if (string-empty-p input)
-          "11.5-alpine"
-        input))))
-  (let ((projects-dir (expand-file-name "~/Projects")))
-    (unless (file-directory-p projects-dir)
-      (error "Projects directory not found at %s" projects-dir))
+    (read-string "Enter new Flyway version: " "11.5-alpine" nil "11.5-alpine")
+    (expand-file-name
+     (read-directory-name "Projects directory: " "~/Projects"))))
+  (unless (file-directory-p projects-dir)
+    (error "Projects directory not found at %s" projects-dir)
     (dolist (dir (directory-files projects-dir t))
       (when (file-directory-p dir)
         (let* ((dir-name (file-name-nondirectory dir))
@@ -45,12 +44,15 @@ If NEW-VERSION is not provided, defaults to '11.5-alpine'."
                     (flyway-version-update-file dockerfile new-version)))
                 (let ((rust-test-file (concat dir "/.github/workflows/rust-test.yml")))
                   (when (file-exists-p rust-test-file)
+                    (flyway-version-update-file-with-simple-version rust-test-file new-version)
                     (flyway-version-update-file-with-simple-version rust-test-file new-version)))
                 (let ((flywayfile (concat dir "/.github/workflows/flyway.yml")))
                   (when (file-exists-p flywayfile)
-                    (flyway-version-update-file flywayfile new-version)))
+                    (flyway-version-update-file flywayfile new-version)
+                    (flyway-version-update-file-with-simple-version flywayfile new-version)))
                 (let ((flyway-build-file (concat dir "/.github/workflows/flyway-build.yml")))
                   (when (file-exists-p flyway-build-file)
+                    (flyway-version-update-file-with-simple-version flyway-build-file new-version)
                     (flyway-version-update-file-with-simple-version flyway-build-file new-version)))
                 (let ((after-files (magit-git-lines "ls-files" "-m")))
                   (when after-files
@@ -72,10 +74,13 @@ If NEW-VERSION is not provided, defaults to '11.5-alpine'."
   (with-temp-buffer
     (insert-file-contents filepath)
     (goto-char (point-min))
-    (while (re-search-forward "flyway:\\([0-9]+\\(\\.[0-9]+\\)?\\(-alpine\\)?\\)" nil t)
-      (replace-match (concat "flyway:" new-version) nil nil))
-    (let ((inhibit-message t))
-      (write-region nil nil filepath))))
+    (let (changes-made nil)
+      (while (re-search-forward "flyway:\\([0-9]+\\(\\.[0-9]+\\)?\\(-alpine\\)?\\)" nil t)
+        (setq changes-made t)
+        (replace-match (concat "flyway:" new-version) nil nil))
+      (when changes-made
+        (let ((inhibit-message t))
+          (write-region nil nil filepath))))))
 
 (defun flyway-version-update-file-with-simple-version (filepath new-version)
   "Update all occurrences of the version in FILEPATH to NEW-VERSION.
@@ -84,13 +89,16 @@ Replaces any non-numeric suffix (e.g., -alpine) with 0."
   (with-temp-buffer
     (insert-file-contents filepath)
     (goto-char (point-min))
-    (let ((processed-version (if (string-match "\\([0-9]+\\(\\.[0-9]+\\)*\\)\\([-a-zA-Z0-9]+\\)$" new-version)
+    (let ((changes-made nil)
+          (processed-version (if (string-match "\\([0-9]+\\(\\.[0-9]+\\)*\\)\\([-a-zA-Z0-9]+\\)$" new-version)
                                  (concat (match-string 1 new-version) ".0")
                                new-version)))
       (while (re-search-forward "FLYWAY_VERSION:\\s-+\\([0-9]+\\(\\.[0-9]+\\)*\\([-a-zA-Z0-9]+\\)?\\)" nil t)
+        (setq changes-made t)
         (replace-match processed-version nil nil nil 1)))
-    (let ((inhibit-message t))
-      (write-region nil nil filepath))))
+    (when changes-made
+      (let ((inhibit-message t))
+        (write-region nil nil filepath)))))
 
 (provide 'flyway-version)
 ;;; flyway-version.el ends here
