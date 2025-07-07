@@ -335,8 +335,8 @@ Only works when called from a Dired buffer."
 (use-package exec-path-from-shell
   :init
   (when (memq window-system '(mac ns x))
-    (setq exec-path-from-shell-arguments '("-l"))
-    (setq exec-path-from-shell-variables '("PATH"))
+    (setq exec-path-from-shell-arguments nil)
+    (setq exec-path-from-shell-variables '("PATH" "DEFAULT_GIT_COMMIT_MESSAGE"))
     (exec-path-from-shell-initialize)))
 
 ;; Org
