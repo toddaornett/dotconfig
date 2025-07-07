@@ -60,6 +60,7 @@
        rgb                 ; Lightweight, keep
        (ripgrep +extra)    ; Keep for fast search
        lsp                 ; Keep for LSP support
+       (exec-path-from-shell)
 
        :os
        (:if IS-MAC macos)  ; Keep for macOS compatibility
