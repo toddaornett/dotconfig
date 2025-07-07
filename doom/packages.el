@@ -75,3 +75,5 @@
 (package! nvm)
 
 (package! vue-mode)
+
+(package! npm)
