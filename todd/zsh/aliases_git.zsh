@@ -135,7 +135,7 @@ function nuke_branch() {
   local root_dir="${2:-$HOME/Projects}"
 
   # Iterate through all subdirectories
-  for dir in "$root_dir"/*/ ; do
+  for dir in "$root_dir"/* ; do
     # TODO: remove this name check when no longer relevant
     if [[ "$(basename $dir)" == "j"* ]]; then
       continue
@@ -183,7 +183,7 @@ function find_branch() {
     return 1
   fi
   local root_dir="${2:-$HOME/Projects}"
-  for dir in "$root_dir"/*/ ; do
+  for dir in "$root_dir"/* ; do
     # TODO: remove this name check when no longer relevant
     if [[ "$(basename $dir)" == "j"* ]]; then
       continue
@@ -191,7 +191,7 @@ function find_branch() {
     if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
       cd "$dir" || continue
       if git show-ref --quiet "refs/heads/$1"; then
-        echo "Found branch \'$1\' in $(basename dir)"
+        echo "Found branch $1 in $(basename $dir)"
       fi
     fi
   done
