@@ -1,0 +1,8 @@
+# -*- mode: snippet -*-
+# name: helm_flyway_unlock
+# key: helmflyunlock
+# --
+      # Required to avoid error on flyway 9 + `CREATE INDEX CONCURRENTLY`
+      # see https://github.com/flyway/flyway/issues/3492
+      FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK:
+        value: false
