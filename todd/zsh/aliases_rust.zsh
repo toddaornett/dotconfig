@@ -190,7 +190,7 @@ cruupr() {
     echo "DEBUG: Finished cargo upgrade $compatibility"
   fi
 
-  cargo update for packages in special registries that need explicit updating
+  # cargo update for packages in special registries that need explicit updating
   for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}
   do
     parts=(${(s: :)line})
@@ -254,33 +254,32 @@ cclippyfix() {
     return 1
   fi
 
-  echo "\`\`\`sh" >"$temp_file"
-
   local prompt="➜  $(basename "$PWD") git:($(git_main_branch)) ✗"
-  echo "$prompt cargo clippy --fix" >>"$temp_file"
-  cargo clippy --fix &>>"$temp_file"
-
+  echo "\`\`\`sh" >"$temp_file"
   echo "$prompt cargo clippy --all-targets --all-features -- -D warnings" >>"$temp_file"
   cargo clippy --all-targets --all-features -- -D warnings &>>"$temp_file"
+
+  echo "$prompt cargo clippy --fix" >>"$temp_file"
+  cargo clippy --fix &>>"$temp_file"
+  cargo fmt &>>"$temp_file"
 
   echo "\`\`\`" >>"$temp_file"
 
   if git diff --quiet; then
     echo "No changes to commit."
+    rm "$temp_file"
   else
     # switch to the new branch and create git commit
     if git checkout $branch_name; then
       local commit_message_file=$(mktemp -t tmp_cclippyfix_message)
-      echo "refactor: clippy fixes" >"$commit_message_file"
-      echo "" >>"$commit_message_file"
-      cat "$temp_file" >>"$commit_message_file"
+      echo ${DEFAULT_GIT_COMMIT_MESSAGE_RUST_CLIPPY:-"refactor: fix clippy warnings with rustc $(rustc --version | cut -d ' ' -f 2)"} > "$commit_message_file"
       git add .
       git commit -F "$commit_message_file"
-      echo "Ran cargo clippy --fix and git committed"
       rm -f "$commit_message_file"
+      echo "Ran cargo clippy --fix and git committed details in $temp_file"
+      pbcopy < "$temp_file"
     fi
   fi
-  rm -f "$temp_file"
 }
 
 create_run_aliases() {
