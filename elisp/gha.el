@@ -91,9 +91,7 @@ fix/workflow-permissions, add modified files, and add commit"
                     (dolist (file after-files)
                       (magit-call-git "add" file))
                     (magit-call-git "commit" "-m" (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE")
-                                                      "fix(ci): add permissions to GHA workflows"))))))
-            (when-let ((process-buffer (magit-process-buffer)))
-              (kill-buffer process-buffer))))))))
+                                                      "fix(ci): add permissions to GHA workflows"))))))))))))
 
 (defun gha-update-publish-workflow (gha-dir &optional new-version)
   "Update semantic release version in GHA-DIR publish workflow.
@@ -146,9 +144,7 @@ add modified files, and add commit."
                   (magit-call-git "add" file))
                 (magit-call-git "commit" "-m"
                                 (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE")
-                                    "fix(ci): update version in semantic-release-docker for publish workflow")))))
-          (when-let ((process-buffer (magit-process-buffer)))
-            (kill-buffer process-buffer)))))))
+                                    "fix(ci): update version in semantic-release-docker for publish workflow"))))))))))
 
 (provide 'gha)
 ;;; gha.el ends here
