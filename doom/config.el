@@ -349,6 +349,7 @@ Only works when called from a Dired buffer."
 (after! general
   (general-define-key
    :states 'normal
+   :keymaps 'override
    :prefix "SPC z"
    :which-key "string inflection"
    "a" '(string-inflection-all-cycle :which-key "all cases")
