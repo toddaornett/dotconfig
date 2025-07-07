@@ -49,7 +49,7 @@
        ;;grammar           ; Disable to reduce overhead
 
        :tools
-       tree-sitter
+       (tree-sitter +lsp)
        projectile          ; Essential for Rust projects
        direnv              ; Keep for environment management
        editorconfig        ; Keep for consistent coding styles
