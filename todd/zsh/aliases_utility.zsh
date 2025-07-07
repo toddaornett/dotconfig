@@ -266,3 +266,12 @@ r2d() {
   done
   echo "$result"
 }
+
+# Copy username and password from specified key to system clipboard
+function passC {
+  local u
+  local p
+  u="$(pass $1 | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
+  p="$(pass $1 | head -1 | tr -d '\n')"
+  echo -n "$u $p" | pbcopy
+}
