@@ -69,12 +69,12 @@ and if changes are detected, create a new branch named
 fix/workflow-permissions, add modified files, and add commit"
   (interactive (list (expand-file-name (read-string "Root directory: " "~/Projects"))))
   (let ((root-dir (expand-file-name (or root-dir "~/Projects"))))
-    (delete-file "~/updated_workflows.txt")
     (dolist (dir (directory-files root-dir t "^[^.]"))
       (when (and (file-directory-p dir)
                  (file-directory-p (expand-file-name ".git" dir)))
-        (let ((default-directory dir)
-              (gha-dir (expand-file-name ".github/workflows" dir)))
+        (let* ((default-directory dir)
+               (gha-dir (expand-file-name ".github/workflows" dir)))
+          (message "Processing %s for possible GHA workflows update" dir)
           (when (file-directory-p gha-dir)
             (let ((main-branch (git-tools-main-branch-name dir)))
               (magit-call-git "checkout" main-branch)
@@ -83,6 +83,7 @@ fix/workflow-permissions, add modified files, and add commit"
                 (gha-add-granular-permissions gha-dir)
                 (let ((after-files (magit-git-lines "ls-files" "-m")))
                   (when after-files
+                    (message "Updated GHA workflows in %s" dir)
                     (write-region (format "- [ ] %s\n" (file-name-nondirectory dir))
                                   nil
                                   "~/updated_workflows.txt"
@@ -92,7 +93,8 @@ fix/workflow-permissions, add modified files, and add commit"
                       (magit-call-git "add" file))
                     (let ((commit-message (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE")
                                               "fix(ci): add permissions to GHA workflows")))
-                      (magit-call-git "commit" "-m" (replace-regexp-in-string "\\\\n" "\n" commit-message)))))))))))))
+                      (magit-call-git "commit" "-m" (replace-regexp-in-string "\\\\n" "\n" commit-message))))))))))))
+  (message (concat "Completed GHA workflow updates in projects under " (directory-file-name root-dir) " folder.")))
 
 (defun gha-update-publish-workflow (gha-dir &optional new-version)
   "Update semantic release version in GHA-DIR publish workflow.
@@ -128,6 +130,7 @@ add modified files, and add commit."
     (dolist (dir (directory-files root-dir t "^[^.]"))
       (when (and (file-directory-p dir)
                  (file-directory-p (expand-file-name ".git" dir)))
+        (message "Processing %s for possible GHA publish workflow update" dir)
         (let ((main-branch (git-tools-main-branch-name dir))
               (default-directory dir))
           (magit-call-git "checkout" main-branch)
@@ -136,6 +139,7 @@ add modified files, and add commit."
             (gha-update-publish-workflow dir "5")
             (let ((after-files (magit-git-lines "ls-files" "-m")))
               (when after-files
+                (message "Updated GHA publish workflow in %s" dir)
                 (write-region (format "- [ ] %s\n" (file-name-nondirectory dir))
                               nil
                               "~/updated_publish_workflows.txt"
@@ -145,7 +149,8 @@ add modified files, and add commit."
                   (magit-call-git "add" file))
                 (let ((commit-message (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE")
                                           "fix(ci): update version in semantic-release-docker for publish workflow")))
-                  (magit-call-git "commit" "-m" (replace-regexp-in-string "\\\\n" "\n" commit-message)))))))))))
+                  (magit-call-git "commit" "-m" (replace-regexp-in-string "\\\\n" "\n" commit-message))))))))))
+  (message (concat "Completed GHA publish workflow updates in projects under " (directory-file-name root-dir) " folder.")))
 
 (provide 'gha)
 ;;; gha.el ends here
