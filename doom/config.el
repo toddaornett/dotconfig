@@ -20,6 +20,16 @@
 ;; Theme
 (setq doom-theme 'doom-palenight)
 
+;; Configure highlight-indent-guides to avoid indentation line bleeding into tops of characters
+(use-package! highlight-indent-guides
+  :diminish
+  :commands highlight-indent-guides-mode
+  :custom
+  (highlight-indent-guides-responsive t)
+  (highlight-indent-guides-method 'bitmap)
+  (highlight-indent-guides-display-first t)
+  (line-spacing 0.1))
+
 ;; Line numbers
 (setq display-line-numbers-type t)
 
@@ -441,11 +451,11 @@ Only works when called from a Dired buffer."
     (when (eq major-mode 'magit-status-mode)
       (run-at-time 0.1 nil
                    (lambda ()
-                   (goto-char (point-min))
-                   (when (or (re-search-forward "^Unstaged changes" nil t)
-                             (re-search-forward "^Staged changes" nil t))
-                     (goto-char (match-beginning 0))
-                     (forward-line 1))))))
+                     (goto-char (point-min))
+                     (when (or (re-search-forward "^Unstaged changes" nil t)
+                               (re-search-forward "^Staged changes" nil t))
+                       (goto-char (match-beginning 0))
+                       (forward-line 1))))))
   (add-hook 'magit-status-mode-hook '+magit-move-to-first-uncommitted-change)
 
   ;; Define command to toggle Local Branches section globally
