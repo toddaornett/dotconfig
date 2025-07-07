@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: gha_flyway_unlock
+# key: flyunlock
+# --
+          # Required to avoid error on flyway 9 + `CREATE INDEX CONCURRENTLY`
+          # see https://github.com/flyway/flyway/issues/3492
+          FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK: false
