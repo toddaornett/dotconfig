@@ -423,6 +423,9 @@ Only works when called from a Dired buffer."
 ;; git-tools => load from ~/.config/elisp
 (use-package git-tools)
 
+;; pg-tools => load from ~/.config/elisp
+(use-package pg-tools)
+
 ;; vterm
 (use-package vterm
   :config
