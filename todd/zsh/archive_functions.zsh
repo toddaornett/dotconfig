@@ -115,6 +115,9 @@ function zjoin() {
       echo "Warning: File '$file' not found, skipping." >&2
       continue
     fi
+    if [ "$file" = "${base_name}.zip" ]; then
+      continue
+    fi
     valid_files+=("$file")
   done
 
@@ -142,7 +145,6 @@ function zjoin() {
       continue
     fi
     file_order[$num]="$file"
-    echo "Debug: Found '$file' with Roman numeral '$roman' ($num)" >&2
   done
 
   # Check if any valid files remain
