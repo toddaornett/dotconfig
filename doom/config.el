@@ -188,47 +188,6 @@ Only works when called from a Dired buffer."
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
-(use-package! ibuffer-projectile
-  :after ibuffer
-  :commands ibuffer-projectile-generate-filter-groups)
-
-(defun tao/ibuffer-custom-groups ()
-  (require 'projectile)
-  (require 'ibuffer-projectile)
-  (let* ((project-buffers (projectile-project-buffers))
-         (project-groups (or (ignore-errors (ibuffer-projectile-generate-filter-groups)) '()))
-         (default-group `(("Default" (predicate . (not (member (current-buffer) ',project-buffers))))))
-         (cleaned-groups (mapcar (lambda (group)
-                                   (cons (file-name-nondirectory (directory-file-name (car group))) (cdr group)))
-                                 (cl-remove-if (lambda (group) (string= (car group) "Default")) project-groups))))
-    (append cleaned-groups (list default-group))))
-
-(defun tao/ibuffer-toggle-project-buffers (project-root)
-  (interactive (list (projectile-completing-read "Select project: " (projectile-relevant-known-projects))))
-  (require 'ibuffer)
-  (let ((group-name (file-name-nondirectory (directory-file-name project-root))))
-    (with-current-buffer (get-buffer "*Ibuffer*")
-      (if (member group-name (mapcar #'car ibuffer-filter-groups))
-          (progn
-            (setq ibuffer-filter-groups
-                  (cl-remove-if (lambda (group) (string= (car group) group-name))
-                                ibuffer-filter-groups))
-            (ibuffer-update nil t))
-        (progn
-          (setq ibuffer-filter-groups (tao/ibuffer-custom-groups))
-          (ibuffer-update nil t))))))
-
-(use-package! ibuffer
-  :after projectile
-  :hook (ibuffer . (lambda ()
-                     (let ((groups (tao/ibuffer-custom-groups)))
-                       (when (proper-list-p groups)
-                         (setq ibuffer-filter-groups groups)))
-                     (unless (eq ibuffer-sorting-mode 'alphabetic)
-                       (ibuffer-do-sort-by-alphabetic))))
-  :bind (:map ibuffer-mode-map
-              '("C-c p t" . tao/ibuffer-toggle-project-buffers)))
-
 ;; Exec-path-from-shell
 (use-package exec-path-from-shell
   :init
@@ -366,9 +325,9 @@ Only works when called from a Dired buffer."
    "z s" '(string-inflection-underscore :which-key "snake_case")
    "z u" '(string-inflection-upcase :which-key "UPCASE"))
   (general-define-key
-   :keymaps 'magit-status-mode-map
-   :states 'normal
-   "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
+  :keymaps 'magit-status-mode-map
+  :states 'normal
+  "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
 
 ;; control which-key popup and pagination
 (after! which-key
@@ -467,7 +426,7 @@ Only works when called from a Dired buffer."
 
   ;; Define command to toggle Local Branches section globally
   (defun +magit-toggle-local-branches-section ()
-    "Toggle visibility of the Local Branches section from anywhere in the Magit buffer."
+    "Toggle visibility of the Local Branches section from anywhere in status region."
     (interactive)
     (save-excursion
       (goto-char (point-min))
