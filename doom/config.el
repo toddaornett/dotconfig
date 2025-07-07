@@ -335,18 +335,23 @@ Only works when called from a Dired buffer."
   (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
   (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
-;; Custom keybindings
-(general-define-key
- :states 'normal
- :prefix "SPC z"
- :which-key "string inflection"
- "a" '(string-inflection-all-cycle :which-key "all cases")
- "c" '(string-inflection-camelcase :which-key "camelCase")
- "k" '(string-inflection-kebab-case :which-key "kebab-case")
- "l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
- "p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
- "s" '(string-inflection-underscore :which-key "snake_case")
- "u" '(string-inflection-upcase :which-key "UPCASE"))
+;; Custom keybindings via General
+(after! general
+  (general-define-key
+   :states 'normal
+   :prefix "SPC z"
+   :which-key "string inflection"
+   "a" '(string-inflection-all-cycle :which-key "all cases")
+   "c" '(string-inflection-camelcase :which-key "camelCase")
+   "k" '(string-inflection-kebab-case :which-key "kebab-case")
+   "l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
+   "p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
+   "s" '(string-inflection-underscore :which-key "snake_case")
+   "u" '(string-inflection-upcase :which-key "UPCASE"))
+  (general-define-key
+   :keymaps 'magit-status-mode-map
+   :states 'normal
+   "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
 
 ;; control which-key popup and pagination
 (after! which-key
@@ -383,15 +388,18 @@ Only works when called from a Dired buffer."
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
-;; magit and forge
 (after! magit
-  ;; Ediff settings
   (setq ediff-diff-options "")
   (setq ediff-custom-diff-options "-u")
   (setq ediff-window-setup-function 'ediff-setup-windows-plain)
   (setq ediff-split-window-function 'split-window-vertically)
   (setq magit-ediff-dwim-show-on-hunks t)
+  (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
 
+  ;; Disable line numbers in Magit buffers
+  (add-hook 'magit-mode-hook (lambda () (display-line-numbers-mode -1)))
+
+  ;; Limit pullreqs globally (still good practice)
   ;; Remove Forge's default PR section
   (remove-hook 'magit-status-sections-hook 'forge-insert-pullreqs)
 
@@ -408,8 +416,48 @@ Only works when called from a Dired buffer."
                                          (forge-get-repository)))
                     (insert (format "#%s  %s\n" (aref pr 0) (aref pr 1))))))))
 
-  ;; Limit pullreqs globally (still good practice)
-  (setq forge-topic-list-limit '((pullreq . 50) (issue . 0))))
+  ;; Add custom local branches section, excluding main, master, develop
+  (add-hook 'magit-status-sections-hook
+            (defun +magit-insert-filtered-local-branches ()
+              "Show local branches excluding main, master, and develop in Magit status."
+              (let ((branches (seq-filter (lambda (branch)
+                                            (not (member branch '("main" "master" "develop"))))
+                                          (magit-list-local-branch-names))))
+                (when branches
+                  (magit-insert-section (local-branches)
+                    (magit-insert-heading "Local Branches")
+                    (dolist (branch branches)
+                      (magit-insert-section (branch branch)
+                        (insert (format "%s\n" branch))))))))
+            20)
+
+  ;; Ensure Local Branches section is collapsed by default
+  (add-to-list 'magit-section-initial-visibility-alist '(local-branches . hide))
+
+  ;; Define function to move point to first uncommitted change
+  (defun +magit-move-to-first-uncommitted-change ()
+    "Move point to the first uncommitted change in the Magit status buffer."
+    (interactive)
+    (when (eq major-mode 'magit-status-mode)
+      (run-at-time 0.1 nil
+                   (lambda ()
+                   (goto-char (point-min))
+                   (when (or (re-search-forward "^Unstaged changes" nil t)
+                             (re-search-forward "^Staged changes" nil t))
+                     (goto-char (match-beginning 0))
+                     (forward-line 1))))))
+  (add-hook 'magit-status-mode-hook '+magit-move-to-first-uncommitted-change)
+
+  ;; Define command to toggle Local Branches section globally
+  (defun +magit-toggle-local-branches-section ()
+    "Toggle visibility of the Local Branches section from anywhere in the Magit buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (when (re-search-forward "^Local Branches$" nil t)
+        (let ((section (magit-current-section)))
+          (when (magit-section-p section)
+            (magit-section-toggle section)))))))
 
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
