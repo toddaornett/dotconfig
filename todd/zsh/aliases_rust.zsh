@@ -8,7 +8,7 @@ autoload -U add-zsh-hook
 churlpr() {
   if [[ ! -f "Cargo.toml" ]]; then
     echo "Aborting, this is not a Rust project"
-    return 1;
+    return 1
   fi
 
   # config from environment variables
@@ -63,7 +63,7 @@ churlpr() {
 cuupr() {
   if [[ ! -f "Cargo.toml" ]]; then
     echo "Aborting, this is not a Rust project"
-    return 1;
+    return 1
   fi
 
   # first make sure are intended branch does not remotely exist
@@ -80,6 +80,7 @@ cuupr() {
   # get latest code from the main branch
   git checkout $(git_main_branch)
   git pull
+  echo "DEBUG: Finished checkout and pull of $(git_main_branch)"
 
   # create temporary file for git commit message body that
   # includes cargo command output
@@ -94,7 +95,11 @@ cuupr() {
 
   local prompt="➜  $(basename "$PWD") git:($(git_main_branch)) ✗"
   echo "$prompt cargo upgrade" >>"$temp_file"
+
   cargo upgrade &>>"$temp_file"
+  cp -f "$temp_file" ~/upgrade_results.txt
+
+  echo "DEBUG: Finished cargo upgrade"
 
   # support -C option to provide a view of incompatible changes without updating them
   if grep -q "note: Re-run with \`--incompatible\` to upgrade incompatible version requirements" "$temp_file"; then
@@ -104,6 +109,7 @@ cuupr() {
     fi
     echo "$prompt cargo upgrade $compatibility" >>"$temp_file"
     cargo upgrade $(echo $compatibility | xargs) &>>"$temp_file"
+    echo "DEBUG: Finished cargo upgrade $compatibility"
   fi
 
   # cargo update for packages in special registries that need explicit updating
@@ -114,10 +120,12 @@ cuupr() {
     version=${parts[-1]#v}
     echo "$prompt cargo upgrade -p ${package_name}@${version}" >>"$temp_file"
     cargo upgrade -p ${package_name}@${version} &>>"$temp_file"
+    echo "DEBUG: Finished cargo upgrade -p ${package_name}@${version}"
   done
 
   echo "$prompt cargo update" >>"$temp_file"
   cargo update &>>"$temp_file"
+  echo "DEBUG: Finished cargo update"
 
   echo "\`\`\`" >>"$temp_file"
 
@@ -142,7 +150,7 @@ cuupr() {
 cruupr() {
   if [[ ! -f "Cargo.toml" ]]; then
     echo "Aborting, this is not a Rust project"
-    return 1;
+    return 1
   fi
 
   # switch to build/deps
@@ -153,6 +161,7 @@ cruupr() {
       return $?
     fi
   fi
+  echo "DEBUG: Finished checkout of $branch_name"
 
   # create temporary file for git commit message body that
   # includes cargo command output
@@ -168,6 +177,7 @@ cruupr() {
   local prompt="➜  $(basename "$PWD") git:($(git_main_branch)) ✗"
   echo "$prompt cargo upgrade" >>"$temp_file"
   cargo upgrade &>>"$temp_file"
+  echo "DEBUG: Finished cargo upgrade"
 
   # support -C option to provide a view of incompatible changes without updating them
   if grep -q "note: Re-run with \`--incompatible\` to upgrade incompatible version requirements" "$temp_file"; then
@@ -177,9 +187,10 @@ cruupr() {
     fi
     echo "$prompt cargo upgrade $compatibility" >>"$temp_file"
     cargo upgrade $(echo $compatibility | xargs) &>>"$temp_file"
+    echo "DEBUG: Finished cargo upgrade $compatibility"
   fi
 
-  # cargo update for packages in special registries that need explicit updating
+  cargo update for packages in special registries that need explicit updating
   for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}
   do
     parts=(${(s: :)line})
@@ -187,10 +198,12 @@ cruupr() {
     version=${parts[-1]#v}
     echo "$prompt cargo upgrade -p ${package_name}@${version}" >>"$temp_file"
     cargo upgrade -p ${package_name}@${version} &>>"$temp_file"
+    echo "DEBUG: Finished cargo upgrade -p ${package_name}@${version}"
   done
 
   echo "$prompt cargo update" >>"$temp_file"
   cargo update &>>"$temp_file"
+  echo "DEBUG: Finished cargo update"
 
   echo "\`\`\`" >>"$temp_file"
 
@@ -215,7 +228,7 @@ cruupr() {
 cclippyfix() {
   if [[ ! -f "Cargo.toml" ]]; then
     echo "Aborting, this is not a Rust project"
-    return 1;
+    return 1
   fi
 
   # first make sure are intended branch does not remotely exist
