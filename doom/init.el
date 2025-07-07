@@ -69,6 +69,7 @@
        json                ; Lightweight, keep
        (javascript +lsp +tree-sitter)
        (typescript +lsp +tree-sitter)
+       (web +lsp)
        markdown            ; Lightweight, keep
        (org +pomodoro)     ; Keep for note-taking
        (rust +eglot)       ; Use eglot only, remove +lsp and +cargo
