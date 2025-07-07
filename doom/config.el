@@ -350,15 +350,21 @@ Only works when called from a Dired buffer."
   (general-define-key
    :states 'normal
    :keymaps 'override
-   :prefix "SPC z"
+   :prefix doom-leader-key
+   "<escape>" '(buffer-menu :which-key "buffer menu"))
+  (general-define-key
+   :states 'normal
+   :keymaps 'override
+   :prefix doom-leader-key
    :which-key "string inflection"
-   "a" '(string-inflection-all-cycle :which-key "all cases")
-   "c" '(string-inflection-camelcase :which-key "camelCase")
-   "k" '(string-inflection-kebab-case :which-key "kebab-case")
-   "l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
-   "p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
-   "s" '(string-inflection-underscore :which-key "snake_case")
-   "u" '(string-inflection-upcase :which-key "UPCASE"))
+   "z" '(:which-key "string inflection")
+   "z a" '(string-inflection-all-cycle :which-key "all cases")
+   "z c" '(string-inflection-camelcase :which-key "camelCase")
+   "z k" '(string-inflection-kebab-case :which-key "kebab-case")
+   "z l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
+   "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
+   "z s" '(string-inflection-underscore :which-key "snake_case")
+   "z u" '(string-inflection-upcase :which-key "UPCASE"))
   (general-define-key
    :keymaps 'magit-status-mode-map
    :states 'normal
