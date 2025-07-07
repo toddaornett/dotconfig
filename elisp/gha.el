@@ -91,7 +91,7 @@ fix/workflow-permissions, add modified files, and add commit"
                     (magit-call-git "checkout" "-b" "fix/workflow-permissions")
                     (dolist (file after-files)
                       (magit-call-git "add" file))
-                    (magit-call-git "commit" "-m" "fix(ci): add permissions to GHA workflows")))))))))))
+                    (magit-call-git "commit" "-m" (or (getenv "DEFAULT_GIT_COMMIT_MESSAGE") "fix(ci): add permissions to GHA workflows"))))))))))))
 
 (provide 'gha)
 ;;; gha.el ends here
