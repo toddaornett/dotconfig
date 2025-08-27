@@ -16,7 +16,7 @@ Finished! Doom is ready to go!
 
 But before you doom yourself, here are some things you should know:
 
-1. Don't forget to run 'doom sync', then restart Emacs, after modifying
+1. Don't forget to run 'doom sync', then restart Emacs, after modifying either
    ~/.doom.d/init.el or ~/.doom.d/packages.el.
 
    This command ensures needed packages are installed, orphaned packages are
