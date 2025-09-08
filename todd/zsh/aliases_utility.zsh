@@ -271,7 +271,10 @@ r2d() {
 function passC {
   local u
   local p
+  local url
   u="$(pass $1 | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
   p="$(pass $1 | head -1 | tr -d '\n')"
   echo -n "$u $p" | pbcopy
+  url="$(pass $1 | grep -i '^URL:' | cut -d ' ' -f 2 | tr -d '\n')"
+  open "$url"
 }
