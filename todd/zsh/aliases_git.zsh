@@ -1,6 +1,6 @@
 # Git version checking
 autoload -Uz is-at-least
-git_version="${${(As: :)$(git version 2>/dev/null)}[3]}"
+git_version=$(git version 2>/dev/null | awk '{print $3}')
 
 function git_current_branch () {
   local ref
@@ -543,6 +543,29 @@ function grename() {
 
 function forceSsh() {
   git config --global url."git@github.com:".insteadOf "https://github.com/"
+}
+
+function gnewproj {
+  if [ -z "$1" ]; then
+    echo "Usage: $(basename $0) <project directory path>"
+    return 1
+  fi
+
+  if [ -d "$HOME/Projects/$1" ]; then
+    echo "$1 already exists, cannot create new git project"
+    return 1
+  fi
+
+  mkdir "$HOME/Projects/$1"
+  cd "$HOME/Projects/$1"
+
+  echo "# $1" >> README.md
+  git init
+  git add README.md
+  git commit -m "first commit"
+  git branch -M main
+  git remote add origin "git@github.com:toddaornett/$1.git"
+  git push -u origin main
 }
 
 #####
