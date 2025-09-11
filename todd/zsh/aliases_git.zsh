@@ -227,7 +227,7 @@ alias gbsb='git bisect bad'
 alias gbsg='git bisect good'
 alias gbsr='git bisect reset'
 alias gbss='git bisect start'
-
+alias gbp='git branch --merged | grep -v "^\*\\|main" | xargs -n 1 git branch -d && git remote prune origin'
 alias gc='git commit -v'
 alias gc!='git commit -v --amend'
 alias gcn!='git commit -v --no-edit --amend'
