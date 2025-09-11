@@ -399,7 +399,35 @@ Only works when called from a Dired buffer."
     "Hook to run when org-pomodoro starts or finishes."
     (tao/org-fontify-clock-tasks))
   (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
+  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook)
+
+  (defun tao/org-update-last-timestamp ()
+    "Update or insert the #+UPDATED: keyword with the current timestamp in Org mode files,
+placing it after #+CREATED: if it exists, or display the last modified time for other files."
+    (interactive)
+    (if (buffer-file-name)
+        (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
+          (if (derived-mode-p 'org-mode)
+              (save-excursion
+                (goto-char (point-min))
+                (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
+                    (replace-match (concat "#+UPDATED: " timestamp))
+                  ;; Check for #+CREATED: and insert after it
+                  (goto-char (point-min))
+                  (if (re-search-forward "^#\\+CREATED:.*$" nil t)
+                      (progn
+                        (end-of-line)
+                        (insert "\n#+UPDATED: " timestamp))
+                    ;; Fallback: insert after first Org keyword or at start
+                    (goto-char (point-min))
+                    (if (re-search-forward "^#\\+.*$" nil t)
+                        (progn
+                          (end-of-line)
+                          (insert "\n#+UPDATED: " timestamp))
+                      (insert "#+UPDATED: " timestamp "\n")))))
+            (message "Last modified: %s" timestamp)))
+      (message "Buffer is not associated with a file")))
+  (add-hook 'before-save-hook #'tao/org-update-last-timestamp))
 
 ;; org-superstar
 (use-package org-superstar
