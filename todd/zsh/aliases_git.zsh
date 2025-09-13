@@ -391,6 +391,7 @@ alias gru='git reset --'
 alias grup='git remote update'
 alias grv='git remote -v'
 
+alias gS='git fetch origin && git status'
 alias gsb='git status -sb'
 alias gsd='git svn dcommit'
 alias gsh='git show'
