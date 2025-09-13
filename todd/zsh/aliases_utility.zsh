@@ -279,11 +279,11 @@ function passC {
   open "$url"
 }
 
-# Run pdflatex and remove temp and log files on success.
+# Run xelatex and remove temp and log files on success.
 # Note that these files are assumed to be in the current folder.
 latex2pdf() {
   local file
-  if pdflatex -interaction=batchmode "$1"; then
+  if xelatex -interaction=batchmode "$1"; then
     if [ -n "$ZSH_VERSION" ]; then
       setopt localoptions NULL_GLOB
     fi
