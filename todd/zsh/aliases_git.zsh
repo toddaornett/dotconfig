@@ -136,10 +136,6 @@ function nuke_branch() {
 
   # Iterate through all subdirectories
   for dir in "$root_dir"/* ; do
-    # TODO: remove this name check when no longer relevant
-    if [[ "$(basename $dir)" == "j"* ]]; then
-      continue
-    fi
     # Check if directory exists and contains .git
     if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
       echo "Processing repository: $(basename $dir)"
