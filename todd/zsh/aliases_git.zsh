@@ -123,6 +123,62 @@ function prs {
   done
 }
 
+# delete specified branch locally and on remote
+function gbdr() {  # Check if branch name is provided
+  if [ -z "$1" ]; then
+    echo "Error: Branch name must be provided"
+    return 1
+  fi
+
+  if git branch -D "$1" > /dev/null 2>&1; then
+
+  fi
+}
+
+function gbdr() {
+  local branch="$1"
+  local remote="${2:-origin}"
+
+  # Check if branch name is provided
+  if [[ -z "$branch" ]]; then
+    echo "Error: Branch name required"
+    return 1
+  fi
+
+  # 1. Delete local branch
+  if git show-ref --quiet "refs/heads/$branch"; then
+    git branch -D "$branch" || {
+      echo "Failed to delete local branch $branch"
+      return 1
+    }
+    echo "Deleted local branch $branch"
+  else
+    echo "Local branch $branch does not exist"
+  fi
+
+  # 2. Delete remote branch
+  if git ls-remote --quiet "$remote" "$branch" | grep -q .; then
+    git push "$remote" --delete "$branch" || {
+      echo "Failed to delete remote branch $remote/$branch"
+      return 1
+    }
+    echo "Deleted remote branch $remote/$branch"
+  else
+    echo "Remote branch $remote/$branch does not exist"
+  fi
+
+  # 3. Delete remote-tracking branch
+  if git show-ref --quiet "refs/remotes/$remote/$branch"; then
+    git branch -r -D "$remote/$branch" || {
+      echo "Failed to delete remote-tracking branch $remote/$branch"
+      return 1
+    }
+    echo "Deleted remote-tracking branch $remote/$branch"
+  else
+    echo "Remote-tracking branch $remote/$branch does not exist"
+  fi
+}
+
 # delete a specified branch in Git repositories
 function nuke_branch() {
   # Check if branch name is provided
