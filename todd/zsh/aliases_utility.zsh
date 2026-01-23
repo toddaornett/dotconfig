@@ -267,7 +267,8 @@ r2d() {
   echo "$result"
 }
 
-# Copy username and password from specified key to system clipboard
+# Using pass program, copy username and password from specified key to
+# the system clipboard and open url with default browser or specified browser
 function passC {
   local user
   local password
