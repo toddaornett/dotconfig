@@ -269,14 +269,20 @@ r2d() {
 
 # Copy username and password from specified key to system clipboard
 function passC {
-  local u
-  local p
+  local user
+  local password
   local url
-  u="$(pass $1 | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
-  p="$(pass $1 | head -1 | tr -d '\n')"
-  echo -n "$u $p" | pbcopy
+  local browser
+  user="$(pass $1 | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
+  password="$(pass $1 | head -1 | tr -d '\n')"
+  browser="$(pass $1 | grep -i '^browser:' | sed -E 's/^[Bb]rowser:\s*"?([^"]*)"?\s*$/\1/' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  echo -n "$user $password" | pbcopy
   url="$(pass $1 | grep -i '^URL:' | cut -d ' ' -f 2 | tr -d '\n')"
-  open "$url"
+  if [ -n "$browser" ]; then
+    open -a "$browser" "$url"
+  else
+    open "$url"
+  fi
 }
 
 # Run xelatex and remove temp and log files on success.
