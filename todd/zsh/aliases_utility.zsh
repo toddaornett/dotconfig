@@ -273,11 +273,16 @@ function passC {
   local password
   local url
   local browser
-  user="$(pass $1 | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
-  password="$(pass $1 | head -1 | tr -d '\n')"
-  browser="$(pass $1 | grep -i '^browser:' | sed -E 's/^[Bb]rowser:\s*"?([^"]*)"?\s*$/\1/' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  local entry
+  entry=$1
+  if ! pass "$entry" &>/dev/null; then
+    entry="$1.com"
+  fi
+  user="$(pass $entry | grep -i '^username:' | cut -d ' ' -f 2 | tr -d '\n')"
+  password="$(pass $entry | head -1 | tr -d '\n')"
+  browser="$(pass $entry | grep -i '^browser:' | sed -E 's/^[Bb]rowser:\s*"?([^"]*)"?\s*$/\1/' | tr -d '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
   echo -n "$user $password" | pbcopy
-  url="$(pass $1 | grep -i '^URL:' | cut -d ' ' -f 2 | tr -d '\n')"
+  url="$(pass $entry | grep -i '^URL:' | cut -d ' ' -f 2 | tr -d '\n')"
   if [ -n "$browser" ]; then
     open -a "$browser" "$url"
   else
