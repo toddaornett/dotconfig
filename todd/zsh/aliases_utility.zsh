@@ -305,51 +305,65 @@ latex2pdf() {
   fi
 }
 
-# Refresh Hammerspoon with new default terminal to launch on hotkey.
+# Hammerspoon terminal selector
 hsterm () {
+  emulate -L zsh
+
+  # Silence xtrace output (which goes to stderr)
+  exec 3>&2
+  exec 2>/dev/null
+
   local choice="${1:-}"
-  local -a supported=(alacritty ghosttty kitty iterm iterm2 terminal)
+  local -a supported=(alacritty ghostty kitty iterm iterm2 terminal)
 
   if [[ -n "$choice" ]]; then
     choice="${choice:l}"
   fi
 
-  if [[ ${#choice} -eq 1 ]]; then
-    if [[ "$choice" == "i" ]]; then
-      choice="iterm2"
-    else
+  # Resolve short names / prefixes
+  if [[ -n "$choice" && ${#choice} -lt 3 ]]; then
     local -a matches=()
-    local term
-    for term in "${supported[@]}"; do
-      if [[ "${term[1,1]}" == "$choice" ]]; then
-        matches+=("$term")
+    local t
+    for t in "${supported[@]}"; do
+      if [[ "$t" == "$choice"* ]]; then
+        matches+=("$t")
       fi
     done
+
     if [[ ${#matches[@]} -eq 1 ]]; then
       choice="${matches[1]}"
     elif [[ ${#matches[@]} -gt 1 ]]; then
+      exec 2>&3
       echo "hsterm: ambiguous short name '$choice' (matches: ${matches[*]})" >&2
-      choice=""
-    fi
+      return 1
     fi
   fi
 
+  # Pretty list
   local -a pretty_supported=()
-  local term
-  for term in "${supported[@]}"; do
-    pretty_supported+=("%F{green}%B${term[1,1]}%b%f${term[2,-1]}")
+  local t
+  for t in "${supported[@]}"; do
+    pretty_supported+=("%F{green}%B${t[1]}%b%f${t[2,-1]}")
   done
+
+  exec 2>&3
 
   if [[ -z "$choice" || ${supported[(I)$choice]} -eq 0 ]]; then
     if [[ -n "$choice" ]]; then
       echo "hsterm: unsupported terminal: $choice" >&2
-    else
-      echo "hsterm: missing terminal name" >&2
     fi
-    print -P "Supported terminals: ${pretty_supported[*]}" >&2
+    print -P "Supported terminals: ${(j: :)pretty_supported}" >&2
     return 1
   fi
 
-  command launchctl setenv HAMMERSPOON_TERMINAL "$choice" >/dev/null 2>&1
-  command hs -c "hs.settings.set(\"hammerspoon_terminal\", \"${choice}\"); hs.reload()" </dev/null >/dev/null 2>&1
+  command hs -c "hs.settings.set(\"hammerspoon_terminal\", \"${choice}\")" </dev/null >/dev/null 2>&1
+  echo "Hammerspoon terminal set to: $choice"
 }
+
+# Tab completion
+_hsterm_complete() {
+  local -a terms=(alacritty ghostty kitty iterm iterm2 terminal)
+  _describe 'terminal' terms
+}
+compdef _hsterm_complete hsterm
+

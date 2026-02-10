@@ -12,7 +12,7 @@ end
 
 local terminal_map = {
   alacritty = "org.alacritty",
-  ghosttty  = "com.mitchellh.ghostty",
+  ghostty   = "com.mitchellh.ghostty",
   kitty     = "net.kovidgoyal.kitty",
   iterm     = "com.googlecode.iterm2",
   iterm2    = "com.googlecode.iterm2",
@@ -20,9 +20,7 @@ local terminal_map = {
 }
 
 local function launch_terminal()
-  local choice = hs.settings.get("hammerspoon_terminal")
-    or os.getenv("HAMMERSPOON_TERMINAL")
-    or "terminal"
+  local choice = hs.settings.get("hammerspoon_terminal") or "terminal"
   choice = string.lower(choice)
   local bundleID = terminal_map[choice] or "com.apple.Terminal"
   hs.application.launchOrFocusByBundleID(bundleID)
