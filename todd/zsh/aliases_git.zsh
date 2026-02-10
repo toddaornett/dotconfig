@@ -2,6 +2,16 @@
 autoload -Uz is-at-least
 git_version=$(git version 2>/dev/null | awk '{print $3}')
 
+# Auto-format git config indentation after git config writes.
+git() {
+  command git "$@"
+  local exit_status=$?
+  if [[ $exit_status -eq 0 && "${1:-}" == "config" ]]; then
+    command sed -i '' $'s/^\t/  /' ~/.gitconfig ~/.gitconfig-*(N) >/dev/null 2>&1 || true
+  fi
+  return $exit_status
+}
+
 function git_current_branch () {
   local ref
   ref="$(git symbolic-ref --quiet HEAD 2>/dev/null)"
