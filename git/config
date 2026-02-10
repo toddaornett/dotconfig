@@ -1,5 +1,5 @@
 [include]
-  path = ~/.git_local_config
+  path = ~/.gitconfig
 [core]
   pager = less -FX
 [filter "lfs"]
