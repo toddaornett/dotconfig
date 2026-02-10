@@ -304,3 +304,52 @@ latex2pdf() {
     done
   fi
 }
+
+# Refresh Hammerspoon with new default terminal to launch on hotkey.
+hsterm () {
+  local choice="${1:-}"
+  local -a supported=(alacritty ghosttty kitty iterm iterm2 terminal)
+
+  if [[ -n "$choice" ]]; then
+    choice="${choice:l}"
+  fi
+
+  if [[ ${#choice} -eq 1 ]]; then
+    if [[ "$choice" == "i" ]]; then
+      choice="iterm2"
+    else
+    local -a matches=()
+    local term
+    for term in "${supported[@]}"; do
+      if [[ "${term[1,1]}" == "$choice" ]]; then
+        matches+=("$term")
+      fi
+    done
+    if [[ ${#matches[@]} -eq 1 ]]; then
+      choice="${matches[1]}"
+    elif [[ ${#matches[@]} -gt 1 ]]; then
+      echo "hsterm: ambiguous short name '$choice' (matches: ${matches[*]})" >&2
+      choice=""
+    fi
+    fi
+  fi
+
+  local -a pretty_supported=()
+  local term
+  for term in "${supported[@]}"; do
+    pretty_supported+=("%F{green}%B${term[1,1]}%b%f${term[2,-1]}")
+  done
+
+  if [[ -z "$choice" || ${supported[(I)$choice]} -eq 0 ]]; then
+    if [[ -n "$choice" ]]; then
+      echo "hsterm: unsupported terminal: $choice" >&2
+    else
+      echo "hsterm: missing terminal name" >&2
+    fi
+    print -P "Supported terminals: ${pretty_supported[*]}" >&2
+    return 1
+  fi
+
+  command launchctl setenv HAMMERSPOON_TERMINAL "$choice" >/dev/null 2>&1
+  command hs -c "hs.settings.set(\"hammerspoon_terminal\", \"${choice}\"); hs.reload()" </dev/null >/dev/null 2>&1
+}

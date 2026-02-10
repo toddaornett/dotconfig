@@ -10,15 +10,59 @@ function reloadConfig(files)
 	end
 end
 
+local terminal_map = {
+  alacritty = "org.alacritty",
+  ghosttty  = "com.mitchellh.ghostty",
+  kitty     = "net.kovidgoyal.kitty",
+  iterm     = "com.googlecode.iterm2",
+  iterm2    = "com.googlecode.iterm2",
+  terminal  = "com.apple.Terminal",
+}
+
+local function launch_terminal()
+  local choice = hs.settings.get("hammerspoon_terminal")
+    or os.getenv("HAMMERSPOON_TERMINAL")
+    or "terminal"
+  choice = string.lower(choice)
+  local bundleID = terminal_map[choice] or "com.apple.Terminal"
+  hs.application.launchOrFocusByBundleID(bundleID)
+end
+
 myWatcher = hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
 hs.alert.show("Config loaded")
 
 hs.loadSpoon("ReloadConfiguration")
 spoon.ReloadConfiguration:start()
 
-hs.hotkey.bind({ "command" }, "escape", function()
-	hs.execute("open /Applications/Alacritty.app")
-end)
+local ipc_ok, _ = pcall(require, "hs.ipc")
+if not ipc_ok then
+  hs.alert.show("Hammerspoon IPC module unavailable")
+end
+
+local function hs_cli_installed()
+  local candidates = {
+    "/opt/homebrew/bin/hs",
+    "/usr/local/bin/hs",
+    "/usr/bin/hs",
+    "/Applications/Hammerspoon.app/Contents/Resources/hs",
+  }
+
+  for _, path in ipairs(candidates) do
+    local attrs = hs.fs.attributes(path)
+    if attrs and (attrs.mode == "file" or attrs.mode == "link") then
+      return true
+    end
+  end
+
+  local which = hs.execute("command -v hs 2>/dev/null")
+  return which and which:match("%S") ~= nil
+end
+
+if ipc_ok and not hs_cli_installed() then
+  hs.ipc.cliInstall()
+end
+
+hs.hotkey.bind({ "command" }, "escape", launch_terminal)
 
 hs.hotkey.bind({ "command", "alt" }, "b", function()
 	hs.execute("open /Applications/Brave Browser.app")
