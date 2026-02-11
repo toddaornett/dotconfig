@@ -387,4 +387,8 @@ function load_companion_env {
   fi
 }
 
+unsetopt xtrace
+set +x
+
+
 add-zsh-hook chpwd load_companion_env

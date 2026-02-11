@@ -365,5 +365,6 @@ _hsterm_complete() {
   local -a terms=(alacritty ghostty kitty iterm iterm2 terminal)
   _describe 'terminal' terms
 }
+autoload -Uz compinit && compinit
 compdef _hsterm_complete hsterm
 
