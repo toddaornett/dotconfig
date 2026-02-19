@@ -1,5 +1,5 @@
 brew "git"
-brew "emacs"
+cask "emacs"
 brew "ripgrep"
 brew "fd"
 brew "cake"
