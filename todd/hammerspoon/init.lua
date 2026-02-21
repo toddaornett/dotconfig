@@ -17,6 +17,8 @@ local terminal_map = {
   iterm     = "com.googlecode.iterm2",
   iterm2    = "com.googlecode.iterm2",
   terminal  = "com.apple.Terminal",
+  wezterm   = "com.github.wez.wezterm",
+  warp      = "dev.warp.Warp-Stable",
 }
 
 local function launch_terminal()

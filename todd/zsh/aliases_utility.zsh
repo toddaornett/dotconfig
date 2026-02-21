@@ -308,63 +308,74 @@ latex2pdf() {
 # Hammerspoon terminal selector
 hsterm () {
   emulate -L zsh
-
-  # Silence xtrace output (which goes to stderr)
-  exec 3>&2
-  exec 2>/dev/null
+  unsetopt xtrace verbose monitor  # Ensure no debug output
 
   local choice="${1:-}"
-  local -a supported=(alacritty ghostty kitty iterm iterm2 terminal)
+  local -a supported=(alacritty ghostty kitty iterm iterm2 terminal wezterm Warp)
 
-  if [[ -n "$choice" ]]; then
-    choice="${choice:l}"
-  fi
-
-  # Resolve short names / prefixes
+  # Resolve short names / prefixes (case-sensitive: "W" -> Warp, "w" -> wezterm)
   if [[ -n "$choice" && ${#choice} -lt 3 ]]; then
     local -a matches=()
-    local t
-    for t in "${supported[@]}"; do
-      if [[ "$t" == "$choice"* ]]; then
-        matches+=("$t")
-      fi
+    local candidate prefix
+
+    for candidate in "${supported[@]}"; do
+      prefix="${candidate[1,${#choice}]}"
+      [[ "$prefix" == "$choice" ]] && matches+=("$candidate")
     done
 
-    if [[ ${#matches[@]} -eq 1 ]]; then
-      choice="${matches[1]}"
-    elif [[ ${#matches[@]} -gt 1 ]]; then
-      exec 2>&3
-      echo "hsterm: ambiguous short name '$choice' (matches: ${matches[*]})" >&2
-      return 1
-    fi
+    case ${#matches[@]} in
+      1) choice="${matches[1]}" ;;
+      [2-9]*)
+        echo "hsterm: ambiguous short name '$choice' (matches: ${matches[*]})" >&2
+        return 1
+        ;;
+    esac
   fi
 
-  # Pretty list
+  # Pretty list of supported terminals
   local -a pretty_supported=()
-  local t
-  for t in "${supported[@]}"; do
-    pretty_supported+=("%F{green}%B${t[1]}%b%f${t[2,-1]}")
+  for candidate in "${supported[@]}"; do
+    pretty_supported+=("%F{green}%B${candidate[1]}%b%f${candidate[2,-1]}")
   done
 
-  exec 2>&3
-
   if [[ -z "$choice" || ${supported[(I)$choice]} -eq 0 ]]; then
-    if [[ -n "$choice" ]]; then
-      echo "hsterm: unsupported terminal: $choice" >&2
-    fi
+    [[ -n "$choice" ]] && echo "hsterm: unsupported terminal: $choice" >&2
     print -P "Supported terminals: ${(j: :)pretty_supported}" >&2
     return 1
   fi
 
-  command hs -c "hs.settings.set(\"hammerspoon_terminal\", \"${choice}\")" </dev/null >/dev/null 2>&1
-  echo "Hammerspoon terminal set to: $choice"
+  # Hammerspoon expects lowercase terminal names
+  local term_for_hs="${(L)choice}"
+
+  # Sanitize term_for_hs for potential unwanted characters
+  term_for_hs="${term_for_hs//[^a-zA-Z0-9_-]/}"
+
+  # Suppress all CLI output and job control output
+  exec 3>&1 4>&2  # Save current stdout and stderr to file descriptors
+  exec >/dev/null 2>&1  # Redirect all output to /dev/null
+
+  (
+    hs -c "hs.settings.set('hammerspoon_terminal', '${term_for_hs}'); hs.reload()"
+  ) </dev/null > /dev/null 2>&1 & disown
+  
+  # Restore stdout and stderr
+  exec 1>&3 2>&4
+
+  local ret=$?
+
+  if [[ $ret -eq 0 || $ret -eq 69 ]]; then
+    echo "Hammerspoon terminal set to: $term_for_hs (config reloaded)"
+  else
+    echo "hsterm: could not set Hammerspoon (exit code $ret)." >&2
+    return 1
+  fi
 }
 
 # Tab completion
 _hsterm_complete() {
-  local -a terms=(alacritty ghostty kitty iterm iterm2 terminal)
+  local -a terms=(alacritty ghostty kitty iterm iterm2 terminal wezterm Warp)
   _describe 'terminal' terms
 }
+
 autoload -Uz compinit && compinit
 compdef _hsterm_complete hsterm
-
