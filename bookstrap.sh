@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-echo "🧠 Bootstrapping Emacs environment..."
+echo "🧠 Bootstrapping..."
 
 #################################
 # Install Homebrew if missing
@@ -32,20 +32,23 @@ fi
 # Install Nerd Font (JetBrainsMono)
 #################################
 echo "🔤 Installing JetBrainsMono Nerd Font..."
-
 FONT_DEST_DIR="$HOME/Library/Fonts"
-TMP_DIR="$(mktemp -d)"
+set -- "$FONT_DEST_DIR"/JetBrainsMono*
+if [ -e "$1" ]; then
+  echo "✅ JetBrainsMono Nerd Font previously installed"
+else
+  TMP_DIR="$(mktemp -d)"
 
-curl -L -o "$TMP_DIR/font.zip" \
-  https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+  curl -L -o "$TMP_DIR/font.zip" \
+    https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+  unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR/fonts"
 
-unzip -q "$TMP_DIR/font.zip" -d "$TMP_DIR/fonts"
-
-mkdir -p "$FONT_DEST_DIR"
-cp -n "$TMP_DIR/fonts"/*.ttf "$FONT_DEST_DIR" || true
-
-rm -rf "$TMP_DIR"
-echo "✅ Font installed"
+  mkdir -p "$FONT_DEST_DIR"
+  cp -n "$TMP_DIR/fonts"/*.ttf "$FONT_DEST_DIR" || true
+  
+  rm -rf "$TMP_DIR"
+  echo "✅ JetBrainsMono Nerd Font installed"
+fi
 
 #################################
 # Optional language runtimes
@@ -62,6 +65,9 @@ fi
 # Doom install + sync
 #################################
 echo "🔥 Installing Doom packages..."
+if ! grep -Fqs "$DOOM_DIR/bin" "$HOME/.zshenv" 2>/dev/null; then
+  echo "path+=$DOOM_DIR/bin" >>"$HOME/.zshenv"
+fi
 "$DOOM_DIR/bin/doom" install
 "$DOOM_DIR/bin/doom" sync
 
