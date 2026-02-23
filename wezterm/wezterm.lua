@@ -8,13 +8,17 @@ config.initial_rows = 28
 config.font_size = 16
 config.color_scheme = 'Bamboo'
 
--- Specify your font and enable ligatures
-config.font = wezterm.font('FiraCode Nerd Font')
--- Alternatively, using font_with_fallback
--- config.font = wezterm.font_with_fallback { 'FiraCode Nerd Font', 'JetBrains Mono' }
+-- HarfBuzz required for OpenType features like slashed zero.
+-- Use only the Fira Code example from WezTerm docs: { 'zero' }.
+config.font_shaper = 'Harfbuzz'
+config.harfbuzz_features = { 'zero' }
 
--- Optional: Fine-tune HarfBuzz features (e.g., enable all standard ligatures)
-config.harfbuzz_features = { 'zero', 'calt=1', 'clig=1', 'liga=1' }
+-- Primary first; fallback used for missing glyphs (e.g. Nerd icons).
+-- If zero still dotted, swap order: put 'JetBrains Mono Nerd Font' first to test.
+config.font = wezterm.font_with_fallback {
+  { family = 'FiraCode Nerd Font', weight = 'Regular' },
+  'JetBrains Mono Nerd Font',
+}
 
 
 return config
