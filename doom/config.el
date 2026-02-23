@@ -7,15 +7,84 @@
 (load "~/.emacs_private.el" t)
 
 ;; Fonts
+(defun tao/font-installed-p (font-name)
+  "Return t if FONT-NAME is installed."
+  (find-font (font-spec :family font-name)))
+
+(defun tao/install-nerd-font ()
+  "Install Fira Code Nerd Font using system package manager."
+  (cond
+   ((executable-find "brew")
+    (start-process "brew-font" "*font-install*"
+                   "brew" "install" "--cask" "font-fira-code-nerd-font"))
+   ((executable-find "apt")
+    (start-process "apt-font" "*font-install*"
+                   "sudo" "apt" "install" "-y" "fonts-firacode"))
+   ((executable-find "pacman")
+    (start-process "pacman-font" "*font-install*"
+                   "sudo" "pacman" "-S" "--noconfirm" "ttf-fira-code"))
+   (t
+    (message "⚠️ No supported package manager found for Nerd Font install"))))
+
+(defun tao/ensure-doom-fonts ()
+  "Ensure Doom-required fonts are installed."
+  (when (display-graphic-p)
+    ;; Main Doom font (Fira Code Nerd Font - must match doom-font and nerd-icons)
+    (unless (tao/font-installed-p "FiraCode Nerd Font")
+      (message "🔤 Installing Fira Code Nerd Font…")
+      (tao/install-nerd-font))
+
+    ;; Icon fonts (nerd-icons for Doom v3)
+    (when (featurep 'nerd-icons)
+      (unless (tao/font-installed-p "FiraCode Nerd Font")
+        (message "🎨 Nerd icons use Fira Code Nerd Font; install it if icons look wrong."))
+      (when (and (require 'nerd-icons nil t)
+                 (fboundp 'nerd-icons-install-fonts)
+                 (not (tao/font-installed-p "Symbols Nerd Font")))
+        (nerd-icons-install-fonts t)))))
+
+(add-hook 'doom-after-init-hook #'tao/ensure-doom-fonts)
+
+;; Set nerd-icons vars *before* nerd-icons is ever used so the default face is valid
+(setq nerd-icons-font-family "FiraCode Nerd Font")
+;; Slightly > 1.0 gives icons room so they don’t clip or look squashed
+(setq nerd-icons-scale-factor 1.15)
+
+;; Load nerd-icons early so nerd-icons-default-face exists before dashboard/modeline run
+(when (display-graphic-p)
+  (require 'nerd-icons nil t))
+
 (setq doom-font (font-spec :family "FiraCode Nerd Font" :size 16 :weight 'medium)
       doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
       doom-big-font (font-spec :family "Fira Sans" :size 24))
+
 (after! doom-themes
   (setq doom-themes-enable-bold t
         doom-themes-enable-italic t))
+
 (custom-set-faces!
   '(font-lock-comment-face :slant italic)
-  '(font-lock-keyword-face :slant italic))
+  '(font-lock-keyword-face :slant italic)
+  ;; Dashboard menu icons use this face; give height and no slant to avoid clipping
+  '(doom-dashboard-menu-title :height 1.2 :slant normal :inherit default))
+
+;; Customize nerd-icons face: no slant, enough height/width to avoid clipping
+(after! nerd-icons
+  (when (facep 'nerd-icons-default-face)
+    (set-face-attribute 'nerd-icons-default-face nil
+                        :family "FiraCode Nerd Font"
+                        :height 1.2
+                        :slant 'normal
+                        :weight 'regular
+                        :width 'normal
+                        :inherit nil)))
+
+;; Dashboard: extra line spacing so icon lines don’t get clipped by the next line
+(after! doom-dashboard
+  (add-hook '+doom-dashboard-mode-hook
+            (defun tao/doom-dashboard-line-spacing ()
+              (setq-local line-spacing 0.35))
+            nil t))
 
 ;; Theme
 (setq doom-theme 'doom-palenight)
