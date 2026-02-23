@@ -4,6 +4,14 @@ set -euo pipefail
 echo "🧠 Bootstrapping system..."
 
 #################################
+# Set defaults on macOS
+#################################
+if command defaults >/dev/null 2>&1; then
+  defaults write com.apple.dock expose-group-apps -bool true && killall Dock
+  defaults write com.apple.spaces spans-displays -bool true && killall SystemUIServer
+fi
+
+#################################
 # Install Homebrew if missing
 #################################
 if ! command -v brew >/dev/null 2>&1; then
@@ -14,17 +22,21 @@ fi
 #################################
 # Install Brewfile deps
 #################################
-echo "🧹 Pre-clean flaky font casks..."
-BROKEN_FONTS=(
-  font-fira-code-nerd-font
-)
-
-for font in "${BROKEN_FONTS[@]}"; do
-  brew uninstall --cask --force "$font" >/dev/null 2>&1 || true
-done
-
 echo "📦 Installing Homebrew packages..."
-brew bundle --file="$PWD/Brewfile"
+brew bundle --file="./Brewfile"
+
+#################################
+# Ensure fonts are registered (macOS)
+#################################
+echo "🔤 Verifying fonts..."
+if system_profiler SPFontsDataType | grep -q "Fira Sans"; then
+  echo "✔︎ Fira Sans already detected"
+elif ls "$HOME/Library/Fonts"/FiraSans*.otf >/dev/null 2>&1; then
+  echo "✔︎ Fira Sans files present; if not visible in apps, open Font Book or log out and back in"
+else
+  echo "⚠️  Fira Sans not installed — installing font..."
+  brew reinstall --cask font-fira-sans
+fi
 
 #################################
 # Clone Doom Emacs
@@ -84,6 +96,33 @@ fi
 
 "$DOOM_BIN/doom" install
 "$DOOM_BIN/doom" sync
+
+#################################
+# Build emacs-libvterm module
+#################################
+VTERM_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
+
+if [ -d "$VTERM_DIR" ]; then
+  echo "🛠️  Building vterm native module..."
+  (
+    unset CC
+    unset CXX
+    cd "$VTERM_DIR" || true
+
+    if [ -f Makefile ]; then
+      make clean || true
+      make || true
+    else
+      mkdir -p build
+      cd build || true
+      cmake .. || true
+      make || true
+    fi
+  )
+  cp ${DOOM_DIR}/.local/straight/repos/emacs-libvterm/vterm-module.so \
+    ${DOOM_DIR}/.local/straight/build-*/vterm/
+  echo "✅ vterm module build step finished"
+fi
 
 #################################
 # Final message
