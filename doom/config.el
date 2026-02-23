@@ -191,7 +191,6 @@ Only works when called from a Dired buffer."
 
 (use-package lsp-mode
   :diminish "LSP"
-  :ensure t
   :hook ((lsp-mode . lsp-diagnostics-mode)
          (lsp-mode . lsp-enable-which-key-integration)
          ((tsx-ts-mode
@@ -252,7 +251,6 @@ Only works when called from a Dired buffer."
   :hook ((lsp-mode . lsp-completion-mode)))
 
 (use-package lsp-ui
-  :ensure t
   :commands
   (lsp-ui-doc-show
    lsp-ui-doc-glance)
