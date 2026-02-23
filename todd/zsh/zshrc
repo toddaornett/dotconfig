@@ -390,5 +390,6 @@ function load_companion_env {
 unsetopt xtrace
 set +x
 
-
 add-zsh-hook chpwd load_companion_env
+
+eval "$(starship init zsh)"
