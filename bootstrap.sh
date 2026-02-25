@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+ZSHENV="$HOME/.zshenv"
 
 echo "🧠 Bootstrapping system..."
 
@@ -84,11 +85,22 @@ if [[ "$answer" =~ ^[Yy]$ ]]; then
 fi
 
 #################################
+# Install mise
+#################################
+if ! command -v mise >/dev/null 2>&1; then
+  echo "🛠️ Installing Mise..."
+  curl https://mise.run | sh
+  if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
+    # shellcheck disable=SC2016
+    echo 'export MISE_TRUSTED_CONFIG_PATHS="$HOME/Projects"' >>"$ZSHENV"
+  fi
+fi
+
+#################################
 # Doom install + sync
 #################################
 echo "🔥 Installing Doom packages..."
 
-ZSHENV="$HOME/.zshenv"
 DOOM_BIN="$DOOM_DIR/bin"
 
 if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
