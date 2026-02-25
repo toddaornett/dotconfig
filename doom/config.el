@@ -49,6 +49,7 @@
 (setq nerd-icons-font-family "FiraCode Nerd Font")
 ;; Slightly > 1.0 gives icons room so they don’t clip or look squashed
 (setq nerd-icons-scale-factor 1.15)
+(setq doom-modeline-vcs-max-length 50)
 
 ;; Load nerd-icons early so nerd-icons-default-face exists before dashboard/modeline run
 (when (display-graphic-p)
@@ -385,6 +386,10 @@ Only works when called from a Dired buffer."
 (after! evil
   (add-hook 'evil-insert-state-entry-hook #'company-mode))
 
+;; Project
+(after! project
+  (add-to-list 'project-vc-extra-root-markers ".git"))
+
 ;; Projectile
 (after! projectile
   (let* ((projects-path "~/Projects")
@@ -397,6 +402,7 @@ Only works when called from a Dired buffer."
         (unless (assoc path projectile-project-search-path)
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
+
 
 ;; Exec-path-from-shell
 (use-package exec-path-from-shell
@@ -622,6 +628,9 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
   (setq ediff-window-setup-function 'ediff-setup-windows-plain)
   (setq ediff-split-window-function 'split-window-vertically)
   (setq magit-ediff-dwim-show-on-hunks t)
+  (setq magit-uniqfy-buffer-names t)
+  (setq magit-save-repository-buffers 'dontask)
+  (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
 
   ;; Disable line numbers in Magit buffers
@@ -674,8 +683,54 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
                                (re-search-forward "^Staged changes" nil t))
                        (goto-char (match-beginning 0))
                        (forward-line 1))))))
+
   (add-hook 'magit-status-mode-hook '+magit-move-to-first-uncommitted-change)
 
+  (defun tao/magit-switch-worktree ()
+    "Switch to another git worktree"
+    (interactive)
+    (let* ((worktrees (magit-list-worktrees))
+           (paths (mapcar #'car worktrees))
+           (choice (completing-read "Worktree: " paths nil t)))
+      (dired choice)))
+  (map! :leader
+        :desc "Switch git worktree"
+        "g w" #'tao/magit-switch-worktree)
+
+  ;; Worktree default: ~/Projects/<project>-worktrees/<flat-branch>
+  ;; Branch names with "/" (e.g. ci/build-changes) become flat dirs (ci-build-changes).
+  (defun tao/magit-worktree-flat-branch-name (branch)
+    "Return a filesystem-safe directory name for BRANCH (slashes → dashes)."
+    (and branch (string-replace "/" "-" branch)))
+
+  (defun tao/magit-worktree-default-dir (branch)
+    "Return <project>-worktrees/<flat-branch> next to the project root.
+Auto-create the parent worktrees directory if missing.
+BRANCH with slashes (e.g. ci/build-changes) is flattened to ci-build-changes."
+    (when-let* ((project (project-current))
+                (root (expand-file-name (project-root project))))
+      (let* ((parent (file-name-directory (directory-file-name root)))
+             (proj (file-name-nondirectory (directory-file-name root)))
+             (base (expand-file-name (concat proj "-worktrees") parent))
+             (flat-name (or (tao/magit-worktree-flat-branch-name branch) "worktree"))
+             (dir (expand-file-name (file-name-as-directory flat-name) base)))
+        (unless (file-directory-p base)
+          (make-directory base t))
+        dir)))
+
+  ;; Magit 4.4+: use custom function so "Create branch and worktree" suggests
+  ;; ~/Projects/Phoenix-worktrees/<flat-branch> instead of ~/Projects/Phoenix_.
+  (defun tao/magit-read-worktree-directory (prompt branch)
+    "Read worktree directory with default <project>-worktrees/<flat-branch>."
+    (let* ((root (magit-toplevel))
+           (parent (file-name-directory (directory-file-name root)))
+           (proj (file-name-nondirectory (directory-file-name root)))
+           (base (expand-file-name (concat proj "-worktrees") parent))
+           (default-name (or (tao/magit-worktree-flat-branch-name branch) "worktree")))
+      (unless (file-directory-p base)
+        (make-directory base t))
+      (read-directory-name prompt base nil nil default-name)))
+  (setq magit-read-worktree-directory-function #'tao/magit-read-worktree-directory)
   ;; Define command to toggle Local Branches section globally
   (defun +magit-toggle-local-branches-section ()
     "Toggle visibility of the Local Branches section from anywhere in status region."
