@@ -633,114 +633,174 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
   (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
 
-  ;; Disable line numbers in Magit buffers
-  (add-hook 'magit-mode-hook (lambda () (display-line-numbers-mode -1)))
+  (add-hook 'magit-mode-hook
+            (lambda ()
+              (display-line-numbers-mode -1)))
 
-  ;; Limit pullreqs globally (still good practice)
-  ;; Remove Forge's default PR section
-  (remove-hook 'magit-status-sections-hook 'forge-insert-pullreqs)
+  (remove-hook 'magit-status-sections-hook #'forge-insert-pullreqs)
 
-  ;; Add custom PR section that shows only open PRs (not merged)
+  (defun +forge-insert-open-prs ()
+    (when (forge-get-repository nil t)
+      (magit-insert-section (forge-pullreqs)
+        (magit-insert-heading "Open Pull Requests")
+        (dolist (pr (forge-sql
+                     [:select [number title state author login]
+                      :from pullreq
+                      :where (and (= repository $s1) (= state "open"))]
+                     (forge-get-repository)))
+          (insert (format "#%s  %s\n"
+                          (aref pr 0)
+                          (aref pr 1)))))))
+
+  (add-hook 'magit-status-sections-hook #'+forge-insert-open-prs)
+
+  (defun +magit-insert-filtered-local-branches ()
+    (let ((branches
+           (seq-filter
+            (lambda (branch)
+              (not (member branch '("main" "master" "develop"))))
+            (magit-list-local-branch-names))))
+      (when branches
+        (magit-insert-section (local-branches)
+          (magit-insert-heading "Local Branches")
+          (dolist (branch branches)
+            (magit-insert-section (branch branch)
+              (insert (format "%s\n" branch))))))))
+
   (add-hook 'magit-status-sections-hook
-            (defun +forge-insert-open-prs ()
-              "Show only open (non-merged) pull requests in Magit status."
-              (when (forge-get-repository nil t)
-                (magit-insert-section (forge-pullreqs)
-                  (magit-insert-heading "Open Pull Requests")
-                  (dolist (pr (forge-sql [:select [number title state author login created updated]
-                                          :from pullreq
-                                          :where (and (= repository $s1) (= state "open"))]
-                                         (forge-get-repository)))
-                    (insert (format "#%s  %s\n" (aref pr 0) (aref pr 1))))))))
-
-  ;; Add custom local branches section, excluding main, master, develop
-  (add-hook 'magit-status-sections-hook
-            (defun +magit-insert-filtered-local-branches ()
-              "Show local branches excluding main, master, and develop in Magit status."
-              (let ((branches (seq-filter (lambda (branch)
-                                            (not (member branch '("main" "master" "develop"))))
-                                          (magit-list-local-branch-names))))
-                (when branches
-                  (magit-insert-section (local-branches)
-                    (magit-insert-heading "Local Branches")
-                    (dolist (branch branches)
-                      (magit-insert-section (branch branch)
-                        (insert (format "%s\n" branch))))))))
+            #'+magit-insert-filtered-local-branches
             20)
 
-  ;; Ensure Local Branches section is collapsed by default
-  (add-to-list 'magit-section-initial-visibility-alist '(local-branches . hide))
+  (add-to-list 'magit-section-initial-visibility-alist
+               '(local-branches . hide))
 
-  ;; Define function to move point to first uncommitted change
   (defun +magit-move-to-first-uncommitted-change ()
-    "Move point to the first uncommitted change in the Magit status buffer."
-    (interactive)
     (when (eq major-mode 'magit-status-mode)
-      (run-at-time 0.1 nil
-                   (lambda ()
-                     (goto-char (point-min))
-                     (when (or (re-search-forward "^Unstaged changes" nil t)
-                               (re-search-forward "^Staged changes" nil t))
-                       (goto-char (match-beginning 0))
-                       (forward-line 1))))))
+      (run-at-time
+       0.1 nil
+       (lambda ()
+         (goto-char (point-min))
+         (when (or (re-search-forward "^Unstaged changes" nil t)
+                   (re-search-forward "^Staged changes" nil t))
+           (goto-char (match-beginning 0))
+           (forward-line 1))))))
 
-  (add-hook 'magit-status-mode-hook '+magit-move-to-first-uncommitted-change)
+  (add-hook 'magit-status-mode-hook
+            #'+magit-move-to-first-uncommitted-change)
 
-  (defun tao/magit-switch-worktree ()
-    "Switch to another git worktree"
-    (interactive)
-    (let* ((worktrees (magit-list-worktrees))
-           (paths (mapcar #'car worktrees))
-           (choice (completing-read "Worktree: " paths nil t)))
-      (dired choice)))
-  (map! :leader
-        :desc "Switch git worktree"
-        "g w" #'tao/magit-switch-worktree)
-
-  ;; Worktree default: ~/Projects/<project>-worktrees/<flat-branch>
-  ;; Branch names with "/" (e.g. ci/build-changes) become flat dirs (ci-build-changes).
   (defun tao/magit-worktree-flat-branch-name (branch)
-    "Return a filesystem-safe directory name for BRANCH (slashes → dashes)."
     (and branch (string-replace "/" "-" branch)))
 
-  (defun tao/magit-worktree-default-dir (branch)
-    "Return <project>-worktrees/<flat-branch> next to the project root.
-Auto-create the parent worktrees directory if missing.
-BRANCH with slashes (e.g. ci/build-changes) is flattened to ci-build-changes."
-    (when-let* ((project (project-current))
-                (root (expand-file-name (project-root project))))
-      (let* ((parent (file-name-directory (directory-file-name root)))
-             (proj (file-name-nondirectory (directory-file-name root)))
-             (base (expand-file-name (concat proj "-worktrees") parent))
-             (flat-name (or (tao/magit-worktree-flat-branch-name branch) "worktree"))
-             (dir (expand-file-name (file-name-as-directory flat-name) base)))
-        (unless (file-directory-p base)
-          (make-directory base t))
-        dir)))
-
-  ;; Magit 4.4+: use custom function so "Create branch and worktree" suggests
-  ;; ~/Projects/Phoenix-worktrees/<flat-branch> instead of ~/Projects/Phoenix_.
   (defun tao/magit-read-worktree-directory (prompt branch)
-    "Read worktree directory with default <project>-worktrees/<flat-branch>."
     (let* ((root (magit-toplevel))
            (parent (file-name-directory (directory-file-name root)))
            (proj (file-name-nondirectory (directory-file-name root)))
            (base (expand-file-name (concat proj "-worktrees") parent))
-           (default-name (or (tao/magit-worktree-flat-branch-name branch) "worktree")))
+           (default-name (or (tao/magit-worktree-flat-branch-name branch)
+                             "worktree")))
       (unless (file-directory-p base)
         (make-directory base t))
       (read-directory-name prompt base nil nil default-name)))
-  (setq magit-read-worktree-directory-function #'tao/magit-read-worktree-directory)
-  ;; Define command to toggle Local Branches section globally
-  (defun +magit-toggle-local-branches-section ()
-    "Toggle visibility of the Local Branches section from anywhere in status region."
+
+  (setq magit-read-worktree-directory-function
+        #'tao/magit-read-worktree-directory)
+
+  (defun +magit-worktree-dirty-p (path)
+    (not (string-empty-p
+          (shell-command-to-string
+           (format "git -C %s status --porcelain"
+                   (shell-quote-argument path))))))
+
+  (defun +magit-worktree-ahead-behind (path)
+    (let* ((cmd (format
+                 "git -C %s rev-list --left-right --count HEAD...@{upstream} 2>/dev/null"
+                 (shell-quote-argument path)))
+           (out (string-trim (shell-command-to-string cmd))))
+      (when (string-match "\\([0-9]+\\)[ \t]+\\([0-9]+\\)" out)
+        (format "↑%s ↓%s"
+                (match-string 1 out)
+                (match-string 2 out)))))
+
+  (defun +magit-insert-worktrees ()
+    (when-let ((worktrees (magit-list-worktrees)))
+      (magit-insert-section (worktrees)
+        (magit-insert-heading "Worktrees")
+        (let ((current (magit-toplevel)))
+          (dolist (wt worktrees)
+            (pcase-let ((`(,path ,branch ,_head ,_locked) wt))
+              (let* ((is-current
+                      (string=
+                       (file-truename path)
+                       (file-truename current)))
+                     (dot (if is-current "●" " "))
+                     (dirty (+magit-worktree-dirty-p path))
+                     (status (if dirty "✗" "✓"))
+                     (status-face (if dirty 'error 'success))
+                     (ahead-behind (+magit-worktree-ahead-behind path))
+                     (branch-name
+                    (if (and branch
+                             (not (string-match-p "^[0-9a-f]\\{7,\\}$" branch)))
+                        branch
+                      "(detached)")))
+                (magit-insert-section (worktree path)
+                  (insert
+                   (format "%s %-40s %-20s %s %s\n"
+                         (propertize dot 'face 'magit-branch-local)
+                         (abbreviate-file-name path)
+                         branch-name
+                         (or ahead-behind "")
+                         (propertize status 'face status-face)))))))))))
+
+  (add-hook 'magit-status-sections-hook
+            #'+magit-insert-worktrees
+            5)
+
+  (add-to-list 'magit-section-initial-visibility-alist
+               '(worktrees . show))
+
+  (defun +magit-visit-worktree ()
+    (when-let* ((section (magit-current-section))
+                (path (oref section value)))
+      (dired path)))
+
+  (define-key magit-status-mode-map
+              (kbd "RET")
+              #'+magit-visit-worktree)
+
+  (defun tao/magit-switch-worktree ()
+    (let* ((worktrees (magit-list-worktrees))
+           (paths (mapcar #'car worktrees))
+           (choice (completing-read "Worktree: " paths nil t)))
+      (dired choice)))
+
+  (defun tao/magit-create-worktree-from-branch ()
     (interactive)
+    (let* ((branch (magit-read-branch "Branch"))
+           (dir (tao/magit-read-worktree-directory
+                 "Worktree directory: "
+                 branch)))
+      (magit-run-git "worktree" "add" dir branch)
+      (magit-refresh)))
+  
+  (map! :leader
+        :desc "Switch git worktree"
+        "g w" #'tao/magit-switch-worktree
+        :desc "Create worktree from branch"
+        "g W" #'tao/magit-create-worktree-from-branch)
+
+  (defun +magit-toggle-local-branches-section ()
     (save-excursion
       (goto-char (point-min))
       (when (re-search-forward "^Local Branches$" nil t)
         (let ((section (magit-current-section)))
           (when (magit-section-p section)
             (magit-section-toggle section)))))))
+
+;; vterm
+(use-package vterm
+  :config
+  (setq vterm-always-compile-module t)
+  (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
 
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
@@ -756,12 +816,6 @@ BRANCH with slashes (e.g. ci/build-changes) is flattened to ci-build-changes."
 
 ;; pg-tools => load from ~/.config/elisp
 (use-package pg-tools)
-
-;; vterm
-(use-package vterm
-  :config
-  (setq vterm-always-compile-module t)
-  (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
