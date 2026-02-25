@@ -419,82 +419,95 @@ Only works when called from a Dired buffer."
           ("DONE" . (:foreground "#708090" :weight bold)))
         org-use-fast-todo-selection t)
 
-  ;; Keybinding for toggling TODO states
-  (map! :map org-mode-map :n "t" #'org-todo)
-
-  ;; Prettify symbols in org-mode
-  (defun tao/org-prettify-symbols ()
-    "Set up prettify symbols for Org buffers."
-    (setq-local prettify-symbols-alist
-                '(("[ ]" . "☐")
-                  ("[X]" . "☑")
-                  ("[-]" . "❍")))
-    (prettify-symbols-mode 1))
-  (add-hook 'org-mode-hook #'tao/org-prettify-symbols)
-
-  ;; Highlight tasks with clock entries
-  (defface org-task-with-clock
-    '((t :foreground "Cyan"))
-    "Face for Org tasks with clock entries.")
-  (defun tao/org-has-clock-entries-p ()
-    "Return non-nil if the current headline has clock entries."
-    (save-excursion
-      (org-back-to-heading t)
-      (let ((end (org-entry-end-position)))
-        (re-search-forward "^[ \t]*CLOCK:" end t))))
-  (defun tao/org-fontify-clock-tasks ()
-    "Fontify Org tasks with clock entries."
-    (save-excursion
-      (goto-char (point-min))
-      (while (re-search-forward org-heading-regexp nil t)
-        (let* ((beg (match-beginning 0))
-               (end (match-end 0))
-               (text-beg (progn
-                           (goto-char beg)
-                           (skip-chars-forward "*[:space:]")
-                           (when (looking-at org-todo-regexp)
-                             (goto-char (match-end 0))
-                             (skip-chars-forward "[:space:]"))
-                           (point))))
-          (when (tao/org-has-clock-entries-p)
-            (add-text-properties text-beg end '(font-lock-face org-task-with-clock)))))))
-  (add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
-  (add-hook 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
-
-  ;; Pomodoro hooks for fontifying clock tasks
-  (defun tao/org-pomodoro-start-or-finished-hook ()
-    "Hook to run when org-pomodoro starts or finishes."
-    (tao/org-fontify-clock-tasks))
-  (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook)
-
-  (defun tao/org-update-last-timestamp ()
-    "Update or insert the #+UPDATED: keyword with the current timestamp in Org mode files,
-placing it after #+CREATED: if it exists, or display the last modified time for other files."
+  ;; helper command: always insert timestamp WITH time
+  (defun my/org-time-stamp-with-time ()
+    "Insert an Org timestamp including time."
     (interactive)
-    (if (buffer-file-name)
-        (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
-          (if (derived-mode-p 'org-mode)
-              (save-excursion
+    (org-time-stamp '(4))) ;; C-u prefix forces time
+
+  ;; Keybinding for toggling TODO states
+  (map! :map org-mode-map
+        ;; keep your original binding
+        :n "t" #'org-todo
+
+        ;; new binding: forced datetime
+        :localleader
+        :desc "Insert timestamp with time"
+        "t" #'my/org-time-stamp-with-time))
+
+;; Prettify symbols in org-mode
+(defun tao/org-prettify-symbols ()
+  "Set up prettify symbols for Org buffers."
+  (setq-local prettify-symbols-alist
+              '(("[ ]" . "☐")
+                ("[X]" . "☑")
+                ("[-]" . "❍")))
+  (prettify-symbols-mode 1))
+(add-hook 'org-mode-hook #'tao/org-prettify-symbols)
+
+;; Highlight tasks with clock entries
+(defface org-task-with-clock
+  '((t :foreground "Cyan"))
+  "Face for Org tasks with clock entries.")
+(defun tao/org-has-clock-entries-p ()
+  "Return non-nil if the current headline has clock entries."
+  (save-excursion
+    (org-back-to-heading t)
+    (let ((end (org-entry-end-position)))
+      (re-search-forward "^[ \t]*CLOCK:" end t))))
+(defun tao/org-fontify-clock-tasks ()
+  "Fontify Org tasks with clock entries."
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward org-heading-regexp nil t)
+      (let* ((beg (match-beginning 0))
+             (end (match-end 0))
+             (text-beg (progn
+                         (goto-char beg)
+                         (skip-chars-forward "*[:space:]")
+                         (when (looking-at org-todo-regexp)
+                           (goto-char (match-end 0))
+                           (skip-chars-forward "[:space:]"))
+                         (point))))
+        (when (tao/org-has-clock-entries-p)
+          (add-text-properties text-beg end '(font-lock-face org-task-with-clock)))))))
+(add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
+(add-hook 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
+
+;; Pomodoro hooks for fontifying clock tasks
+(defun tao/org-pomodoro-start-or-finished-hook ()
+  "Hook to run when org-pomodoro starts or finishes."
+  (tao/org-fontify-clock-tasks))
+(add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
+(add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook)
+
+(defun tao/org-update-last-timestamp ()
+  "Update or insert the #+UPDATED: keyword with the current timestamp in Org mode files,
+placing it after #+CREATED: if it exists, or display the last modified time for other files."
+  (interactive)
+  (if (buffer-file-name)
+      (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
+        (if (derived-mode-p 'org-mode)
+            (save-excursion
+              (goto-char (point-min))
+              (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
+                  (replace-match (concat "#+UPDATED: " timestamp))
+                ;; Check for #+CREATED: and insert after it
                 (goto-char (point-min))
-                (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
-                    (replace-match (concat "#+UPDATED: " timestamp))
-                  ;; Check for #+CREATED: and insert after it
+                (if (re-search-forward "^#\\+CREATED:.*$" nil t)
+                    (progn
+                      (end-of-line)
+                      (insert "\n#+UPDATED: " timestamp))
+                  ;; Fallback: insert after first Org keyword or at start
                   (goto-char (point-min))
-                  (if (re-search-forward "^#\\+CREATED:.*$" nil t)
+                  (if (re-search-forward "^#\\+.*$" nil t)
                       (progn
                         (end-of-line)
                         (insert "\n#+UPDATED: " timestamp))
-                    ;; Fallback: insert after first Org keyword or at start
-                    (goto-char (point-min))
-                    (if (re-search-forward "^#\\+.*$" nil t)
-                        (progn
-                          (end-of-line)
-                          (insert "\n#+UPDATED: " timestamp))
-                      (insert "#+UPDATED: " timestamp "\n")))))
-            (message "Last modified: %s" timestamp)))
-      (message "Buffer is not associated with a file")))
-  (add-hook 'before-save-hook #'tao/org-update-last-timestamp))
+                    (insert "#+UPDATED: " timestamp "\n")))))
+          (message "Last modified: %s" timestamp)))
+    (message "Buffer is not associated with a file")))
+(add-hook 'before-save-hook #'tao/org-update-last-timestamp))
 
 ;; org-superstar
 (use-package org-superstar
