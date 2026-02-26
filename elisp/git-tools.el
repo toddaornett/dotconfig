@@ -22,6 +22,52 @@
 (require 'magit)
 (require 'projectile)
 
+;; Save Emacs' original identity
+(defvar git-tools/original-user-full-name user-full-name)
+(defvar git-tools/original-user-mail-address user-mail-address)
+
+;; Cache: (ROOT . (NAME . EMAIL))
+(defvar git-tools/git-identity-cache (make-hash-table :test #'equal))
+
+(defun git-tools/git-config-value (key)
+  "Return git config value for KEY in current repo, or nil."
+  (when (and (not (file-remote-p default-directory))
+             (locate-dominating-file default-directory ".git"))
+    (let ((default-directory
+           (locate-dominating-file default-directory ".git")))
+      (condition-case nil
+          (car (process-lines "git" "config" "--get" key))
+        (error nil)))))
+
+(defun git-tools/git-identity-for-root (root)
+  "Return (NAME . EMAIL) for git repo ROOT, using cache."
+  (or (gethash root git-tools/git-identity-cache)
+      (let ((name  (git-tools/git-config-value "user.name"))
+            (email (git-tools/git-config-value "user.email")))
+        (let ((pair (cons name email)))
+          (puthash root pair git-tools/git-identity-cache)
+          pair))))
+
+(defun git-tools/set-user-from-git-or-default ()
+  "Set user identity from git config, or fall back to original values."
+  (let ((root (and (not (file-remote-p default-directory))
+                   (locate-dominating-file default-directory ".git"))))
+    (if root
+        (pcase-let ((`(,name . ,email)
+                     (git-tools/git-identity-for-root root)))
+          (setq user-full-name (or name git-tools/original-user-full-name)
+                user-mail-address (or email git-tools/original-user-mail-address)))
+      ;; Not in a repo → restore defaults
+      (setq user-full-name git-tools/original-user-full-name
+            user-mail-address git-tools/original-user-mail-address))))
+
+;; Update when opening files
+(add-hook 'find-file-hook #'git-tools/set-user-from-git-or-default)
+
+(when (featurep 'projectile)
+  (add-hook 'projectile-after-switch-project-hook
+            #'git-tools/set-user-from-git-or-default))
+
 (defun git-tools-main-branch-name (&optional dir)
   "Return the main branch name for the repository in DIR (or current directory).
 Tries several names or falls back to the default branch from git symbolic-ref."
