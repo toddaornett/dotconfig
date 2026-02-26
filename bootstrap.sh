@@ -138,6 +138,30 @@ if [ -d "$VTERM_DIR" ]; then
 fi
 
 #################################
+# Docker configuration for Colima 
+#################################
+echo "️🐳  Configuring Docker..."
+if [ ! -f ~/.docker/config.json ]; then
+  mkdir -p ~/.docker
+  echo "{}" > ~/.docker/config.json
+fi
+NEW_PATH="$(brew --prefix)/lib/docker/cli-plugins" 
+tmp_config=$(mktemp)
+trap 'rm -f "$tmp_config"' EXIT
+if jq --arg path "$NEW_PATH" '
+  .cliPluginsExtraDirs |= (. // []) |
+  if (.cliPluginsExtraDirs | index($path) == null)
+  then .cliPluginsExtraDirs += [$path]
+  else .
+  end
+' ~/.docker/config.json > "$tmp_config"; then
+  mv "$tmp_config" ~/.docker/config.json
+  echo "✅ Docker config updated/verified."
+else 
+  echo "❌ Failed to update Docker config."
+fi
+
+#################################
 # Final message
 #################################
 echo "🎉 Bootstrap complete!"
