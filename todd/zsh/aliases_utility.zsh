@@ -305,6 +305,18 @@ latex2pdf() {
   fi
 }
 
+# On macOS, get the app id (bundle identifier) of a specified running application
+getappid() {
+  local appname="$1"
+
+  if [[ -z "$appname" ]]; then
+    echo "Usage: getappid \"Application Name\"" >&2
+    return 1
+  fi
+
+  osascript -e "id of app \"$appname\""
+}
+
 # Hammerspoon terminal selector
 hsterm () {
   emulate -L zsh
