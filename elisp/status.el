@@ -5,7 +5,7 @@
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: February 27, 2026
 ;; Version: 0.0.1
-;; Keywords: outlines, org, convenience, status, reporting
+;; Keywords: outlines, org, convenience
 ;; Homepage: https://github.com/toddaornett/dotconfig
 ;; Package-Requires: ((emacs "24.4") (org "9.0"))
 
@@ -27,17 +27,17 @@
 The file is expected to contain top-level date headings such as:
 
   * 2026-02-27
-  ** DONE <category>: some task
+  ** DONE CR: some task
 
 The path is expanded using `expand-file-name' before opening."
   :type 'file
   :group 'status)
 
-(defcustom status-category "Emacs"
+(defcustom status-category "CR"
   "Only include tasks whose headline category matches this string.
-For example, with the default value \"<category>\", only tasks like:
+For example, with the default value \"CR\", only tasks like:
 
-  ** DONE Emacs: task description
+  ** DONE CR: task description
 
 will be included in generated status output."
   :type 'string
@@ -62,13 +62,13 @@ Return non-nil if the heading is found."
   (goto-char (point-min))
   (re-search-forward (concat "^\\* " date) nil t))
 
-(defun status--collect-category-tasks (date &optional mark-ongoing)
-  "Collect tasks for DATE matching `status-category'.
+(defun status--collect-category-tasks (date states &optional mark-ongoing)
+  "Collect tasks for DATE whose TODO state is in STATES.
 
 DATE must be a string in YYYY-MM-DD format.
+STATES is a list of strings such as '(\"DONE\" \"DOING\" \"TODO\").
 
-Only tasks whose state is DONE or DOING and whose category matches
-`status-category' are included.
+Only tasks whose category matches `status-category' are included.
 
 If MARK-ONGOING is non-nil, DOING tasks are annotated with \"(ongoing)\".
 
@@ -81,7 +81,8 @@ Return a list of task description strings."
           (org-narrow-to-subtree)
           (goto-char (point-min))
           (while (re-search-forward
-                  (format "^\\*\\* \\(DONE\\|DOING\\) %s: \\(.*\\)$"
+                  (format "^\\*\\* \\(%s\\) %s: \\(.*\\)$"
+                          (regexp-opt states)
                           (regexp-quote status-category))
                   nil t)
             (let* ((state (match-string 1))
@@ -109,18 +110,20 @@ Return a formatted string suitable for insertion into a buffer."
 The report contains two sections:
 
   Yesterday:
-    • completed or ongoing tasks from the previous workday
+    • DONE and DOING tasks from the previous workday
 
   Today:
-    • completed or ongoing tasks from today
+    • TODO and DOING tasks from today
 
 Only tasks matching `status-category' are included.
 DOING tasks from yesterday are marked as \"(ongoing)\"."
   (interactive)
   (let* ((today (status--date-string (current-time)))
          (yesterday (status--date-string (status--previous-workday)))
-         (y-items (status--collect-category-tasks yesterday t))
-         (t-items (status--collect-category-tasks today nil))
+         (y-items (status--collect-category-tasks
+                   yesterday '("DONE" "DOING") t))
+         (t-items (status--collect-category-tasks
+                   today '("TODO" "DOING") nil))
          (output (concat
                   (status--format-section "Yesterday" y-items)
                   "\n"
@@ -153,10 +156,11 @@ current week up to today, filtered by `status-category'."
                        (string<= date end))
               (setq results
                     (append results
-                            (status--collect-category-tasks date nil))))))))
+                            (status--collect-category-tasks
+                             date '("DONE" "DOING") nil))))))))
     (let ((output (concat "Accomplishments:\n"
-                          (mapconcat (lambda (i) (concat "• " i))
-                                     results "\n"))))
+                           (mapconcat (lambda (i) (concat "• " i))
+                                      results "\n"))))
       (insert output))))
 
 (provide 'status)
