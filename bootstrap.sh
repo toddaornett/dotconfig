@@ -11,6 +11,8 @@ if command defaults >/dev/null 2>&1; then
   defaults write com.apple.dock expose-group-apps -bool true && killall Dock
   defaults write com.apple.spaces spans-displays -bool true && killall SystemUIServer
   defaults write com.apple.WindowManager GloballyEnabled -bool false
+  defaults write -g NSWindowShouldDragOnGesture -bool true
+  defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
 fi
 
 #################################
@@ -138,14 +140,14 @@ if [ -d "$VTERM_DIR" ]; then
 fi
 
 #################################
-# Docker configuration for Colima 
+# Docker configuration for Colima
 #################################
 echo "️🐳  Configuring Docker..."
 if [ ! -f ~/.docker/config.json ]; then
   mkdir -p ~/.docker
-  echo "{}" > ~/.docker/config.json
+  echo "{}" >~/.docker/config.json
 fi
-NEW_PATH="$(brew --prefix)/lib/docker/cli-plugins" 
+NEW_PATH="$(brew --prefix)/lib/docker/cli-plugins"
 tmp_config=$(mktemp)
 trap 'rm -f "$tmp_config"' EXIT
 if jq --arg path "$NEW_PATH" '
@@ -154,10 +156,10 @@ if jq --arg path "$NEW_PATH" '
   then .cliPluginsExtraDirs += [$path]
   else .
   end
-' ~/.docker/config.json > "$tmp_config"; then
+' ~/.docker/config.json >"$tmp_config"; then
   mv "$tmp_config" ~/.docker/config.json
   echo "✅ Docker config updated/verified."
-else 
+else
   echo "❌ Failed to update Docker config."
 fi
 
