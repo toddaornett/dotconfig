@@ -821,6 +821,9 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
 ;; pg-tools => load from ~/.config/elisp
 (use-package pg-tools)
 
+;; status => load from ~/.config/elisp
+(use-package status)
+
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
