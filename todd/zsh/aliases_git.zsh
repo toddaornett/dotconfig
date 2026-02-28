@@ -58,10 +58,17 @@ function _git_log_prettily(){
   fi
 }
 
-function git_cleanup_branches {
-  git remote prune origin
-  git fetch --prune
-  git branch --merged $(git_main_branch) | grep -v "^[ *]*$(git_main_branch)$" | grep -v '[ *]*release.*$'| xargs git branch -d
+function git_cleanup_branches() {
+  local main_branch
+  main_branch="$(git_main_branch)"
+
+  git fetch origin --prune
+
+  git branch --merged "$main_branch" \
+    | sed 's/^[* ]*//' \
+    | grep -vFx "$main_branch" \
+    | grep -vE '^release.*$' \
+    | xargs -r git branch -d
 }
 
 function gstA {
