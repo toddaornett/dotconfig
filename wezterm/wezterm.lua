@@ -20,5 +20,13 @@ config.font = wezterm.font_with_fallback {
   'JetBrains Mono Nerd Font',
 }
 
+-- Remap Option + ¥ to \
+config.keys = {
+  {
+    key = 'raw:93', -- '¥'
+    mods = 'OPT',
+    action = wezterm.action.SendString('\\'),
+  },
+}
 
 return config
