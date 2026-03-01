@@ -13,7 +13,6 @@
 ;; Generate Slack-friendly status messages from an Org task buffer.
 
 ;;; Code:
-
 (require 'org)
 (require 'subr-x)
 
@@ -23,54 +22,55 @@
   :prefix "status-")
 
 (defcustom status-org-task-file "~/Notes/tasks.org"
-  "Path to Org file containing daily task logs.
-The file is expected to contain top-level date headings such as:
-
-  * 2026-02-27
-  ** DONE CR: some task
-
-The path is expanded using `expand-file-name' before opening."
+  "Path to Org file containing daily task logs."
   :type 'file
   :group 'status)
 
-(defcustom status-category "CR"
-  "Only include tasks whose headline category matches this string.
-For example, with the default value \"CR\", only tasks like:
+(defcustom status-category-list '("Emacs" "Dev" "Work" "Shell")
+  "List of categories to include in status output.
 
-  ** DONE CR: task description
+Each category should appear in task headings like:
 
-will be included in generated status output."
-  :type 'string
+  ** DONE Emacs: task description"
+  :type '(repeat string)
   :group 'status)
 
 (defun status--date-string (time)
   "Return TIME formatted as a YYYY-MM-DD date string."
   (format-time-string "%Y-%m-%d" time))
 
-(defun status--previous-workday ()
-  "Return the time value of the previous workday.
-If today is Monday, this returns the previous Friday.
-Otherwise, it returns yesterday."
-  (let* ((dow (string-to-number (format-time-string "%u"))) ;; 1 = Monday
-         (days (if (= dow 1) 3 1)))
-    (time-subtract (current-time) (days-to-time days))))
-
 (defun status--find-day-heading (date)
-  "Move point to the Org heading for DATE.
+  "Move point to the Org heading matching DATE.
+
 DATE must be a string in YYYY-MM-DD format.
 Return non-nil if the heading is found."
   (goto-char (point-min))
   (re-search-forward (concat "^\\* " date) nil t))
 
+(defun status--most-recent-date-before (date)
+  "Return the most recent date string in the task file before DATE.
+
+DATE must be in YYYY-MM-DD format.  The returned value is also a
+YYYY-MM-DD string, or nil if no earlier date exists."
+  (let ((file (expand-file-name status-org-task-file))
+        (best nil))
+    (with-current-buffer (find-file-noselect file)
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward "^\\* \\([0-9-]+\\)$" nil t)
+          (let ((d (match-string 1)))
+            (when (and (string< d date)
+                       (or (null best) (string< best d)))
+              (setq best d))))))
+    best))
+
 (defun status--collect-category-tasks (date states &optional mark-ongoing)
-  "Collect tasks for DATE whose TODO state is in STATES.
+  "Collect tasks from DATE matching STATES and `status-category-list'.
 
-DATE must be a string in YYYY-MM-DD format.
-STATES is a list of strings such as '(\"DONE\" \"DOING\" \"TODO\").
-
-Only tasks whose category matches `status-category' are included.
-
-If MARK-ONGOING is non-nil, DOING tasks are annotated with \"(ongoing)\".
+DATE is a YYYY-MM-DD string identifying the day subtree.
+STATES is a list of Org TODO keywords (e.g. \"DONE\", \"DOING\").
+If MARK-ONGOING is non-nil, tasks in the \"DOING\" state are
+annotated with \"(ongoing)\".
 
 Return a list of task description strings."
   (let ((results '())
@@ -81,12 +81,12 @@ Return a list of task description strings."
           (org-narrow-to-subtree)
           (goto-char (point-min))
           (while (re-search-forward
-                  (format "^\\*\\* \\(%s\\) %s: \\(.*\\)$"
+                  (format "^\\*+ +\\(%s\\) +\\(%s\\): +\\(.*\\)$"
                           (regexp-opt states)
-                          (regexp-quote status-category))
+                          (regexp-opt status-category-list))
                   nil t)
             (let* ((state (match-string 1))
-                   (task (string-trim (match-string 2)))
+                   (task (string-trim (match-string 3)))
                    (final (if (and mark-ongoing (string= state "DOING"))
                               (format "%s (ongoing)" task)
                             task)))
@@ -96,30 +96,30 @@ Return a list of task description strings."
 
 (defun status--format-section (title items)
   "Format a status section with TITLE and ITEMS.
-ITEMS must be a list of task description strings.
-Return a formatted string suitable for insertion into a buffer."
-  (when items
-    (concat title ":\n"
-            (mapconcat (lambda (i) (concat "• " i)) items "\n")
-            "\n")))
+
+ITEMS should be a list of strings.  Always return a string.  If
+ITEMS is empty or nil, a placeholder \"(none)\" entry is used."
+  (if (and items (not (null items)))
+      (concat title ":\n"
+              (mapconcat (lambda (i) (concat "• " i)) items "\n")
+              "\n")
+    (concat title ":\n• (none)\n")))
 
 ;;;###autoload
 (defun status-daily ()
-  "Insert a Slack-friendly daily status report into the current buffer.
+  "Generate a daily status report buffer.
 
 The report contains two sections:
+\"Yesterday\" (completed or ongoing tasks from the most recent
+prior date) and \"Today\" (TODO or ongoing tasks from today).
 
-  Yesterday:
-    • DONE and DOING tasks from the previous workday
-
-  Today:
-    • TODO and DOING tasks from today
-
-Only tasks matching `status-category' are included.
-DOING tasks from yesterday are marked as \"(ongoing)\"."
+The output is shown in a new buffer named
+\"Daily Status YYYY-MM-DD\"."
   (interactive)
   (let* ((today (status--date-string (current-time)))
-         (yesterday (status--date-string (status--previous-workday)))
+         (yesterday (or (status--most-recent-date-before today)
+                        today))
+         (buffer-name (format "Daily Status %s" today))
          (y-items (status--collect-category-tasks
                    yesterday '("DONE" "DOING") t))
          (t-items (status--collect-category-tasks
@@ -128,23 +128,30 @@ DOING tasks from yesterday are marked as \"(ongoing)\"."
                   (status--format-section "Yesterday" y-items)
                   "\n"
                   (status--format-section "Today" t-items))))
-    (insert output)))
+    (with-current-buffer (generate-new-buffer buffer-name)
+      (switch-to-buffer (current-buffer))
+      (erase-buffer)
+      (insert output)
+      (goto-char (point-min)))))
 
 (defun status--week-start ()
-  "Return the time value corresponding to the start of the current week.
-The week is assumed to start on Monday."
+  "Return a time value representing the start of the current week.
+
+The week is considered to start on Monday."
   (let ((dow (string-to-number (format-time-string "%u"))))
     (time-subtract (current-time) (days-to-time (1- dow)))))
 
 ;;;###autoload
 (defun status-accomplished-since-week-start ()
-  "Insert a Slack-friendly accomplishments report into the current buffer.
+  "Generate a weekly accomplishments report buffer.
 
-The report includes all DONE and DOING tasks from the start of the
-current week up to today, filtered by `status-category'."
+Collect all completed or ongoing tasks from the beginning of the
+current week up to today.  The output is shown in a new buffer
+named \"Weekly Status YYYY-MM-DD\"."
   (interactive)
   (let* ((start (status--date-string (status--week-start)))
          (end (status--date-string (current-time)))
+         (buffer-name (format "Weekly Status %s" end))
          (file (expand-file-name status-org-task-file))
          (results '()))
     (with-current-buffer (find-file-noselect file)
@@ -158,10 +165,17 @@ current week up to today, filtered by `status-category'."
                     (append results
                             (status--collect-category-tasks
                              date '("DONE" "DOING") nil))))))))
-    (let ((output (concat "Accomplishments:\n"
-                           (mapconcat (lambda (i) (concat "• " i))
-                                      results "\n"))))
-      (insert output))))
+    (let ((output
+           (if results
+               (concat "Accomplishments:\n"
+                       (mapconcat (lambda (i) (concat "• " i))
+                                  results "\n"))
+             "Accomplishments:\n• (none)\n")))
+      (with-current-buffer (generate-new-buffer buffer-name)
+        (switch-to-buffer (current-buffer))
+        (erase-buffer)
+        (insert output)
+        (goto-char (point-min))))))
 
 (provide 'status)
 ;;; status.el ends here
