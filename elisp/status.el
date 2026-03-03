@@ -24,22 +24,21 @@
 (defcustom status-org-task-file "~/Notes/tasks.org"
   "Path to the Org file containing dated task logs.
 
-The file is expected to contain top-level headings in this form:
+The file is expected to contain headings whose title is a date in
+YYYY-MM-DD format, at any heading level, for example:
 
-  * YYYY-MM-DD
+  * Projects
+  ** 2026-03-01
+  *** DONE Emacs: refactor status.el
+  *** DOING Dev: weekly report
 
-with task entries beneath them such as:
-
-  ** DONE Emacs: some task"
+Tasks must be Org TODO headings located anywhere under the date
+heading.  Heading level does not matter."
   :type 'file
   :group 'status)
 
 (defcustom status-category-list '("Emacs" "Dev" "Work" "Shell")
-  "List of task categories to include in status output.
-
-Each category should appear in task headings like:
-
-  ** DONE Emacs: task description"
+  "List of task categories to include in status output."
   :type '(repeat string)
   :group 'status)
 
@@ -47,72 +46,73 @@ Each category should appear in task headings like:
   "Return TIME formatted as a YYYY-MM-DD date string."
   (format-time-string "%Y-%m-%d" time))
 
-(defun status--find-day-heading (date)
-  "Move point to the Org heading for DATE.
-
-DATE must be a string in YYYY-MM-DD format.
-
-Return non-nil if the heading is found."
+(defun status--goto-date-heading (date)
+  "Move point to the Org heading whose title is DATE.
+Return non-nil if found."
   (goto-char (point-min))
-  (re-search-forward (concat "^\\* " date) nil t))
+  (let ((re (format org-complex-heading-regexp-format
+                    (regexp-quote date))))
+    (re-search-forward re nil t)))
+
+(defun status--all-date-headings ()
+  "Return a list of all date heading strings in the buffer."
+  (let (dates)
+    (org-map-entries
+     (lambda ()
+       (let ((h (org-get-heading t t t t)))
+         (when (string-match-p
+                "^[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}$" h)
+           (push h dates)))))
+    dates))
 
 (defun status--most-recent-date-before (date)
-  "Return the most recent date string in the task file before DATE.
-
-DATE must be in YYYY-MM-DD format.
-
-If no earlier date exists, return nil."
-  (let ((file (expand-file-name status-org-task-file))
+  "Return the most recent date string before DATE."
+  (let ((dates (status--all-date-headings))
         (best nil))
-    (with-current-buffer (find-file-noselect file)
-      (save-excursion
-        (goto-char (point-min))
-        (while (re-search-forward "^\\* \\([0-9-]+\\)$" nil t)
-          (let ((d (match-string 1)))
-            (when (and (string< d date)
-                       (or (null best) (string< best d)))
-              (setq best d))))))
+    (dolist (d dates)
+      (when (and (string< d date)
+                 (or (null best) (string< best d)))
+        (setq best d)))
     best))
 
 (defun status--collect-category-tasks (date states &optional mark-ongoing)
   "Collect tasks for DATE whose TODO state is in STATES.
-
-DATE must be a string in YYYY-MM-DD format.
-STATES is a list of strings such as '(\"DONE\" \"DOING\" \"TODO\").
-
-Only tasks whose category matches `status-category-list' are included.
-
-If MARK-ONGOING is non-nil, DOING tasks are annotated with \"(ongoing)\".
-
-Return a list of task description strings."
-  (let ((results '())
-        (file (expand-file-name status-org-task-file)))
-    (with-current-buffer (find-file-noselect file)
-      (save-excursion
-        (when (status--find-day-heading date)
-          (org-narrow-to-subtree)
-          (goto-char (point-min))
-          (while (re-search-forward
-                  (format "^\\*+ +\\(%s\\) +\\(%s\\): +\\(.*\\)$"
-                          (regexp-opt states)
-                          (regexp-opt status-category-list))
-                  nil t)
-            (let* ((state (match-string 1))
-                   (task (string-trim (match-string 3)))
-                   (final (if (and mark-ongoing (string= state "DOING"))
-                              (format "%s (ongoing)" task)
-                            task)))
-              (push final results)))
-          (widen))))
+If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"
+and BLOCKED tasks with \"(blocked)\"."
+  (let (results)
+    (with-current-buffer (find-file-noselect status-org-task-file)
+      (org-with-wide-buffer
+       (unless (derived-mode-p 'org-mode)
+         (org-mode))
+       (save-excursion
+         (when (status--goto-date-heading date)
+           (org-narrow-to-subtree)
+           (org-map-entries
+            (lambda ()
+              (let* ((state (org-get-todo-state))
+                     (title (org-get-heading t t t t)))
+                (when (and state
+                           (member state states)
+                           (string-match
+                            (format "^\\(%s\\):[ \t]+\\(.*\\)$"
+                                    (regexp-opt status-category-list))
+                            title))
+                  (let* ((task (match-string 2 title))
+                         (final
+                          (cond
+                           ((and mark-ongoing (string= state "DOING"))
+                            (format "%s (ongoing)" task))
+                           ((string= state "BLOCKED")
+                            (format "%s (blocked)" task))
+                           (t task))))
+                    (push final results)))))
+            nil 'tree)
+           (widen)))))
     (nreverse results)))
 
 (defun status--format-section (title items)
-  "Format a status section titled TITLE from ITEMS.
-
-ITEMS must be a list of task description strings.
-
-Always return a string, inserting \"(none)\" if ITEMS is empty."
-  (if (and items (not (null items)))
+  "Format a status section titled TITLE from ITEMS."
+  (if items
       (concat title ":\n"
               (mapconcat (lambda (i) (concat "• " i)) items "\n")
               "\n")
@@ -120,28 +120,21 @@ Always return a string, inserting \"(none)\" if ITEMS is empty."
 
 ;;;###autoload
 (defun status-daily ()
-  "Generate a daily status report in a new buffer.
-
-The buffer is named \"Daily Status YYYY-MM-DD\".
-
-The report contains two sections:
-
-  Yesterday:
-    • DONE and DOING tasks from the most recent prior date
-
-  Today:
-    • TODO and DOING tasks from today
-
-Only tasks matching `status-category-list' are included."
+  "Generate a daily status report in a new buffer."
   (interactive)
   (let* ((today (status--date-string (current-time)))
-         (yesterday (or (status--most-recent-date-before today)
+         (yesterday (or (with-current-buffer (find-file-noselect status-org-task-file)
+                          (org-with-wide-buffer
+                           (unless (derived-mode-p 'org-mode)
+                             (org-mode))
+                           (status--most-recent-date-before today)))
                         today))
          (buffer-name (format "Daily Status %s" today))
+         ;; INCLUDE BLOCKED
          (y-items (status--collect-category-tasks
-                   yesterday '("DONE" "DOING") t))
+                   yesterday '("DONE" "DOING" "BLOCKED") t))
          (t-items (status--collect-category-tasks
-                   today '("TODO" "DOING") nil))
+                   today '("TODO" "DONE" "DOING" "BLOCKED") nil))
          (output (concat
                   (status--format-section "Yesterday" y-items)
                   "\n"
@@ -152,55 +145,38 @@ Only tasks matching `status-category-list' are included."
       (insert output)
       (goto-char (point-min)))))
 
-(defun status--week-start ()
-  "Return the time value corresponding to the start of the current week.
-
-The week is assumed to start on Monday."
-  (let ((dow (string-to-number (format-time-string "%u"))))
-    (time-subtract (current-time) (days-to-time (1- dow)))))
-
 (defun status--week-range ()
   "Return a cons cell (START . END) for the reporting week.
-
-If today is Monday, the range is the previous Sunday through
-previous Saturday. Otherwise, the range is from this week's
-Sunday through today."
-  (let* ((dow (string-to-number (format-time-string "%u"))) ;; 1=Mon … 7=Sun
+Week starts on Sunday."
+  (let* ((dow (string-to-number (format-time-string "%u")))
          (today (current-time)))
     (if (= dow 1)
-        ;; Monday → last week's Sunday..Saturday
-        (cons (time-subtract today (days-to-time 6)) ; Sunday
-              (time-subtract today (days-to-time 2))) ; Saturday
-      ;; Other days → this Sunday..today
+        (cons (time-subtract today (days-to-time 6))
+              (time-subtract today (days-to-time 2)))
       (cons (time-subtract today (days-to-time (- dow 1)))
             today))))
 
 ;;;###autoload
 (defun status-accomplished-since-week-start ()
-  "Generate a weekly accomplishments report in a new buffer.
-
-The buffer is named \"Weekly Status YYYY-MM-DD\".
-
-The report includes all DONE and DOING tasks from the start of
-the current week up to today, filtered by `status-category-list'."
+  "Generate a weekly accomplishments report in a new buffer."
   (interactive)
   (let* ((range (status--week-range))
          (start (status--date-string (car range)))
          (end (status--date-string (cdr range)))
          (buffer-name (format "Weekly Status %s" end))
-         (file (expand-file-name status-org-task-file))
          (results '()))
-    (with-current-buffer (find-file-noselect file)
-      (save-excursion
-        (goto-char (point-min))
-        (while (re-search-forward "^\\* \\([0-9-]+\\)$" nil t)
-          (let ((date (match-string 1)))
-            (when (and (not (string< date start))
-                       (not (string< end date)))
-              (setq results
-                    (append results
-                            (status--collect-category-tasks
-                             date '("DONE" "DOING") nil))))))))
+    (with-current-buffer (find-file-noselect status-org-task-file)
+      (org-with-wide-buffer
+       (unless (derived-mode-p 'org-mode)
+         (org-mode))
+       (save-excursion
+         (dolist (date (status--all-date-headings))
+           (when (and (not (string< date start))
+                      (not (string< end date)))
+             (setq results
+                   (append results
+                           (status--collect-category-tasks
+                            date '("DONE" "DOING" "BLOCKED") nil))))))))
     (let ((output
            (if results
                (concat "Accomplishments:\n"
