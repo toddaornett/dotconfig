@@ -38,11 +38,7 @@ heading.  Heading level does not matter."
   :group 'status)
 
 (defcustom status-category-list '("Emacs" "Dev" "Work" "Shell")
-  "List of task categories to include in status output.
-
-Each category should appear in task headings like:
-
-  ** DONE Emacs: task description"
+  "List of task categories to include in status output."
   :type '(repeat string)
   :group 'status)
 
@@ -81,7 +77,8 @@ Return non-nil if found."
 
 (defun status--collect-category-tasks (date states &optional mark-ongoing)
   "Collect tasks for DATE whose TODO state is in STATES.
-If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"."
+If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"
+and BLOCKED tasks with \"(blocked)\"."
   (let (results)
     (with-current-buffer (find-file-noselect status-org-task-file)
       (org-with-wide-buffer
@@ -101,10 +98,13 @@ If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"."
                                     (regexp-opt status-category-list))
                             title))
                   (let* ((task (match-string 2 title))
-                         (final (if (and mark-ongoing
-                                         (string= state "DOING"))
-                                    (format "%s (ongoing)" task)
-                                  task)))
+                         (final
+                          (cond
+                           ((and mark-ongoing (string= state "DOING"))
+                            (format "%s (ongoing)" task))
+                           ((string= state "BLOCKED")
+                            (format "%s (blocked)" task))
+                           (t task))))
                     (push final results)))))
             nil 'tree)
            (widen)))))
@@ -130,10 +130,11 @@ If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"."
                            (status--most-recent-date-before today)))
                         today))
          (buffer-name (format "Daily Status %s" today))
+         ;; INCLUDE BLOCKED
          (y-items (status--collect-category-tasks
-                   yesterday '("DONE" "DOING") t))
+                   yesterday '("DONE" "DOING" "BLOCKED") t))
          (t-items (status--collect-category-tasks
-                   today '("TODO" "DONE" "DOING") nil))
+                   today '("TODO" "DONE" "DOING" "BLOCKED") nil))
          (output (concat
                   (status--format-section "Yesterday" y-items)
                   "\n"
@@ -147,13 +148,11 @@ If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"."
 (defun status--week-range ()
   "Return a cons cell (START . END) for the reporting week.
 Week starts on Sunday."
-  (let* ((dow (string-to-number (format-time-string "%u"))) ;; 1=Mon … 7=Sun
+  (let* ((dow (string-to-number (format-time-string "%u")))
          (today (current-time)))
     (if (= dow 1)
-        ;; Monday → last week's Sunday..Saturday
         (cons (time-subtract today (days-to-time 6))
               (time-subtract today (days-to-time 2)))
-      ;; Other days → this Sunday..today
       (cons (time-subtract today (days-to-time (- dow 1)))
             today))))
 
@@ -177,7 +176,7 @@ Week starts on Sunday."
              (setq results
                    (append results
                            (status--collect-category-tasks
-                            date '("DONE" "DOING") nil))))))))
+                            date '("DONE" "DOING" "BLOCKED") nil))))))))
     (let ((output
            (if results
                (concat "Accomplishments:\n"
