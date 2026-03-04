@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
 ZSHENV="$HOME/.zshenv"
 
 echo "🧠 Bootstrapping system..."
@@ -8,11 +9,11 @@ echo "🧠 Bootstrapping system..."
 # Set defaults on macOS
 #################################
 if command defaults >/dev/null 2>&1; then
-  defaults write com.apple.dock expose-group-apps -bool true && killall Dock
-  defaults write com.apple.spaces spans-displays -bool true && killall SystemUIServer
-  defaults write com.apple.WindowManager GloballyEnabled -bool false
-  defaults write -g NSWindowShouldDragOnGesture -bool true
-  defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
+  defaults write com.apple.dock expose-group-apps -bool true && killall Dock || true
+  defaults write com.apple.spaces spans-displays -bool true && killall SystemUIServer || true
+  defaults write com.apple.WindowManager GloballyEnabled -bool false || true
+  defaults write -g NSWindowShouldDragOnGesture -bool true || true
+  defaults write -g NSAutomaticWindowAnimationsEnabled -bool false || true
 fi
 
 #################################
@@ -24,10 +25,51 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 #################################
+# Detect Homebrew prefix (ARM / Intel safe)
+#################################
+BREW_PREFIX="$(brew --prefix)"
+echo "🍺 Homebrew prefix: $BREW_PREFIX"
+
+#################################
 # Install Brewfile deps
 #################################
 echo "📦 Installing Homebrew packages..."
 brew bundle --file="./Brewfile"
+
+#################################
+# Ensure Homebrew bin is first in PATH
+#################################
+echo "🛣️  Ensuring Homebrew is first in PATH..."
+if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
+  echo "export PATH=\"$BREW_PREFIX/bin:\$PATH\"" >>"$ZSHENV"
+fi
+
+#################################
+# Verify correct Emacs is used
+#################################
+echo "🧪 Verifying Emacs path..."
+if ! command -v emacs >/dev/null 2>&1; then
+  echo "❌ emacs not found in PATH"
+  exit 1
+fi
+
+EMACS_BIN="$(command -v emacs)"
+echo "➡ using emacs at: $EMACS_BIN"
+
+if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
+  echo "❌ Wrong Emacs (system stub). Homebrew Emacs is not first in PATH."
+  echo "   Check your shell init files (.zshenv, .zprofile, .zshrc)."
+  exit 1
+fi
+
+# Link Emacs.app into /Applications if missing
+EMACS_APP_SRC="$(brew --prefix emacs-plus@30)/Emacs.app"
+EMACS_APP_DST="/Applications/Emacs.app"
+
+if [ -d "$EMACS_APP_SRC" ] && [ ! -e "$EMACS_APP_DST" ]; then
+  echo "📎 Linking Emacs.app into /Applications..."
+  ln -s "$EMACS_APP_SRC" "$EMACS_APP_DST"
+fi
 
 #################################
 # Ensure fonts are registered (macOS)
@@ -38,8 +80,28 @@ if system_profiler SPFontsDataType | grep -q "Fira Sans"; then
 elif ls "$HOME/Library/Fonts"/FiraSans*.otf >/dev/null 2>&1; then
   echo "✔︎ Fira Sans files present; if not visible in apps, open Font Book or log out and back in"
 else
-  echo "⚠️  Fira Sans not installed — installing font..."
+  echo "⚠️  Fira Sans not installed — reinstalling..."
   brew reinstall --cask font-fira-sans
+fi
+
+#################################
+# Install Symbola font for Doom Emacs
+# (special step since removed from Homebrew)
+#################################
+echo "🔤 Ensuring Symbola font is installed (for Doom doctor)..."
+
+SYMBOLA_URL="https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.ttf"
+FONT_DIR="$HOME/Library/Fonts"
+SYMBOLA_PATH="$FONT_DIR/Symbola.ttf"
+
+mkdir -p "$FONT_DIR"
+
+if [ ! -f "$SYMBOLA_PATH" ]; then
+  echo "⬇️  Downloading Symbola.ttf..."
+  curl -L "$SYMBOLA_URL" -o "$SYMBOLA_PATH"
+  echo "✅ Symbola font installed (logout required to activate)"
+else
+  echo "✅ Symbola font already installed"
 fi
 
 #################################
@@ -93,7 +155,6 @@ if ! command -v mise >/dev/null 2>&1; then
   echo "🛠️ Installing Mise..."
   curl https://mise.run | sh
   if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
-    # shellcheck disable=SC2016
     echo 'export MISE_TRUSTED_CONFIG_PATHS="$HOME/Projects"' >>"$ZSHENV"
   fi
 fi
@@ -134,22 +195,28 @@ if [ -d "$VTERM_DIR" ]; then
       make || true
     fi
   )
+
   cp ${DOOM_DIR}/.local/straight/repos/emacs-libvterm/vterm-module.so \
-    ${DOOM_DIR}/.local/straight/build-*/vterm/
+    ${DOOM_DIR}/.local/straight/build-*/vterm/ || true
+
   echo "✅ vterm module build step finished"
 fi
 
 #################################
 # Docker configuration for Colima
 #################################
-echo "️🐳  Configuring Docker..."
+echo "🐳 Configuring Docker..."
+
 if [ ! -f ~/.docker/config.json ]; then
   mkdir -p ~/.docker
   echo "{}" >~/.docker/config.json
 fi
-NEW_PATH="$(brew --prefix)/lib/docker/cli-plugins"
+
+NEW_PATH="$BREW_PREFIX/lib/docker/cli-plugins"
+
 tmp_config=$(mktemp)
 trap 'rm -f "$tmp_config"' EXIT
+
 if jq --arg path "$NEW_PATH" '
   .cliPluginsExtraDirs |= (. // []) |
   if (.cliPluginsExtraDirs | index($path) == null)
@@ -167,3 +234,7 @@ fi
 # Final message
 #################################
 echo "🎉 Bootstrap complete!"
+echo "➡ Restart your shell, then for emacs verification run:"
+echo "   which emacs"
+echo "   emacs --version"
+echo "   (native-comp-available-p) ;; M-: inside emacs"
