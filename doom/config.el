@@ -824,6 +824,17 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
 ;; status => load from ~/.config/elisp
 (use-package status)
 
+;; ws-butler => load from ~/.config/elisp
+(use-package! ws-butler
+  :config
+  ;; Enable in programming and text buffers
+  (add-hook 'prog-mode-hook #'ws-butler-mode)
+  (add-hook 'text-mode-hook #'ws-butler-mode)
+
+  ;; Disable in modes where whitespace is meaningful
+  (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
+  (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
+
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
