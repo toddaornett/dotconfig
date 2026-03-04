@@ -403,7 +403,6 @@ Only works when called from a Dired buffer."
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
-
 ;; Exec-path-from-shell
 (use-package exec-path-from-shell
   :init
@@ -415,7 +414,13 @@ Only works when called from a Dired buffer."
 ;; Org
 (after! org
   ;; Set custom TODO keywords and faces
-  (setq org-todo-keywords '((sequence "TODO" "DOING" "REVIEW" "BLOCKED" "|" "DONE"))
+  (setq org-todo-keywords
+        '((sequence
+           "TODO(t)"
+           "DOING(p)"
+           "REVIEW(r)"
+           "BLOCKED(b)"
+           "|" "DONE(d)" "CANCELED(c)"))
         org-log-done 'time
         org-todo-keyword-faces
         '(("TODO" . (:foreground "#008080" :weight bold))
@@ -423,7 +428,7 @@ Only works when called from a Dired buffer."
           ("BLOCKED" . (:foreground "#ff0000" :weight bold))
           ("REVIEW" . (:foreground "#00ffff" :weight bold))
           ("DONE" . (:foreground "#708090" :weight bold)))
-        org-use-fast-todo-selection t)
+        org-use-fast-todo-selection 'expert)
 
   ;; helper command: always insert timestamp WITH time
   (defun my/org-time-stamp-with-time ()
@@ -453,7 +458,8 @@ Only works when called from a Dired buffer."
 
   ;; Highlight tasks with clock entries
   (defface org-task-with-clock
-    '((t :foreground "Cyan"))
+    '((t :foreground "Cyan")
+      :group 'org)
     "Face for Org tasks with clock entries.")
   (defun tao/org-has-clock-entries-p ()
     "Return non-nil if the current headline has clock entries."
