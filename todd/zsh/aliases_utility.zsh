@@ -120,20 +120,70 @@ function dbt {
   echo "Using $(env | grep DB | grep NAME | head -1)"
 }
 
+function cpmd {
+  # Check for -D flag
+  local create_dir_flag=0
+  local args=()
+  local srcs=()
+  local dest=""
+
+  # Parse arguments manually to detect -D and separate cp args
+  while (( "$#" )); do
+    case "$1" in
+      -D)
+        create_dir_flag=1
+        shift
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  # At least two arguments (source(s) and destination) required after removing -D
+  if [ "${#args[@]}" -lt 2 ]; then
+    echo "Usage: cpmd [-D] [cp options] <source(s)> <destination>"
+    echo "  -D : treat destination as directory to create if missing"
+    return 1
+  fi
+
+  # Last argument is destination
+  dest="${args[-1]}"
+  # All but last are sources
+  srcs=("${args[@]:0:${#args[@]}-1}")
+
+  if [ "$create_dir_flag" -eq 1 ]; then
+    # Create destination directory if it doesn't exist
+    if [ ! -d "$dest" ]; then
+      mkdir -p "$dest"
+    fi
+
+    # Copy each source into the destination directory
+    for src in "${srcs[@]}"; do
+      cp "${args[@]:0:${#args[@]}-1}" "$src" "$dest/"
+    done
+  else
+    # Normal mode: create parent directory of destination file if needed
+    local dest_dir
+    dest_dir=$(dirname "$dest")
+    if [ ! -d "$dest_dir" ]; then
+      mkdir -p "$dest_dir"
+    fi
+
+    # Pass all args to cp
+    cp "${args[@]}"
+  fi
+}
+
 # save git project unstaged working files
 function wips {
   local dest="${HOME}/wip/$(basename $(pwd))"
   mkdir -p "$dest"
-  local copy
-  if command -v -- gcp >/dev/null 2>&1; then
-    copy=gcp
-  else
-    copy=cp
-  fi
   local files=($(git status -s | cut -c 4- | xargs))
   local f
   for f in $files; do
-    $copy --parents -r "$f" "$dest"
+    cpmd -r "$f" "$dest"
   done
 }
 
