@@ -77,3 +77,5 @@
 (package! vue-mode)
 
 (package! npm)
+
+(package! ws-butler)
