@@ -7,9 +7,11 @@
 (load "~/.emacs_private.el" t)
 
 ;; Fonts
-(defun tao/font-installed-p (font-name)
-  "Return t if FONT-NAME is installed."
-  (find-font (font-spec :family font-name)))
+;; Unicode fallback fonts (modern replacement for Symbola)
+(when (display-graphic-p)
+  (dolist (font '("Noto Emoji" "Noto Sans Symbols 2"))
+    (when (member font (font-family-list))
+      (set-fontset-font t 'symbol (font-spec :family font) nil 'append))))
 
 (defun tao/install-nerd-font ()
   "Install Fira Code Nerd Font using system package manager."
@@ -25,6 +27,10 @@
                    "sudo" "pacman" "-S" "--noconfirm" "ttf-fira-code"))
    (t
     (message "⚠️ No supported package manager found for Nerd Font install"))))
+
+(defun tao/font-installed-p (font-name)
+  "Return t if FONT-NAME is installed."
+  (find-font (font-spec :family font-name)))
 
 (defun tao/ensure-doom-fonts ()
   "Ensure Doom-required fonts are installed."
@@ -44,6 +50,8 @@
         (nerd-icons-install-fonts t)))))
 
 (add-hook 'doom-after-init-hook #'tao/ensure-doom-fonts)
+
+(setq doom-symbol-font (font-spec :family "Symbols Nerd Font Mono"))
 
 ;; Set nerd-icons vars *before* nerd-icons is ever used so the default face is valid
 (setq nerd-icons-font-family "FiraCode Nerd Font")

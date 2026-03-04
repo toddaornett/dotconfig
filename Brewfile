@@ -1,8 +1,14 @@
+tap "d12frosted/emacs-plus"
+
 cask "font-fira-code-nerd-font"
 cask "font-fira-sans"
-cask "emacs-app"
+cask "font-noto-emoji"
+cask "font-noto-sans-symbols-2"
+
 cask "wezterm"
 cask "nikitabobko/tap/aerospace"
+
+brew "emacs-plus@30"
 brew "git"
 brew "ripgrep"
 brew "fd"
