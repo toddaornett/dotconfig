@@ -33,6 +33,11 @@ echo "🍺 Homebrew prefix: $BREW_PREFIX"
 #################################
 # Install Brewfile deps
 #################################
+# Ensure emacs-plus tap is available (required for emacs-plus@30)
+echo "📌 Ensuring d12frosted/emacs-plus tap..."
+brew tap d12frosted/emacs-plus 2>/dev/null || true
+echo "🔄 Updating Homebrew..."
+brew update
 echo "📦 Installing Homebrew packages..."
 brew bundle --file="./Brewfile"
 
@@ -62,11 +67,12 @@ if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
   exit 1
 fi
 
-# Link Emacs.app into /Applications if missing
-EMACS_APP_SRC="$(brew --prefix emacs-plus@30)/Emacs.app"
+# Link Emacs.app into /Applications if missing (use full formula path for tap)
+EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/emacs-plus@30 2>/dev/null || brew --prefix emacs-plus@30 2>/dev/null)"
+EMACS_APP_SRC="${EMACS_PREFIX}/Emacs.app"
 EMACS_APP_DST="/Applications/Emacs.app"
 
-if [ -d "$EMACS_APP_SRC" ] && [ ! -e "$EMACS_APP_DST" ]; then
+if [ -n "$EMACS_PREFIX" ] && [ -d "$EMACS_APP_SRC" ] && [ ! -e "$EMACS_APP_DST" ]; then
   echo "📎 Linking Emacs.app into /Applications..."
   ln -s "$EMACS_APP_SRC" "$EMACS_APP_DST"
 fi
