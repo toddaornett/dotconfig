@@ -2,13 +2,15 @@ tap "d12frosted/emacs-plus"
 
 cask "font-fira-code-nerd-font"
 cask "font-fira-sans"
-cask "font-noto-emoji"
+# font-noto-emoji was renamed to font-noto-color-emoji in Homebrew
+cask "font-noto-color-emoji"
 cask "font-noto-sans-symbols-2"
 
 cask "wezterm"
 cask "nikitabobko/tap/aerospace"
 
-brew "emacs-plus@30"
+# Use full tap path so bundle finds formula even before tap is fully updated
+brew "d12frosted/emacs-plus/emacs-plus@30"
 brew "git"
 brew "ripgrep"
 brew "fd"
