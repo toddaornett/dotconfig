@@ -436,7 +436,7 @@ Only works when called from a Dired buffer."
           ("BLOCKED" . (:foreground "#ff0000" :weight bold))
           ("REVIEW" . (:foreground "#00ffff" :weight bold))
           ("DONE" . (:foreground "#708090" :weight bold)))
-        org-use-fast-todo-selection 'expert)
+        org-use-fast-todo-selection 'auto)
 
   ;; helper command: always insert timestamp WITH time
   (defun my/org-time-stamp-with-time ()
@@ -444,15 +444,13 @@ Only works when called from a Dired buffer."
     (interactive)
     (org-time-stamp '(4))) ;; C-u prefix forces time
 
-  ;; Keybinding for toggling TODO states
+  ;; Keybindings for org-mode
+  ;; SPC m t  => cycle/set TODO state (expert fast-selection menu)
+  ;; SPC m T  => insert timestamp with time
   (map! :map org-mode-map
-        ;; keep your original binding
-        :n "t" #'org-todo
-
-        ;; new binding: forced datetime
         :localleader
-        :desc "Insert timestamp with time"
-        "t" #'my/org-time-stamp-with-time)
+        :desc "Set TODO state" "t" #'org-todo
+        :desc "Insert timestamp with time" "T" #'my/org-time-stamp-with-time)
 
   ;; Prettify symbols in org-mode
   (defun tao/org-prettify-symbols ()
