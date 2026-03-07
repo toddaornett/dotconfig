@@ -78,7 +78,7 @@ heading.  Heading level does not matter."
     (cadr tail)))
 
 (defun status--goto-date-heading (date)
-  "Move point to the Org heading whose title contains DATE.
+  "Move point to the Org heading with title containing DATE.
 Return non-nil if found."
   (goto-char (point-min))
   (re-search-forward
@@ -88,9 +88,9 @@ Return non-nil if found."
 
 (defun status--collect-category-tasks (date states &optional mark-ongoing)
   "Collect tasks for DATE whose TODO state is in STATES.
-If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"
-, REVIEW tasks with \"(in review)\"
-, and BLOCKED tasks with \"(blocked)\"."
+If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\",
+REVIEW tasks with \"(in review)\", and BLOCKED tasks with the text
+before the first colon in the heading (or \"(blocked)\" if absent)."
   (let (results)
     (with-current-buffer (find-file-noselect status-org-task-file)
       (org-with-wide-buffer
@@ -107,10 +107,11 @@ If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"
                 (when (and state
                            (member state states)
                            (string-match
-                            (format "^\\(%s\\):[ \t]+\\(.*\\)$"
+                            (format "^\\(.*?\\)\\(%s\\):[ \t]+\\(.*\\)$"
                                     (regexp-opt status-category-list))
                             title))
-                  (let* ((task (match-string 2 title))
+                  (let* ((task (match-string 3 title))
+                         (prefix (string-trim (match-string 1 title) nil "[:,\s]+"))
                          (final
                           (cond
                            ((and mark-ongoing (string= state "DOING"))
@@ -118,7 +119,9 @@ If MARK-ONGOING is non-nil, annotate DOING tasks with \"(ongoing)\"
                            ((string= state "REVIEW")
                             (format "%s (in review)" task))
                            ((string= state "BLOCKED")
-                            (format "%s (blocked)" task))
+                            (if (string-empty-p prefix)
+                                (format "%s (blocked)" task)
+                              (format "%s (awaiting %s)" task prefix)))
                            (t task))))
                     (push final results)))))
             nil 'tree)
@@ -198,4 +201,4 @@ Week starts on Sunday."
         (goto-char (point-min))))))
 
 (provide 'status)
-;;; status.el ends here
+;;; status.el ends here:
