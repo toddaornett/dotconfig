@@ -68,6 +68,21 @@
   (add-hook 'projectile-after-switch-project-hook
             #'git-tools/set-user-from-git-or-default))
 
+(defun git-tools-remote-origin-url ()
+  "Return HTTPS URL derived from git remote origin."
+  (when-let* ((default-directory (locate-dominating-file default-directory ".git"))
+              (remote (string-trim
+                       (shell-command-to-string
+                        "git config --get remote.origin.url"))))
+    (setq remote
+          (cond
+           ((string-match "\\`git@\\([^:]+\\):\\(.+\\)\\'" remote)
+            (format "https://%s/%s"
+                    (match-string 1 remote)
+                    (match-string 2 remote)))
+           (remote)))
+    (replace-regexp-in-string "\\.git\\'" "" remote)))
+
 (defun git-tools-main-branch-name (&optional dir)
   "Return the main branch name for the repository in DIR (or current directory).
 Tries several names or falls back to the default branch from git symbolic-ref."

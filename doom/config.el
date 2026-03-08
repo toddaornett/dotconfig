@@ -98,6 +98,9 @@
 ;; Theme
 (setq doom-theme 'doom-palenight)
 
+;; Templates for new files
+(set-file-template! "/\\.config/elisp/.*\\.el$" :trigger "__package.el" :mode 'emacs-lisp-mode)
+
 ;; Configure highlight-indent-guides to avoid indentation line bleeding into tops of characters
 (use-package! highlight-indent-guides
   :diminish
@@ -190,6 +193,37 @@ Only works when called from a Dired buffer."
 (after! yasnippet
   (yas-global-mode 1)
   (setq yas-snippet-dirs '("~/.config/yasnippets/"))
+  (defun tao/snippet-keywords-from-description (desc)
+    "Derive org-package keyword tags from DESC string."
+    (let* ((keyword-map
+            '(("org"        . "outlines")
+              ("task"       . "outlines")
+              ("outline"    . "outlines")
+              ("slack"      . "convenience")
+              ("status"     . "convenience")
+              ("message"    . "convenience")
+              ("report"     . "convenience")
+              ("git"        . "tools")
+              ("github"     . "tools")
+              ("process"    . "tools")
+              ("shell"      . "tools")
+              ("script"     . "tools")
+              ("generate"   . "convenience")
+              ("parse"      . "lisp")
+              ("macro"      . "lisp")
+              ("elisp"      . "lisp")
+              ("emacs"      . "convenience")))
+           (desc-lower (downcase (or desc "")))
+           (matched
+            (delete-dups
+             (delq nil
+                   (mapcar (lambda (pair)
+                             (when (string-match-p (car pair) desc-lower)
+                               (cdr pair)))
+                           keyword-map)))))
+      (if matched
+          (mapconcat #'identity matched " ")
+        "tools")))
   (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
   (add-hook 'yas-minor-mode-hook
             (lambda ()
