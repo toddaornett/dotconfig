@@ -1,6 +1,6 @@
 # -*- mode: snippet -*-
-# name: doom-package
-# key: __doom-package.el
+# name: package
+# key: __package.el
 # --
 ;;; `(file-name-nondirectory (buffer-file-name))` --- ${1:Description} -*- lexical-binding: t; -*-
 ;;
