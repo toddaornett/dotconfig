@@ -178,26 +178,73 @@ function cpmd {
 
 # save git project unstaged working files
 function wips {
-  local dest="${HOME}/wip/$(basename $(pwd))"
+  local project_name
+  if project_name=$(git branch --show-current 2>/dev/null) && [[ -n "$project_name" ]]; then
+    :
+  else
+    project_name=$(basename $(pwd))
+  fi
+  local rel_path="${PWD#$HOME/}"
+  if [[ "$rel_path" == "$PWD" ]]; then
+    rel_path=$(basename "$PWD")
+  elif [[ -z "$rel_path" ]]; then
+    rel_path=$(basename "$PWD")
+  fi
+  local dest="${HOME}/wip/${rel_path}/${project_name}"
   mkdir -p "$dest"
   local files=($(git status -s | cut -c 4- | xargs))
   local f
   for f in $files; do
-    cpmd -r "$f" "$dest"
+    cpmd -r "$f" "$dest/$f"
   done
 }
 
 # retrieve files from wips saved files to current directory
+# Usage: wipc [source_base]
+#   No arg: restore from ~/wip/<PWD relative to HOME>/<current branch> (reciprocal of wips).
+#   source_base: restore from the directory under ~/wip named source_base (e.g. SomewhereElse
+#                resolves to ~/wip/Projects/SomewhereElse if that exists).
 function wipc {
-  local src="${HOME}/wip/$(basename $(pwd))"
-  local folders=($(find "$src"/* -type d | sed -e "s|$src/||" | xargs))
+  local source_base="${1:-}"
+  local src
+  if [[ -n "$source_base" ]]; then
+    local -a found=()
+    found=("${(@f)$(find "${HOME}/wip" -type d -name "$source_base" 2>/dev/null)}")
+    if [[ ${#found[@]} -eq 0 ]]; then
+      echo "wipc: no directory under ~/wip named '$source_base'" >&2
+      return 1
+    fi
+    if [[ ${#found[@]} -gt 1 ]]; then
+      echo "wipc: multiple directories named '$source_base', using: ${found[1]}" >&2
+    fi
+    src="${found[1]}"
+  else
+    local project_name
+    if project_name=$(git branch --show-current 2>/dev/null) && [[ -n "$project_name" ]]; then
+      :
+    else
+      project_name=$(basename $(pwd))
+    fi
+    local rel_path="${PWD#$HOME/}"
+    if [[ "$rel_path" == "$PWD" ]]; then
+      rel_path=$(basename "$PWD")
+    elif [[ -z "$rel_path" ]]; then
+      rel_path=$(basename "$PWD")
+    fi
+    src="${HOME}/wip/${rel_path}/${project_name}"
+  fi
+  if [[ ! -d "$src" ]]; then
+    echo "wipc: source directory does not exist: $src" >&2
+    return 1
+  fi
+  local -a folders=("${(@f)$(find "$src" -mindepth 1 -type d 2>/dev/null | sed -e "s|^$src/||" | sort)}")
   local d
-  for d in $folders; do
+  for d in "${folders[@]}"; do
     mkdir -p "$d"
   done
-  local files=($(find "$src" -type f | sed -e "s|$src/||" | xargs))
+  local -a files=("${(@f)$(find "$src" -type f 2>/dev/null | sed -e "s|^$src/||" | sort)}")
   local f
-  for f in $files; do
+  for f in "${files[@]}"; do
     cp "$src/$f" "$f"
   done
 }
