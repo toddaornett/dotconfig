@@ -208,8 +208,9 @@ function wipc {
   local source_base="${1:-}"
   local src
   if [[ -n "$source_base" ]]; then
+    source_base=${source_base#/}
     local -a found=()
-    found=("${(@f)$(find "${HOME}/wip" -type d -name "$source_base" 2>/dev/null)}")
+    found=("${(@f)$(find "${HOME}/wip" -type d -path "*/$source_base" 2>/dev/null)}")
     if [[ ${#found[@]} -eq 0 ]]; then
       echo "wipc: no directory under ~/wip named '$source_base'" >&2
       return 1
