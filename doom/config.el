@@ -438,7 +438,8 @@ Only works when called from a Dired buffer."
          (open-projects-path (getenv "OPENPROJECTS_PATH"))
          (paths (delq nil (list projects-path
                                 (unless (string= projects-path open-projects-path)
-                                  open-projects-path)))))
+                                  open-projects-path)
+                                (when (file-directory-p "~/dev") "~/dev")))))
     (dolist (path paths)
       (let ((entry (cons path 2)))
         (unless (assoc path projectile-project-search-path)
