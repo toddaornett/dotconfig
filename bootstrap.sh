@@ -161,7 +161,7 @@ if ! command -v mise >/dev/null 2>&1; then
   echo "🛠️ Installing Mise..."
   curl https://mise.run | sh
   if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
-    echo 'export MISE_TRUSTED_CONFIG_PATHS="$HOME/Projects"' >>"$ZSHENV"
+    echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
   fi
 fi
 
