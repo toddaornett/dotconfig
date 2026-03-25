@@ -9,6 +9,7 @@ cask "font-noto-sans-symbols-2"
 cask "wezterm"
 cask "nikitabobko/tap/aerospace"
 cask "zed"
+cask "dbeaver-community"
 
 # Use full tap path so bundle finds formula even before tap is fully updated
 brew "d12frosted/emacs-plus/emacs-plus@30"
