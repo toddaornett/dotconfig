@@ -403,6 +403,11 @@ latex2pdf() {
   fi
 }
 
+# Print the $PATH environment variable with one path per line
+ppath() {
+  printf '%s\n' ${PATH//:/$'\n'}
+}
+
 # On macOS, get the app id (bundle identifier) of a specified running application
 getappid() {
   local appname="$1"
