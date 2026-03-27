@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ZSHENV="$HOME/.zshenv"
+if [ ! -f "$ZSHENV" ]; then
+  echo "typeset -U path PATH" >>$ZSHENV
+fi
 
 echo "🧠 Bootstrapping system..."
 
@@ -163,6 +166,24 @@ if ! command -v mise >/dev/null 2>&1; then
   if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
     echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
   fi
+fi
+
+#################################
+# Install krew a package manager for kubectl
+#################################
+if ! command -v krew >/dev/null 2>&1; then
+  echo "☸️️ Installing Krew..."
+  (
+    set -x; cd "$(mktemp -d)" &&
+    OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
+    ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
+    KREW="krew-${OS}_${ARCH}" &&
+    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
+    tar zxvf "${KREW}.tar.gz" &&
+    ./"${KREW}" install krew
+  )
+  echo "export KREW_ROOT=$HOME/.krew" >>"$ZSHENV"
+  echo "path+=\"${KREW_ROOT}/bin\"" >>"$ZSHENV"
 fi
 
 #################################
