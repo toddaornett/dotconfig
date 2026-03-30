@@ -121,17 +121,27 @@ function dbt {
 }
 
 function cpmd {
-  # Check for -D flag
+  # -D: create destination if missing; copy each source to dest/<mirrored path> (keeps dirs)
+  # -f|--file: run one cpmd per non-empty, non-comment line (optional leading "cpmd" stripped)
   local create_dir_flag=0
-  local args=()
-  local srcs=()
+  local batch_file=""
+  local -a args=()
+  local -a srcs=()
   local dest=""
 
-  # Parse arguments manually to detect -D and separate cp args
   while (( "$#" )); do
     case "$1" in
       -D)
         create_dir_flag=1
+        shift
+        ;;
+      -f|--file)
+        shift
+        if [[ -z "$1" ]]; then
+          echo "cpmd: -f|--file requires a file path" >&2
+          return 1
+        fi
+        batch_file="$1"
         shift
         ;;
       *)
@@ -141,37 +151,101 @@ function cpmd {
     esac
   done
 
-  # At least two arguments (source(s) and destination) required after removing -D
+  if [[ -n "$batch_file" ]]; then
+    if (( ${#args[@]} > 0 )); then
+      echo "cpmd: no extra arguments allowed with -f|--file" >&2
+      return 1
+    fi
+    if [[ ! -r "$batch_file" ]]; then
+      echo "cpmd: cannot read: $batch_file" >&2
+      return 1
+    fi
+    local line rc=0
+    local -a toks
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ -z "${line//[[:space:]]/}" ]] && continue
+      [[ "$line" =~ '^[[:space:]]*#' ]] && continue
+      toks=("${(z)line}")
+      (( ${#toks[@]} )) || continue
+      if [[ "${toks[1]}" == cpmd ]]; then
+        toks=( "${(@)toks[2,-1]}" )
+      fi
+      (( ${#toks[@]} )) || continue
+      if (( create_dir_flag )); then
+        cpmd -D "${toks[@]}" || rc=$?
+      else
+        cpmd "${toks[@]}" || rc=$?
+      fi
+    done < "$batch_file"
+    return $rc
+  fi
+
+  # Paths from -f lines are literal; expand ~/ and ~user/ so mkdir/cp hit $HOME.
+  # Note: ${~a} must not be double-quoted — zsh does not tilde-expand inside "...".
+  local -a expanded=()
+  local a
+  for a in "${args[@]}"; do
+    case $a in
+      '~'|'~'*)
+        expanded+=(${~a})
+        ;;
+      *)
+        expanded+=("$a")
+        ;;
+    esac
+  done
+  args=("${expanded[@]}")
+
   if [ "${#args[@]}" -lt 2 ]; then
-    echo "Usage: cpmd [-D] [cp options] <source(s)> <destination>"
-    echo "  -D : treat destination as directory to create if missing"
+    echo "Usage: cpmd [-D] [-f|--file <path>] [cp options] <source(s)> <destination>" >&2
+    echo "  -D : create destination dir if missing; mirror each source path under it (not flat)" >&2
+    echo "  -f : read arg lines from file (paste-friendly; lines may start with cpmd)" >&2
+    echo "  With -f, put -D before -f to apply -D to every line." >&2
     return 1
   fi
 
-  # Last argument is destination
   dest="${args[-1]}"
-  # All but last are sources
   srcs=("${args[@]:0:${#args[@]}-1}")
 
   if [ "$create_dir_flag" -eq 1 ]; then
-    # Create destination directory if it doesn't exist
     if [ ! -d "$dest" ]; then
       mkdir -p "$dest"
     fi
-
-    # Copy each source into the destination directory
-    for src in "${srcs[@]}"; do
-      cp "${args[@]:0:${#args[@]}-1}" "$src" "$dest/"
+    local -a copts=()
+    local -a files=()
+    local s t rel
+    for s in "${srcs[@]}"; do
+      if [[ "$s" == -* ]] && (( ! ${#files[@]} )); then
+        copts+=("$s")
+      else
+        files+=("$s")
+      fi
+    done
+    if (( ! ${#files[@]} )); then
+      echo "cpmd: -D requires at least one source path (after any cp options)" >&2
+      return 1
+    fi
+    for s in "${files[@]}"; do
+      if [[ "$s" == /* ]]; then
+        if [[ "$s" == "$PWD"/* ]]; then
+          rel="${s#$PWD/}"
+        else
+          rel="${s#/}"
+        fi
+      else
+        rel="$s"
+      fi
+      rel="${rel#./}"
+      t="$dest/$rel"
+      mkdir -p "${t:h}"
+      cp "${copts[@]}" "$s" "$t"
     done
   else
-    # Normal mode: create parent directory of destination file if needed
     local dest_dir
     dest_dir=$(dirname "$dest")
     if [ ! -d "$dest_dir" ]; then
       mkdir -p "$dest_dir"
     fi
-
-    # Pass all args to cp
     cp "${args[@]}"
   fi
 }
