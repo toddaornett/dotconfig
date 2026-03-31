@@ -120,7 +120,28 @@ function dbt {
   echo "Using $(env | grep DB | grep NAME | head -1)"
 }
 
+# Walk into dir/dir/… when each level repeats basename (e.g. phoenix-portal/phoenix-portal/…).
+# Other files beside the inner same-named dir are not copied (use a cleaner snapshot or copy those separately).
+function _cpmd_unwrap_redundant_dir {
+  emulate -L zsh -o no_xtrace
+  local d="${${1:a}%/}" bn
+  [[ -d "$d" ]] || { print -r -- "${1:a}"; return }
+  while true; do
+    bn="${d:t}"
+    [[ -n "$bn" && "$bn" != '.' && "$bn" != '..' ]] || break
+    [[ -d "$d/$bn" ]] || break
+    d="${d%/}/$bn"
+    d="${d%/}"
+  done
+  print -r -- "$d"
+}
+
 function cpmd {
+  # function xtrace (typeset -ft) ignores no_xtrace; force quiet copy work
+  local _cpmd_spx
+  [[ -o xtrace ]] && _cpmd_spx=1
+  set +x
+  {
   # -D: create destination if missing; copy each source to dest/<mirrored path> (keeps dirs)
   # -f|--file: run one cpmd per non-empty, non-comment line (optional leading "cpmd" stripped)
   local create_dir_flag=0
@@ -198,7 +219,10 @@ function cpmd {
 
   if [ "${#args[@]}" -lt 2 ]; then
     echo "Usage: cpmd [-D] [-f|--file <path>] [cp options] <source(s)> <destination>" >&2
-    echo "  -D : create destination dir if missing; mirror each source path under it (not flat)" >&2
+    echo "  -D : mirror paths under dest; absolute sources share longest common parent stripped" >&2
+    echo "      (e.g. ~/dir/* . → tree under .); one dir + -r uses cp dir/. dest/" >&2
+    echo "      Drops repeated leading segments (a/a/…) and a leading segment matching dest’s basename." >&2
+    echo "      Recursive dirs: walks into same-named children (a/a/…); files only beside that inner dir are skipped." >&2
     echo "  -f : read arg lines from file (paste-friendly; lines may start with cpmd)" >&2
     echo "  With -f, put -D before -f to apply -D to every line." >&2
     return 1
@@ -225,21 +249,81 @@ function cpmd {
       echo "cpmd: -D requires at least one source path (after any cp options)" >&2
       return 1
     fi
+    local -a abs=()
     for s in "${files[@]}"; do
-      if [[ "$s" == /* ]]; then
-        if [[ "$s" == "$PWD"/* ]]; then
-          rel="${s#$PWD/}"
-        else
-          rel="${s#/}"
-        fi
-      else
-        rel="$s"
-      fi
-      rel="${rel#./}"
-      t="$dest/$rel"
-      mkdir -p "${t:h}"
-      cp "${copts[@]}" "$s" "$t"
+      abs+=("${s:a}")
     done
+    local has_r=$(( ${copts[(I)-r]} + ${copts[(I)-R]} ))
+    if (( ${#files[@]} == 1 )) && [[ -d "${abs[1]}" ]] && (( has_r )); then
+      cp "${copts[@]}" "$(_cpmd_unwrap_redundant_dir "${files[1]}")/." "$dest"
+    else
+      local all_under_pwd=1 p common apath i=0
+      for p in "${abs[@]}"; do
+        if [[ "$p" != "$PWD" && "$p" != "$PWD"/* ]]; then
+          all_under_pwd=0
+          break
+        fi
+      done
+      if (( ! all_under_pwd )); then
+        common="${abs[1]}"
+        for p in "${abs[@]:2}"; do
+          while [[ -n "$common" && "$p" != "$common"/* && "$p" != "$common" ]]; do
+            common="${common:h}"
+          done
+        done
+        [[ -n "$common" && ! -d "$common" ]] && common="${common:h}"
+      fi
+      for s in "${files[@]}"; do
+        (( i++ ))
+        apath="${abs[i]}"
+        if (( all_under_pwd )); then
+          rel="${apath#$PWD/}"
+        elif (( ${#abs[@]} == 1 )); then
+          rel="${apath:t}"
+        elif [[ "$common" == / ]]; then
+          rel="${apath#/}"
+        else
+          rel="${apath#$common/}"
+          [[ "$rel" == "$apath" || -z "$rel" ]] && rel="${apath:t}"
+        fi
+        rel="${rel#./}"
+        # phoenix-portal/phoenix-portal/… → phoenix-portal/… ; rust/rust/… → rust/…
+        local seg_head seg_tail dest_base
+        while [[ -n "$rel" && "$rel" == */* ]]; do
+          seg_head="${rel%%/*}"
+          seg_tail="${rel#*/}"
+          [[ "$seg_head" != "${seg_tail%%/*}" ]] && break
+          rel="$seg_tail"
+        done
+        # dest already ends in that segment (e.g. ~/work/phoenix-portal + phoenix-portal/src)
+        dest_base="${dest:t}"
+        while [[ -n "$dest_base" && "$dest_base" != '.' && "$dest_base" != '..' && -n "$rel" ]]; do
+          if [[ "$rel" == "$dest_base/"* ]]; then
+            rel="${rel#$dest_base/}"
+          elif [[ "$rel" == "$dest_base" ]]; then
+            rel=""
+            break
+          else
+            break
+          fi
+        done
+        if [[ -z "$rel" ]]; then
+          t="$dest/${s:t}"
+        else
+          t="$dest/$rel"
+        fi
+        local cpsrc="$s"
+        if (( has_r )) && [[ -d "${cpsrc:a}" ]]; then
+          cpsrc="$(_cpmd_unwrap_redundant_dir "$s")"
+          # BSD cp: if $t already exists as a dir, cp -R src t makes t/$(basename src) — duplicate top names.
+          mkdir -p "$t"
+          cp "${copts[@]}" "${cpsrc}/." "$t"
+        else
+          mkdir -p "${t:h}"
+          cp "${copts[@]}" "$s" "$t"
+        fi
+      done
+    fi
   else
     local dest_dir
     dest_dir=$(dirname "$dest")
@@ -248,6 +332,9 @@ function cpmd {
     fi
     cp "${args[@]}"
   fi
+  } always {
+    [[ -n $_cpmd_spx ]] && set -x
+  }
 }
 
 # save git project unstaged working files
