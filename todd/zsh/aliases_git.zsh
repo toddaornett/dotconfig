@@ -405,6 +405,7 @@ alias gk='\gitk --all --branches'
 alias gke='\gitk --all $(git log -g --pretty=%h)'
 
 alias gp='git pull'
+alias gpr='git pull --recurse-submodules'
 alias gl1='git log --pretty=format:"%H %ad %an %s" --date=short'
 alias glg='git log --stat'
 alias glgp='git log --stat -p'
