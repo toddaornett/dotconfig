@@ -73,8 +73,8 @@ heading.  Heading level does not matter."
   "Return a plain-text status block with TITLE header and bullet ITEMS."
   (concat title ":\n"
           (if items
-              (mapconcat (lambda (i) (concat "• " i)) items "\n")
-            "• (none)")
+              (mapconcat (lambda (i) (concat "- " i)) items "\n")
+            "- (none)")
           "\n"))
 
 (defun status--extract-date (heading)
