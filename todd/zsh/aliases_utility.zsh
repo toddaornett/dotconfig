@@ -653,7 +653,8 @@ _hsterm_complete() {
   _describe 'terminal' terms
 }
 
-alias ls="eza" # ls
+alias beep='tput bel'
+alias ls='eza' # ls
 alias ll='eza -lbF --git' # list, size, type, git
 alias llm='eza -lbGd --git --sort=modified' # long list, modified date sort
 alias la='eza -lbhHigUmuSa --time-style=long-iso --git --color-scale' # all list
