@@ -388,5 +388,14 @@ alias cntcp="echo \"$cmd\" && $cmd"
 cmd='cargo llvm-cov report --html --output-dir coverage'
 alias cntr="echo \"$cmd\" && $cmd"
 
+cmd='cargo test --workspace'
+alias cwt="echo \"$cmd\" && $cmd"
+
+cmd='cargo test --workspace -- --ignored'
+alias cwti="echo \"$cmd\" && $cmd"
+
+cmd='cargo fmt --all -- --check && cargo clippy --all-targets'
+alias cfc="echo \"$cmd\" && $cmd"
+
 # list mostly cargo related aliases
 alias acargo="alias | egrep '^c.+='"
