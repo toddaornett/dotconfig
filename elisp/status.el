@@ -169,7 +169,7 @@ before the first colon in the heading (or \"(blocked)\" if absent)."
     (fundamental-mode)
     (font-lock-mode -1)
     (erase-buffer)
-    (insert content)
+    (insert (substring-no-properties content))
     (goto-char (point-min))
     (switch-to-buffer (current-buffer))))
 
