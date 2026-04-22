@@ -79,3 +79,7 @@
 (package! npm)
 
 (package! ws-butler)
+
+(package! jira)
+
+(package! request)

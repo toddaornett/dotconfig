@@ -882,6 +882,9 @@ placing it after #+CREATED: if it exists, or display the last modified time for 
   (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
   (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
 
+(use-package! jira-todo
+  :after request)
+
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
