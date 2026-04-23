@@ -16,6 +16,7 @@
 (require 'org)
 (require 'org-element)
 (require 'subr-x)
+(require 'cl-lib)
 
 (defgroup status nil
   "Generate status messages from an Org task file."
@@ -174,19 +175,30 @@ before the first colon in the heading (or \"(blocked)\" if absent)."
     (switch-to-buffer (current-buffer))))
 
 ;;;###autoload
-(defun status-daily ()
-  "Generate a Slack-ready daily status report in a new buffer."
-  (interactive)
-  (let* ((today     (status--most-recent-date))
-         (yesterday (status--previous-date today))
-         (y-items   (status--collect-category-tasks
-                     yesterday '("DONE" "DOING" "BLOCKED" "REVIEW") t))
-         (t-items   (status--collect-category-tasks
-                     today '("TODO" "DONE" "DOING" "BLOCKED" "REVIEW") nil))
-         (output    (concat
-                     (status--slack-section "Yesterday" y-items)
-                     "\n"
-                     (status--slack-section "Today" t-items))))
+(defun status-daily (&optional days-back)
+  "Generate a Slack-ready daily status report in a new buffer.
+With a numeric prefix argument DAYS-BACK, collect \"Yesterday\" tasks
+from that many date headings ago instead of just the immediately
+preceding one.  Interactively, supply the argument with \\[universal-argument]."
+  (interactive "P")
+  (let* ((today      (status--most-recent-date))
+         (all-dates  (status--sorted-date-headings))
+         (today-pos  (cl-position today all-dates :test #'string=))
+         (back       (if (and days-back (> (prefix-numeric-value days-back) 0))
+                         (prefix-numeric-value days-back)
+                       1))
+         (past-date  (nth (+ today-pos back) all-dates))
+         (y-items    (status--collect-category-tasks
+                      past-date '("DONE" "DOING" "BLOCKED" "REVIEW") t))
+         (t-items    (status--collect-category-tasks
+                      today '("TODO" "DONE" "DOING" "BLOCKED" "REVIEW") nil))
+         (yesterday  (if (> back 1)
+                         (format "Yesterdays")
+                       (format "Yesterday")))
+         (output     (concat
+                      (status--slack-section yesterday y-items)
+                      "\n"
+                      (status--slack-section "Today" t-items))))
     (status--open-output-buffer (format "Daily Status %s" today) output)))
 
 (defun status--date-string (time)
