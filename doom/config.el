@@ -447,12 +447,22 @@ Only works when called from a Dired buffer."
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
 ;; Exec-path-from-shell
-(use-package exec-path-from-shell
+(use-package! exec-path-from-shell
   :init
   (when (memq window-system '(mac ns x))
-    (setq exec-path-from-shell-arguments '("-1"))
-    (setq exec-path-from-shell-variables '("PATH" "MISE_SHELL" "DEFAULT_GIT_COMMIT_MESSAGE"))
-    (exec-path-from-shell-initialize)))
+    (setq exec-path-from-shell-arguments '("-l"))
+    (setq exec-path-from-shell-variables '("PATH"
+                                           "MISE_SHELL"
+                                           "DEFAULT_GIT_COMMIT_MESSAGE"
+                                           "GITHUB_PULL_REQUEST_REVIEWERS"
+                                           "JIRA_USER"
+                                           "JIRA_TOKEN"
+                                           "JIRA_ISSUE_BASE_URL"
+                                           "JIRA_ISSUE_KEY_PREFIX"))
+    (exec-path-from-shell-initialize)
+    ;; Copy extras, ignoring any that aren't set
+    (dolist (var exec-path-from-shell-variables)
+      (ignore-errors (exec-path-from-shell-copy-env var)))))
 
 ;; Org
 (after! org
