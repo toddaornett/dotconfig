@@ -76,7 +76,7 @@
            t)))
 
 (defun jira-todo--format-output (data)
-  "Format org-mode TODO and Slack message from parsed JIRA DATA."
+  "Format `org-mode' TODO and Slack message from parsed JIRA DATA."
   (let* ((key     (alist-get 'key data))
          (fields  (alist-get 'fields data))
          (summary (alist-get 'summary fields))
@@ -92,7 +92,7 @@
      (format ":END:"))))
 
 (defun jira-todo--insert-output (data)
-  "Insert formatted org-mode TODO for JIRA DATA at point in the current buffer."
+  "Insert formatted `org-mode' TODO for JIRA DATA at point in the current buffer."
   (let ((output (jira-todo--format-output data))
         (buf (current-buffer)))
     (with-current-buffer buf
@@ -131,7 +131,7 @@ Signals an error if INPUT cannot be parsed."
 
 ;;;###autoload
 (defun jira-todo-fetch (&optional input)
-  "Fetch a JIRA ticket and generate an org-mode TODO and Slack message.
+  "Fetch a JIRA ticket and generate an `org-mode' TODO and Slack message.
 INPUT can be a full URL, a key like JIRA-11111, or just an issue number.
 If INPUT is not provided, prompt interactively."
   (interactive)
