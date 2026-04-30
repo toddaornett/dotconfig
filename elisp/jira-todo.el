@@ -24,7 +24,7 @@
 (require 'json)
 
 (defgroup jira-todo nil
-  "Generate org-mode TODOs from JIRA tickets."
+  "Generate `org-mode' TODOs from JIRA tickets."
   :group 'tools)
 
 (defcustom jira-todo-base-url
