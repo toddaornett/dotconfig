@@ -3,7 +3,7 @@
 
 (add-to-list 'load-path "~/.config/elisp")
 
-(setq epa-pinentry-mode 'loopback)
+(setq epg-pinentry-mode 'loopback)
 (load "~/.emacs_private.el" t)
 
 ;; Fonts
@@ -375,8 +375,6 @@ Only works when called from a Dired buffer."
                 lsp-ui-doc-include-signature t       ; Show signature
                 lsp-ui-doc-position 'at-point))
 
-
-
 (use-package typescript-ts-mode
   :mode ("\\.js\\'" "\\.ts\\'" "\\.tsx\\'")
   :hook
@@ -545,8 +543,9 @@ Only works when called from a Dired buffer."
   (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook)
 
   (defun tao/org-update-last-timestamp ()
-    "Update or insert the #+UPDATED: keyword with the current timestamp in Org mode files,
-placing it after #+CREATED: if it exists, or display the last modified time for other files."
+    "Update or insert the #+UPDATED: keyword with the current timestamp in
+     Org mode files, placing it after #+CREATED: if it exists, or display
+the last modified time for other files."
     (interactive)
     (if (buffer-file-name)
         (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
