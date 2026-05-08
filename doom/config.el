@@ -569,7 +569,72 @@ the last modified time for other files."
                       (insert "#+UPDATED: " timestamp "\n")))))
             (message "Last modified: %s" timestamp)))
       (message "Buffer is not associated with a file")))
-  (add-hook 'before-save-hook #'tao/org-update-last-timestamp))
+  (add-hook 'before-save-hook #'tao/org-update-last-timestamp)
+
+  ;; ── Auto-sink DONE/CANCELED headings to bottom of their sibling list ──
+
+  (defun tao/org-todo-state-is-terminal-p (state)
+    "Return non-nil if STATE is a terminal keyword (DONE or CANCELED)."
+    (member state '("DONE" "CANCELED")))
+
+  (defun tao/org-sink-done-heading ()
+    "Move the current heading to after the last non-terminal sibling at the
+same level.  The entire subtree (body text + children) travels with it.
+Runs via `org-after-todo-state-change-hook'."
+    (when (tao/org-todo-state-is-terminal-p org-state)
+      (save-excursion
+        (org-back-to-heading t)
+        (let* ((level        (org-current-level))
+               (stars        (make-string level ?*))
+               ;; Capture the full subtree text
+               (subtree-beg  (point))
+               (subtree-end  (save-excursion (org-end-of-subtree t t) (point)))
+               (subtree-text (buffer-substring subtree-beg subtree-end))
+               ;; Walk siblings to find the last non-terminal one
+               (insert-after  nil))
+
+          ;; Only act if there is at least one sibling to compare against
+          (save-excursion
+            ;; Go to the first sibling at this level within the parent
+            (if (org-up-heading-safe)
+                (org-goto-first-child)
+              ;; Top-level: jump to very first heading at level
+              (goto-char (point-min))
+              (unless (looking-at (concat "^" stars "[^*]"))
+                (re-search-forward (concat "^" stars "[^*]") nil t)
+                (beginning-of-line)))
+            ;; Iterate siblings
+            (while (and (looking-at org-heading-regexp)
+                        (= (org-current-level) level))
+              (let ((kw (org-get-todo-state)))
+                (unless (tao/org-todo-state-is-terminal-p kw)
+                  ;; Record the END of this non-terminal subtree as a
+                  ;; candidate insertion point
+                  (setq insert-after
+                        (save-excursion (org-end-of-subtree t t) (point)))))
+              ;; Move to next sibling
+              (unless (org-get-next-sibling)
+                (goto-char (point-max)))))   ; break the loop
+
+          (when insert-after
+            ;; Avoid a no-op if the heading is already in the right place
+            (unless (= subtree-beg insert-after)
+              (let ((adjusted-insert
+                     ;; If our subtree sits BEFORE the insertion point the
+                     ;; deletion will shift positions, so compensate.
+                     (if (< subtree-beg insert-after)
+                         (- insert-after (- subtree-end subtree-beg))
+                       insert-after)))
+                (delete-region subtree-beg subtree-end)
+                (goto-char adjusted-insert)
+                ;; Ensure we're at a line boundary before inserting
+                (unless (bolp) (insert "\n"))
+                (insert subtree-text)
+                ;; Leave point on the heading we just moved
+                (goto-char adjusted-insert)
+                (beginning-of-line))))))))
+
+  (add-hook 'org-after-todo-state-change-hook #'tao/org-sink-done-heading))
 
 ;; org-superstar
 (use-package org-superstar
@@ -638,6 +703,11 @@ the last modified time for other files."
    "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
    "z s" '(string-inflection-underscore :which-key "snake_case")
    "z u" '(string-inflection-upcase :which-key "UPCASE"))
+  (general-define-key
+   :states 'normal
+   :keymaps 'override
+   :prefix doom-leader-key
+   "i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
   (general-define-key
    :keymaps 'magit-status-mode-map
    :states 'normal
@@ -893,6 +963,9 @@ the last modified time for other files."
 
 (use-package! jira-todo
   :after request)
+
+;; markdown-tools => load from ~/.config/elisp
+(use-package markdown-tools)
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
