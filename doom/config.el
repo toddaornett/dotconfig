@@ -707,7 +707,7 @@ Runs via `org-after-todo-state-change-hook'."
    :states 'normal
    :keymaps 'override
    :prefix doom-leader-key
-   "i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
+   "m i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
   (general-define-key
    :keymaps 'magit-status-mode-map
    :states 'normal
