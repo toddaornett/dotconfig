@@ -1,5 +1,4 @@
 ;;; init.el -*- lexical-binding: t; -*-
-
 (doom! :input
        ;;bidi
        ;;chinese
@@ -22,11 +21,11 @@
        treemacs            ; Optional, disable if unused
        (vc-gutter +pretty) ; Keep for version control
        vi-tilde-fringe     ; Lightweight, keep
-       workspaces          ; Keep for project isolation
+       ;; workspaces          ; Keep for project isolation
        ;; Removed: tabs, window-select, zen (optional, add back if needed)
 
-       :editor
-       (evil +everywhere)  ; Core editing experience
+       :evil
+       ;; (editor +everywhere)  ; Core editing experience
        file-templates      ; Lightweight, keep
        fold                ; Useful for code navigation
        (format +format-with-lsp +apheleia) ; Keep for LSP-based formatting
@@ -50,7 +49,7 @@
 
        :tools
        (tree-sitter +lsp)
-       projectile          ; Essential for Rust projects
+       ;; projectile       ; Essential for Rust projects
        direnv              ; Keep for environment management
        editorconfig        ; Keep for consistent coding styles
        (eval +overlay)     ; Useful for code execution
