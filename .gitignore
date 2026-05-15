@@ -13,3 +13,5 @@ zsh/
 !todd/zsh/
 configstore
 .projectile-cache.eld
+doom-emacs/
+emacs

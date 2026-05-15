@@ -53,6 +53,11 @@ if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
 fi
 
 #################################
+# Set globals for git 
+#################################
+git config --global status.submoduleSummary true
+
+#################################
 # Verify correct Emacs is used
 #################################
 echo "🧪 Verifying Emacs path..."
@@ -116,13 +121,75 @@ fi
 #################################
 # Clone Doom Emacs
 #################################
-DOOM_DIR="$HOME/.config/emacs/doom-emacs"
+DOOM_DIR="$HOME/.config/doom-emacs"
 
 if [ ! -d "$DOOM_DIR" ]; then
   echo "😈 Cloning Doom Emacs..."
   git clone --depth 1 https://github.com/doomemacs/doomemacs "$DOOM_DIR"
 else
   echo "😈 Doom Emacs already present"
+fi
+
+#################################
+# Clone doom-meow
+#################################
+if [ ! -d "$DOOM_DIR/modules/editor/meow" ]; then
+  echo "🐱 Cloning doom-meow module..."
+  mkdir -p "$DOOM_DIR/modules/editor"
+  git clone https://github.com/meow-edit/doom-meow "$DOOM_DIR/modules/editor/meow"
+fi
+
+#################################
+# Doom install + sync
+#################################
+echo "🔥 Installing Doom packages..."
+
+DOOM_BIN="$DOOM_DIR/bin"
+
+if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
+  echo "path+=$DOOM_BIN" >>"$ZSHENV"
+fi
+
+"$DOOM_BIN/doom" install
+"$DOOM_BIN/doom" sync
+
+#################################
+# Build emacs-libvterm module
+#################################
+VTERM_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
+
+if [ -d "$VTERM_DIR" ]; then
+  echo "🛠️ Building vterm native module..."
+  (
+    unset CC
+    unset CXX
+    cd "$VTERM_DIR" || true
+
+    if [ -f Makefile ]; then
+      make clean || true
+      make || true
+    else
+      mkdir -p build
+      cd build || true
+      cmake .. || true
+      make || true
+    fi
+  )
+  cp ${DOOM_DIR}/.local/straight/repos/emacs-libvterm/vterm-module.so \
+    ${DOOM_DIR}/.local/straight/build-*/vterm/ || true
+
+  echo "✅ vterm module build step finished"
+fi
+
+#################################
+# Install chemacs2
+#############################
+CHEMACS2_PROFILES_FILE="$HOME/.emacs-profiles.el"
+if [ ! -f "$CHEMACS2_PROFILES_FILE" ]; then
+  echo "🦬 λ Installing chemacs2 with Doom Emacs as default"
+  git clone https://github.com/plexus/chemacs2.git "$DOOM_DIR/../emacs"
+  echo '(("default" .  ((user-emacs-directory . "~/.config/doom-emacs")))' >>"$CHEMACS2_PROFILES_FILE"
+  echo '("scratch" . ((user-emacs-directory . "~/.config/scratch-emacs"))))' >>"$CHEMACS2_PROFILES_FILE"
 fi
 
 #################################
@@ -153,8 +220,43 @@ fi
 read -rp "🌐 Install common language servers (node, python tools)? [y/N] " answer
 if [[ "$answer" =~ ^[Yy]$ ]]; then
   echo "📡 Installing LSP helpers..."
-  npm install -g pyright typescript typescript-language-server bash-language-server
-  pip3 install --user black isort flake8
+
+  #################################
+  # Node-based language servers
+  #################################
+  npm install -g \
+    pyright \
+    typescript \
+    typescript-language-server \
+    bash-language-server
+
+  #################################
+  # Python tooling via pipx
+  #################################
+  if ! command -v pipx >/dev/null 2>&1; then
+    echo "🐍 Installing pipx..."
+    brew install pipx
+    pipx ensurepath
+  fi
+
+  export PATH="$HOME/.local/bin:$PATH"
+
+  install_pipx_tool() {
+    local tool="$1"
+
+    if pipx list 2>/dev/null | grep -q "$tool"; then
+      echo "✅ $tool already installed"
+    else
+      echo "📦 Installing $tool via pipx..."
+      pipx install "$tool" || {
+        echo "⚠️  Failed installing $tool with pipx"
+      }
+    fi
+  }
+
+  install_pipx_tool black
+  install_pipx_tool isort
+  install_pipx_tool flake8
 fi
 
 #################################
@@ -169,19 +271,68 @@ if ! command -v mise >/dev/null 2>&1; then
 fi
 
 #################################
-# Install krew a package manager for kubectl
+# Install krew package manager for kubectl
 #################################
-if ! command -v krew >/dev/null 2>&1; then
-  echo "☸️️ Installing Krew..."
+
+#################################
+# Preconfigure Krew PATH
+#################################
+KREW_ROOT="${KREW_ROOT:-$HOME/.krew}"
+export KREW_ROOT
+export PATH="${KREW_ROOT}/bin:$PATH"
+
+KREW_PATH_LINE='export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"'
+
+# Persist for future shells
+if ! grep -Fqs 'KREW_ROOT:-$HOME/.krew}/bin' "$HOME/.zshrc" 2>/dev/null; then
+  echo "$KREW_PATH_LINE" >>"$HOME/.zshrc"
+fi
+
+#################################
+# Install Krew if missing
+#################################
+if ! command -v kubectl-krew >/dev/null 2>&1; then
+  echo "☸️ Installing Krew..."
+
   (
+<<<<<<< Updated upstream
+    export KREW_ROOT="$HOME/.krew"
     set -x; cd "$(mktemp -d)" &&
     OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
     ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
     KREW="krew-${OS}_${ARCH}" &&
     curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
     tar zxvf "${KREW}.tar.gz" &&
+||||||| Stash base
+    set -x; cd "$(mktemp -d)" &&
+    OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
+    ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
+    KREW="krew-${OS}_${ARCH}" &&
+    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
+    tar zxvf "${KREW}.tar.gz" &&
+=======
+    set -x
+    cd "$(mktemp -d)"
+
+    OS="$(uname | tr '[:upper:]' '[:lower:]')"
+
+    ARCH="$(uname -m | \
+      sed -e 's/x86_64/amd64/' \
+          -e 's/\(arm\)\(64\)\?.*/\1\2/' \
+          -e 's/aarch64$/arm64/')"
+
+    KREW="krew-${OS}_${ARCH}"
+
+    curl -fsSLO \
+      "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
+
+    tar zxvf "${KREW}.tar.gz"
+
+>>>>>>> Stashed changes
     ./"${KREW}" install krew
   )
+<<<<<<< Updated upstream
+||||||| Stash base
   echo "export KREW_ROOT=$HOME/.krew" >>"$ZSHENV"
   echo "path+=\"${KREW_ROOT}/bin\"" >>"$ZSHENV"
 fi
@@ -227,6 +378,64 @@ if [ -d "$VTERM_DIR" ]; then
     ${DOOM_DIR}/.local/straight/build-*/vterm/ || true
 
   echo "✅ vterm module build step finished"
+=======
+
+  #################################
+  # Verify Krew install
+  #################################
+  if command -v kubectl-krew >/dev/null 2>&1; then
+    echo "✅ Krew installed and available"
+  else
+    echo "⚠️ Krew installed but not yet available in PATH"
+  fi
+else
+  echo "✅ Krew already installed"
+fi
+
+#################################
+# Doom install + sync
+#################################
+echo "🔥 Installing Doom packages..."
+
+DOOM_BIN="$DOOM_DIR/bin"
+
+if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
+  echo "path+=$DOOM_BIN" >>"$ZSHENV"
+fi
+
+"$DOOM_BIN/doom" install
+"$DOOM_BIN/doom" sync
+
+#################################
+# Build emacs-libvterm module
+#################################
+VTERM_BUILD_DIR="${DOOM_DIR}/.local/straight/build-$(emacs --batch --eval '(princ emacs-version)' 2>/dev/null)/vterm"
+VTERM_REPO_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
+
+if [ -d "$VTERM_BUILD_DIR" ]; then
+  echo "🛠️  Building vterm native module..."
+  (
+    unset CC
+    unset CXX
+    # Prefer xcrun clang over any potentially stale gcc symlink
+    export CC="$(xcrun --find cc 2>/dev/null || echo clang)"
+    export CXX="$(xcrun --find c++ 2>/dev/null || echo clang++)"
+
+    cd "$VTERM_BUILD_DIR"
+
+    if [ -f CMakeCache.txt ]; then
+      cmake --build . --clean-first || true
+    else
+      cmake . || true
+    fi
+    make || true
+  )
+  echo "✅ vterm module build step finished"
+elif [ -d "$VTERM_REPO_DIR" ]; then
+  echo "⚠️  vterm build dir not found but repo exists — run 'doom sync' first, then re-run bootstrap"
+else
+  echo "ℹ️  vterm not installed yet — will be built on first Doom sync"
+>>>>>>> Stashed changes
 fi
 
 #################################
