@@ -460,5 +460,16 @@ Return t if any changes made, nil otherwise."
             (when (and process-buffer (buffer-live-p process-buffer))
               (kill-buffer process-buffer)))))))
 
+;;;###autoload
+(defun git-tools-open-all-conflict-files ()
+  "Open all files with merge conflicts in the current git repo."
+  (interactive)
+  (let ((files (magit-unmerged-files)))
+    (if (null files)
+        (message "No conflicting files found.")
+      (dolist (file files)
+        (find-file (expand-file-name file (magit-toplevel))))
+      (message "Opened %d conflicting file(s)." (length files)))))
+
 (provide 'git-tools)
 ;;; git-tools.el ends here

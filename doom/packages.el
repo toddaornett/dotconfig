@@ -68,6 +68,14 @@
   :recipe (:local-repo "~/.config/elisp"
            :files ("insert-random-uuid-into-buffer.el")))
 
+(package! jira-todo
+  :recipe (:local-repo "~/.config/elisp"
+           :files ("jira-todo.el")))
+
+(package! slackcount
+  :recipe (:local-repo "~/.config/elisp"
+           :files ("slackcount.el")))
+
 (package! ibuffer-projectile)
 
 (package! yasnippet-snippets)
