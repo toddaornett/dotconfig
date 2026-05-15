@@ -233,7 +233,70 @@ Only works when called from a Dired buffer."
 (after! vue
   (add-hook 'vue-mode-hook #'lsp!))
 
-(use-package treesit
+(defvar tao/treesit-grammars
+  '((css        . ("https://github.com/tree-sitter/tree-sitter-css" "v0.25.0"))
+    (bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
+    (html       . ("https://github.com/tree-sitter/tree-sitter-html" "v0.23.2"))
+    (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "v0.25.0" "src"))
+    (json       . ("https://github.com/tree-sitter/tree-sitter-json" "v0.24.8"))
+    (python     . ("https://github.com/tree-sitter/tree-sitter-python" "v0.25.0"))
+    (go         . ("https://github.com/tree-sitter/tree-sitter-go" "v0.25.0"))
+    (markdown   . ("https://github.com/ikatyang/tree-sitter-markdown"))
+    (make       . ("https://github.com/alemuller/tree-sitter-make"))
+    (elisp      . ("https://github.com/Wilfred/tree-sitter-elisp"))
+    (cmake      . ("https://github.com/uyha/tree-sitter-cmake"))
+    (c          . ("https://github.com/tree-sitter/tree-sitter-c"))
+    (cpp        . ("https://github.com/tree-sitter/tree-sitter-cpp"))
+    (toml       . ("https://github.com/tree-sitter/tree-sitter-toml"))
+    (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src"))
+    (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src"))
+    (yaml       . ("https://github.com/ikatyang/tree-sitter-yaml" "v0.5.0"))
+    (prisma     . ("https://github.com/victorhqc/tree-sitter-prisma")))
+  "Tree-sitter grammars to install. Bump a version string to trigger reinstall.")
+
+(defvar tao/treesit-grammars-hash-file
+  (expand-file-name "treesit-grammars.hash" doom-cache-dir)
+  "File storing the hash of the last installed grammar list.")
+
+(defun tao/treesit-grammars-hash ()
+  "Return a hash string of the current grammar list."
+  (md5 (format "%S" tao/treesit-grammars)))
+
+(defun tao/treesit-grammars-changed-p ()
+  "Return t if the grammar list has changed since last install."
+  (let ((current-hash (tao/treesit-grammars-hash))
+        (stored-hash
+         (when (file-exists-p tao/treesit-grammars-hash-file)
+           (with-temp-buffer
+             (insert-file-contents tao/treesit-grammars-hash-file)
+             (string-trim (buffer-string))))))
+    (not (string= current-hash stored-hash))))
+
+(defun tao/treesit-save-grammars-hash ()
+  "Save the current grammar list hash to disk."
+  (with-temp-file tao/treesit-grammars-hash-file
+    (insert (tao/treesit-grammars-hash))))
+
+(defun tao/setup-install-grammars ()
+  "Install or reinstall Tree-sitter grammars.
+Grammars are (re)installed when:
+  - the compiled library is missing, or
+  - the grammar list has changed since the last install (e.g. a version bump).
+Call interactively to force reinstall of all grammars."
+  (interactive)
+  (let ((changed (or (called-interactively-p 'any)
+                     (tao/treesit-grammars-changed-p))))
+    (dolist (grammar tao/treesit-grammars)
+      (add-to-list 'treesit-language-source-alist grammar)
+      (when (or changed
+                (not (treesit-language-available-p (car grammar))))
+        (message "treesit: installing grammar for %s" (car grammar))
+        (treesit-install-language-grammar (car grammar))))
+    (when changed
+      (tao/treesit-save-grammars-hash)
+      (message "treesit: grammars updated"))))
+
+(use-package! treesit
   :mode (("\\.tsx\\'" . tsx-ts-mode)
          ("\\.js\\'"  . typescript-ts-mode)
          ("\\.mjs\\'" . typescript-ts-mode)
@@ -241,65 +304,27 @@ Only works when called from a Dired buffer."
          ("\\.cjs\\'" . typescript-ts-mode)
          ("\\.ts\\'"  . typescript-ts-mode)
          ("\\.jsx\\'" . tsx-ts-mode)
-         ("\\.json\\'" .  json-ts-mode)
+         ("\\.json\\'" . json-ts-mode)
          ("\\.Dockerfile\\'" . dockerfile-ts-mode)
-         ("\\.prisma\\'" . prisma-ts-mode)
-         ;; More modes defined here...
-         )
-  :preface
-  (defun os/setup-install-grammars ()
-    "Install Tree-sitter grammars if they are absent."
-    (interactive)
-    (dolist (grammar
-             '((css . ("https://github.com/tree-sitter/tree-sitter-css" "v0.20.0"))
-               (bash "https://github.com/tree-sitter/tree-sitter-bash")
-               (html . ("https://github.com/tree-sitter/tree-sitter-html" "v0.20.1"))
-               (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "v0.21.2" "src"))
-               (json . ("https://github.com/tree-sitter/tree-sitter-json" "v0.20.2"))
-               (python . ("https://github.com/tree-sitter/tree-sitter-python" "v0.20.4"))
-               (go "https://github.com/tree-sitter/tree-sitter-go" "v0.20.0")
-               (markdown "https://github.com/ikatyang/tree-sitter-markdown")
-               (make "https://github.com/alemuller/tree-sitter-make")
-               (elisp "https://github.com/Wilfred/tree-sitter-elisp")
-               (cmake "https://github.com/uyha/tree-sitter-cmake")
-               (c "https://github.com/tree-sitter/tree-sitter-c")
-               (cpp "https://github.com/tree-sitter/tree-sitter-cpp")
-               (toml "https://github.com/tree-sitter/tree-sitter-toml")
-               (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.20.3" "tsx/src"))
-               (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.20.3" "typescript/src"))
-               (yaml . ("https://github.com/ikatyang/tree-sitter-yaml" "v0.5.0"))
-               (prisma "https://github.com/victorhqc/tree-sitter-prisma")))
-      (add-to-list 'treesit-language-source-alist grammar)
-      ;; Only install `grammar' if we don't already have it
-      ;; installed. However, if you want to *update* a grammar then
-      ;; this obviously prevents that from happening.
-      (unless (treesit-language-available-p (car grammar))
-        (treesit-install-language-grammar (car grammar)))))
-
-  ;; Optional, but recommended. Tree-sitter enabled major modes are
-  ;; distinct from their ordinary counterparts.
-  ;;
-  ;; You can remap major modes with `major-mode-remap-alist'. Note
-  ;; that this does *not* extend to hooks! Make sure you migrate them
-  ;; also
+         ("\\.prisma\\'" . prisma-ts-mode))
+  :init
   (dolist (mapping
-           '((python-mode . python-ts-mode)
-             (css-mode . css-ts-mode)
+           '((python-mode     . python-ts-mode)
+             (css-mode        . css-ts-mode)
              (typescript-mode . typescript-ts-mode)
-             (js-mode . typescript-ts-mode)
-             (js2-mode . typescript-ts-mode)
-             (c-mode . c-ts-mode)
-             (c++-mode . c++-ts-mode)
-             (c-or-c++-mode . c-or-c++-ts-mode)
-             (bash-mode . bash-ts-mode)
-             (css-mode . css-ts-mode)
-             (json-mode . json-ts-mode)
-             (js-json-mode . json-ts-mode)
-             (sh-mode . bash-ts-mode)
-             (sh-base-mode . bash-ts-mode)))
+             (js-mode         . typescript-ts-mode)
+             (js2-mode        . typescript-ts-mode)
+             (c-mode          . c-ts-mode)
+             (c++-mode        . c++-ts-mode)
+             (c-or-c++-mode   . c-or-c++-ts-mode)
+             (bash-mode       . bash-ts-mode)
+             (json-mode       . json-ts-mode)
+             (js-json-mode    . json-ts-mode)
+             (sh-mode         . bash-ts-mode)
+             (sh-base-mode    . bash-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
   :config
-  (os/setup-install-grammars))
+  (tao/setup-install-grammars))
 
 (use-package lsp-mode
   :diminish "LSP"
@@ -376,7 +401,6 @@ Only works when called from a Dired buffer."
                 lsp-ui-doc-position 'at-point))
 
 (use-package typescript-ts-mode
-  :mode ("\\.js\\'" "\\.ts\\'" "\\.tsx\\'")
   :hook
   ((typescript-ts-mode . lsp)
    (tsx-ts-mode . lsp)))
