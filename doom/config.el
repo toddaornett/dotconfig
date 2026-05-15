@@ -6,8 +6,8 @@
 (setq epg-pinentry-mode 'loopback)
 (load "~/.emacs_private.el" t)
 
-;; Fonts
-;; Unicode fallback fonts (modern replacement for Symbola)
+;;; ── Fonts ────────────────────────────────────────────────────────────────────
+
 (when (display-graphic-p)
   (dolist (font '("Noto Emoji" "Noto Sans Symbols 2"))
     (when (member font (font-family-list))
@@ -35,12 +35,9 @@
 (defun tao/ensure-doom-fonts ()
   "Ensure Doom-required fonts are installed."
   (when (display-graphic-p)
-    ;; Main Doom font (Fira Code Nerd Font - must match doom-font and nerd-icons)
     (unless (tao/font-installed-p "FiraCode Nerd Font")
       (message "🔤 Installing Fira Code Nerd Font…")
       (tao/install-nerd-font))
-
-    ;; Icon fonts (nerd-icons for Doom v3)
     (when (featurep 'nerd-icons)
       (unless (tao/font-installed-p "FiraCode Nerd Font")
         (message "🎨 Nerd icons use Fira Code Nerd Font; install it if icons look wrong."))
@@ -51,21 +48,16 @@
 
 (add-hook 'doom-after-init-hook #'tao/ensure-doom-fonts)
 
-(setq doom-symbol-font (font-spec :family "Symbols Nerd Font Mono"))
+(setq doom-symbol-font        (font-spec :family "Symbols Nerd Font Mono")
+      doom-font               (font-spec :family "FiraCode Nerd Font" :size 16 :weight 'medium)
+      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
+      doom-big-font            (font-spec :family "Fira Sans" :size 24))
 
-;; Set nerd-icons vars *before* nerd-icons is ever used so the default face is valid
-(setq nerd-icons-font-family "Symbols Nerd Font Mono")
-;; Slightly > 1.0 gives icons room so they don’t clip or look squashed
-(setq nerd-icons-scale-factor 1.15)
-(setq doom-modeline-vcs-max-length 50)
+(setq nerd-icons-font-family "Symbols Nerd Font Mono"
+      nerd-icons-scale-factor 1.15)
 
-;; Load nerd-icons early so nerd-icons-default-face exists before dashboard/modeline run
 (when (display-graphic-p)
   (require 'nerd-icons nil t))
-
-(setq doom-font (font-spec :family "FiraCode Nerd Font" :size 16 :weight 'medium)
-      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
-      doom-big-font (font-spec :family "Fira Sans" :size 24))
 
 (after! doom-themes
   (setq doom-themes-enable-bold t
@@ -74,11 +66,10 @@
 (custom-set-faces!
   '(font-lock-comment-face :slant italic)
   '(font-lock-keyword-face :slant italic)
-  ;; Dashboard menu icons use this face; give height and no slant to avoid clipping
   '(doom-dashboard-menu-title :height 1.2 :slant normal :inherit default))
 
-;; Customize nerd-icons face: no slant, enough height/width to avoid clipping
-(after! nerd-icons
+(use-package! nerd-icons
+  :config
   (when (facep 'nerd-icons-default-face)
     (set-face-attribute 'nerd-icons-default-face nil
                         :family "FiraCode Nerd Font"
@@ -88,20 +79,27 @@
                         :width 'normal
                         :inherit nil)))
 
-;; Dashboard: extra line spacing so icon lines don’t get clipped by the next line
 (after! doom-dashboard
   (add-hook '+doom-dashboard-mode-hook
             (defun tao/doom-dashboard-line-spacing ()
               (setq-local line-spacing 0.35))
             nil t))
 
-;; Theme
+;;; ── Theme ────────────────────────────────────────────────────────────────────
+
 (setq doom-theme 'doom-palenight)
 
-;; Templates for new files
-(set-file-template! "/\\.config/elisp/.*\\.el$" :trigger "__package.el" :mode 'emacs-lisp-mode)
+;;; ── Templates ────────────────────────────────────────────────────────────────
 
-;; Configure highlight-indent-guides to avoid indentation line bleeding into tops of characters
+(set-file-template! "/\\.config/elisp/.*\\.el$"
+  :trigger "__package.el"
+  :mode 'emacs-lisp-mode)
+
+;;; ── UI ───────────────────────────────────────────────────────────────────────
+
+(setq display-line-numbers-type t
+      doom-modeline-vcs-max-length 50)
+
 (use-package! highlight-indent-guides
   :diminish
   :commands highlight-indent-guides-mode
@@ -111,29 +109,56 @@
   (highlight-indent-guides-display-first t)
   (line-spacing 0.1))
 
-;; Line numbers
-(setq display-line-numbers-type t)
+;;; ── Core settings ────────────────────────────────────────────────────────────
 
-;; Org directory
-(setq org-directory "~/Notes/")
+(setq org-directory "~/Notes/"
+      gc-cons-threshold (* 50 1000 1000)
+      delete-by-moving-to-trash t
+      trash-directory "~/.Trash"
+      select-enable-clipboard nil)
 
-;; Delay garbage collection for performance
-(setq gc-cons-threshold (* 50 1000 1000))
-
-;; Make deleted files go to the trash can
-(setq delete-by-moving-to-trash t
-      trash-directory "~/.Trash")
-
-;; disable automatic linking of system clipboard to emacs
-(setq select-enable-clipboard nil)
 (map! :nvi
       "s-c" #'clipboard-kill-ring-save
       "s-v" #'clipboard-yank)
 (define-key minibuffer-local-map (kbd "s-v") #'clipboard-yank)
 
+;;; ── Keybindings ──────────────────────────────────────────────────────────────
+
+(defun insert-backslash ()
+  "Insert backslash."
+  (interactive)
+  (insert "\\"))
+(global-set-key (kbd "M-¥") #'insert-backslash)
+
+(defun insert-blank-line-after-comment ()
+  "Insert a blank line after the current line without continuing a comment."
+  (interactive)
+  (end-of-line)
+  (newline-and-indent))
+(global-set-key (kbd "C-<return>") #'insert-blank-line-after-comment)
+
+;;; ── URL encoding/decoding ────────────────────────────────────────────────────
+
+(defun url-decode-region (start end)
+  "Replace region with URL-decoded contents."
+  (interactive "r")
+  (let ((text (decode-coding-string
+               (url-unhex-string (buffer-substring start end) t)
+               'utf-8)))
+    (delete-region start end)
+    (insert text)))
+
+(defun url-encode-region (start end)
+  "Replace region with URL-encoded contents."
+  (interactive "r")
+  (let ((text (url-hexify-string (buffer-substring start end))))
+    (delete-region start end)
+    (insert text)))
+
+;;; ── Dired ────────────────────────────────────────────────────────────────────
+
 (defun tao/dired-open-all-files-in-directory ()
-  "Open all regular files in the current Dired directory into buffers.
-Only works when called from a Dired buffer."
+  "Open all regular files in the current Dired directory into buffers."
   (interactive)
   (unless (derived-mode-p 'dired-mode)
     (error "This command must be run from a Dired buffer"))
@@ -142,57 +167,81 @@ Only works when called from a Dired buffer."
       (when (and (file-regular-p file)
                  (not (file-symlink-p file)))
         (find-file-noselect file)))))
+
 (map! :map dired-mode-map
       :n "o" #'tao/dired-open-all-files-in-directory)
 
-(after! company
-  ;; Use C-<tab> for company completion if TAB is busy
-  (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
+;;; ── Company ──────────────────────────────────────────────────────────────────
 
-  (setq company-idle-delay 0.2) ; Auto-popup with delay
-  (setq company-minimum-prefix-length 1) ; Trigger after 1 character
-  (setq company-tooltip-limit 10)
-  (setq company-dabbrev-ignore-buffers (lambda (buffer)
-                                         (string-match-p "^#" (buffer-name buffer))))
+(use-package! company
+  :config
+  (setq company-idle-delay 0.2
+        company-minimum-prefix-length 1
+        company-tooltip-limit 10
+        company-dabbrev-ignore-buffers
+        (lambda (buffer)
+          (string-match-p "^#" (buffer-name buffer))))
 
-  ;; Use C-<tab> for explicit company completion
-  (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
+  (define-key company-mode-map   (kbd "C-<tab>")  #'company-complete)
+  (define-key company-active-map (kbd "M-n")       #'company-select-next)
+  (define-key company-active-map (kbd "M-p")       #'company-select-previous)
+  (define-key company-active-map (kbd "down")      #'company-select-next)
+  (define-key company-active-map (kbd "up")        #'company-select-previous)
+  (define-key company-active-map (kbd "TAB")       nil)
+  (define-key company-active-map (kbd "<tab>")     nil))
 
-  ;; previous and next bindings for completion box
-  (define-key company-active-map (kbd "M-n") 'company-select-next)
-  (define-key company-active-map (kbd "M-p") 'company-select-previous)
-  (define-key company-active-map (kbd "down") 'company-select-next)
-  (define-key company-active-map (kbd "up") 'company-select-previous)
+(use-package! evil
+  :config
+  (add-hook 'evil-insert-state-entry-hook #'company-mode))
 
-  ;; Ensure that TAB does not interfere with completion
-  (define-key company-active-map (kbd "TAB") nil)
-  (define-key company-active-map (kbd "<tab>") nil))
+;;; ── Rust / rustic ────────────────────────────────────────────────────────────
 
-;; Rust with Eglot
-(after! rustic
-  (setq rustic-lsp-client 'eglot)
-  (setq rustic-format-on-save t)
+(use-package! rustic
+  :config
+  (setq rustic-lsp-client 'eglot
+        rustic-format-on-save t)
   (add-hook 'rustic-mode-hook #'eglot-ensure)
   (add-hook 'rustic-mode-hook
             (lambda ()
               (yas-minor-mode 1)
               (setq-local company-backends '((company-capf company-yasnippet))))))
 
-(after! eglot
-  (setq eglot-sync-connect 0)
-  (setq eglot-autoshutdown t)
-  (setq eglot-events-buffer-size 1000000)
+;;; ── Eglot ────────────────────────────────────────────────────────────────────
+
+(use-package! eglot
+  :config
+  (setq eglot-sync-connect 0
+        eglot-autoshutdown t
+        eglot-events-buffer-size 1000000)
+
   (add-to-list 'eglot-server-programs
                '(rustic-mode . ("rust-analyzer"
                                 :initializationOptions
                                 (:procMacro (:enable t)
                                  :diagnostics (:enable nil)
                                  :cargo (:watch (:enable nil))
-                                 :completion (:autoimport (:enable t)))))))
+                                 :completion (:autoimport (:enable t))))))
 
-(after! yasnippet
+  (defun tao/project-try-tsconfig-json (dir)
+    (when-let* ((found (locate-dominating-file dir "tsconfig.json")))
+      (cons 'eglot-project found)))
+
+  (add-hook 'project-find-functions #'tao/project-try-tsconfig-json nil nil)
+  (add-to-list 'eglot-server-programs
+               '((typescript-mode) "typescript-language-server" "--stdio")))
+
+;; Project root method for eglot-project type
+(cl-defmethod project-root ((project (head eglot-project)))
+  (cdr project))
+
+;;; ── YASnippet ────────────────────────────────────────────────────────────────
+
+(use-package! yasnippet
+  :config
   (yas-global-mode 1)
   (setq yas-snippet-dirs '("~/.config/yasnippets/"))
+  (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
+
   (defun tao/snippet-keywords-from-description (desc)
     "Derive org-package keyword tags from DESC string."
     (let* ((keyword-map
@@ -224,14 +273,18 @@ Only works when called from a Dired buffer."
       (if matched
           (mapconcat #'identity matched " ")
         "tools")))
-  (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
+
   (add-hook 'yas-minor-mode-hook
             (lambda ()
-              (local-set-key (kbd "TAB") 'yas-expand)
-              (local-set-key (kbd "<tab>") 'yas-expand))))
+              (local-set-key (kbd "TAB")   #'yas-expand)
+              (local-set-key (kbd "<tab>") #'yas-expand))))
 
-(after! vue
-  (add-hook 'vue-mode-hook #'lsp!))
+;;; ── Vue ──────────────────────────────────────────────────────────────────────
+
+(use-package! vue-mode
+  :hook (vue-mode . lsp!))
+
+;;; ── Tree-sitter ──────────────────────────────────────────────────────────────
 
 (defvar tao/treesit-grammars
   '((css        . ("https://github.com/tree-sitter/tree-sitter-css" "v0.25.0"))
@@ -278,11 +331,7 @@ Only works when called from a Dired buffer."
     (insert (tao/treesit-grammars-hash))))
 
 (defun tao/setup-install-grammars ()
-  "Install or reinstall Tree-sitter grammars.
-Grammars are (re)installed when:
-  - the compiled library is missing, or
-  - the grammar list has changed since the last install (e.g. a version bump).
-Call interactively to force reinstall of all grammars."
+  "Install or reinstall Tree-sitter grammars when missing or the list changed."
   (interactive)
   (let ((changed (or (called-interactively-p 'any)
                      (tao/treesit-grammars-changed-p))))
@@ -297,16 +346,16 @@ Call interactively to force reinstall of all grammars."
       (message "treesit: grammars updated"))))
 
 (use-package! treesit
-  :mode (("\\.tsx\\'" . tsx-ts-mode)
-         ("\\.js\\'"  . typescript-ts-mode)
-         ("\\.mjs\\'" . typescript-ts-mode)
-         ("\\.mts\\'" . typescript-ts-mode)
-         ("\\.cjs\\'" . typescript-ts-mode)
-         ("\\.ts\\'"  . typescript-ts-mode)
-         ("\\.jsx\\'" . tsx-ts-mode)
-         ("\\.json\\'" . json-ts-mode)
+  :mode (("\\.tsx\\'"      . tsx-ts-mode)
+         ("\\.js\\'"       . typescript-ts-mode)
+         ("\\.mjs\\'"      . typescript-ts-mode)
+         ("\\.mts\\'"      . typescript-ts-mode)
+         ("\\.cjs\\'"      . typescript-ts-mode)
+         ("\\.ts\\'"       . typescript-ts-mode)
+         ("\\.jsx\\'"      . tsx-ts-mode)
+         ("\\.json\\'"     . json-ts-mode)
          ("\\.Dockerfile\\'" . dockerfile-ts-mode)
-         ("\\.prisma\\'" . prisma-ts-mode))
+         ("\\.prisma\\'"   . prisma-ts-mode))
   :init
   (dolist (mapping
            '((python-mode     . python-ts-mode)
@@ -326,137 +375,86 @@ Call interactively to force reinstall of all grammars."
   :config
   (tao/setup-install-grammars))
 
-(use-package lsp-mode
+;;; ── LSP mode ─────────────────────────────────────────────────────────────────
+
+(use-package! lsp-mode
   :diminish "LSP"
-  :hook ((lsp-mode . lsp-diagnostics-mode)
-         (lsp-mode . lsp-enable-which-key-integration)
-         ((tsx-ts-mode
-           typescript-ts-mode
-           js-ts-mode) . lsp-deferred))
+  :hook ((lsp-mode          . lsp-diagnostics-mode)
+         (lsp-mode          . lsp-enable-which-key-integration)
+         (tsx-ts-mode       . lsp-deferred)
+         (typescript-ts-mode . lsp-deferred)
+         (js-ts-mode        . lsp-deferred))
+  :init
+  (setq lsp-use-plists t)
   :custom
-  (lsp-keymap-prefix "C-c l")           ; Prefix for LSP actions
-  (lsp-completion-provider :none)       ; Using Corfu as the provider
+  (lsp-keymap-prefix "C-c l")
+  (lsp-completion-provider :none)
   (lsp-diagnostics-provider :flycheck)
   (lsp-session-file (locate-user-emacs-file ".lsp-session"))
-  (lsp-log-io nil)                      ; IMPORTANT! Use only for debugging! Drastically affects performance
-  (lsp-keep-workspace-alive nil)        ; Close LSP server if all project buffers are closed
-  (lsp-idle-delay 0.5)                  ; Debounce timer for `after-change-function'
-  ;; core
-  (lsp-enable-xref t)                   ; Use xref to find references
-  (lsp-auto-configure t)                ; Used to decide between current active servers
-  (lsp-eldoc-enable-hover t)            ; Display signature information in the echo area
-  (lsp-enable-dap-auto-configure t)     ; Debug support
+  (lsp-log-io nil)
+  (lsp-keep-workspace-alive nil)
+  (lsp-idle-delay 0.5)
+  (lsp-enable-xref t)
+  (lsp-auto-configure t)
+  (lsp-eldoc-enable-hover t)
+  (lsp-enable-dap-auto-configure t)
   (lsp-enable-file-watchers nil)
-  (lsp-enable-folding nil)              ; I disable folding since I use origami
+  (lsp-enable-folding nil)
   (lsp-enable-imenu t)
-  (lsp-enable-indentation nil)          ; I use prettier
-  (lsp-enable-links nil)                ; No need since we have `browse-url'
-  (lsp-enable-on-type-formatting nil)   ; Prettier handles this
-  (lsp-enable-suggest-server-download t) ; Useful prompt to download LSP providers
-  (lsp-enable-symbol-highlighting t)     ; Shows usages of symbol at point in the current buffer
-  (lsp-enable-text-document-color nil)   ; This is Treesitter's job
-
-  (lsp-ui-sideline-show-hover nil)      ; Sideline used only for diagnostics
-  (lsp-ui-sideline-diagnostic-max-lines 20) ; 20 lines since typescript errors can be quite big
-  ;; completion
+  (lsp-enable-indentation nil)
+  (lsp-enable-links nil)
+  (lsp-enable-on-type-formatting nil)
+  (lsp-enable-suggest-server-download t)
+  (lsp-enable-symbol-highlighting t)
+  (lsp-enable-text-document-color nil)
+  (lsp-ui-sideline-show-hover nil)
+  (lsp-ui-sideline-diagnostic-max-lines 20)
   (lsp-completion-enable t)
-  (lsp-completion-enable-additional-text-edit t) ; Ex: auto-insert an import for a completion candidate
-  (lsp-enable-snippet t)                         ; Important to provide full JSX completion
-  (lsp-completion-show-kind t)                   ; Optional
-  ;; headerline
-  (lsp-headerline-breadcrumb-enable t)  ; Optional, I like the breadcrumbs
-  (lsp-headerline-breadcrumb-enable-diagnostics nil) ; Don't make them red, too noisy
+  (lsp-completion-enable-additional-text-edit t)
+  (lsp-enable-snippet t)
+  (lsp-completion-show-kind t)
+  (lsp-headerline-breadcrumb-enable t)
+  (lsp-headerline-breadcrumb-enable-diagnostics nil)
   (lsp-headerline-breadcrumb-enable-symbol-numbers nil)
   (lsp-headerline-breadcrumb-icons-enable nil)
-  ;; modeline
-  (lsp-modeline-code-actions-enable nil) ; Modeline should be relatively clean
-  (lsp-modeline-diagnostics-enable nil)  ; Already supported through `flycheck'
-  (lsp-modeline-workspace-status-enable nil) ; Modeline displays "LSP" when lsp-mode is enabled
-  (lsp-signature-doc-lines 1)                ; Don't raise the echo area. It's distracting
-  (lsp-ui-doc-use-childframe t)              ; Show docs for symbol at point
-  (lsp-eldoc-render-all nil)            ; This would be very useful if it would respect `lsp-signature-doc-lines', currently it's distracting
-  ;; lens
-  (lsp-lens-enable nil)                 ; Optional, I don't need it
-  ;; semantic
-  (lsp-semantic-tokens-enable nil)      ; Related to highlighting, and we defer to treesitter
+  (lsp-modeline-code-actions-enable nil)
+  (lsp-modeline-diagnostics-enable nil)
+  (lsp-modeline-workspace-status-enable nil)
+  (lsp-signature-doc-lines 1)
+  (lsp-ui-doc-use-childframe t)
+  (lsp-eldoc-render-all nil)
+  (lsp-lens-enable nil)
+  (lsp-semantic-tokens-enable nil))
 
-  :init
-  (setq lsp-use-plists t))
-
-(use-package lsp-completion
+(use-package! lsp-completion
   :no-require
-  :hook ((lsp-mode . lsp-completion-mode)))
+  :hook (lsp-mode . lsp-completion-mode))
 
-(use-package lsp-ui
-  :commands
-  (lsp-ui-doc-show
-   lsp-ui-doc-glance)
-  :bind (:map lsp-mode-map
-              ("C-c C-d" . 'lsp-ui-doc-glance))
+(use-package! lsp-ui
+  :commands (lsp-ui-doc-show lsp-ui-doc-glance)
   :after (lsp-mode evil)
-  :config (setq lsp-ui-doc-enable t
-                evil-lookup-func #'lsp-ui-doc-glance ; Makes K in evil-mode toggle the doc for symbol at point
-                lsp-ui-doc-show-with-cursor nil      ; Don't show doc when cursor is over symbol - too distracting
-                lsp-ui-doc-include-signature t       ; Show signature
-                lsp-ui-doc-position 'at-point))
+  :bind (:map lsp-mode-map
+              ("C-c C-d" . lsp-ui-doc-glance))
+  :config
+  (setq lsp-ui-doc-enable t
+        evil-lookup-func #'lsp-ui-doc-glance
+        lsp-ui-doc-show-with-cursor nil
+        lsp-ui-doc-include-signature t
+        lsp-ui-doc-position 'at-point))
 
-(use-package typescript-ts-mode
-  :hook
-  ((typescript-ts-mode . lsp)
-   (tsx-ts-mode . lsp)))
+(use-package! typescript-ts-mode
+  :hook ((typescript-ts-mode . lsp)
+         (tsx-ts-mode        . lsp)))
 
-;; Project root for Eglot
-(cl-defmethod project-root ((project (head eglot-project)))
-  (cdr project))
+;;; ── Project / Projectile ─────────────────────────────────────────────────────
 
-(after! eglot
-  (defun tao/project-try-tsconfig-json (dir)
-    (when-let* ((found (locate-dominating-file dir "tsconfig.json")))
-      (cons 'eglot-project found)))
-  (add-hook 'project-find-functions 'tao/project-try-tsconfig-json nil nil)
-  (add-to-list 'eglot-server-programs
-               '((typescript-mode) "typescript-language-server" "--stdio")))
-
-;; Keybindings
-(defun insert-backslash ()
-  "Insert backslash"
-  (interactive)
-  (insert "\\"))
-(global-set-key (kbd "M-¥") 'insert-backslash)
-
-(defun insert-blank-line-after-comment ()
-  "Insert a blank line after the current line without continuing a comment."
-  (interactive)
-  (end-of-line)
-  (newline-and-indent))
-(global-set-key (kbd "C-<return>") 'insert-blank-line-after-comment)
-
-;; URL encoding/decoding
-(defun url-decode-region (start end)
-  "Replace a region with the same contents, only URL decoded."
-  (interactive "r")
-  (let ((text (decode-coding-string (url-unhex-string (buffer-substring start end) t) 'utf-8)))
-    (delete-region start end)
-    (insert text)))
-
-(defun url-encode-region (start end)
-  "Replace a region with the same contents, only URL encoded."
-  (interactive "r")
-  (let ((text (url-hexify-string (buffer-substring start end))))
-    (delete-region start end)
-    (insert text)))
-
-;; Enable company in insert mode
-(after! evil
-  (add-hook 'evil-insert-state-entry-hook #'company-mode))
-
-;; Project
-(after! project
+(use-package! project
+  :config
   (add-to-list 'project-vc-extra-root-markers ".git"))
 
-;; Projectile
-(after! projectile
-  (let* ((projects-path "~/Projects")
+(use-package! projectile
+  :config
+  (let* ((projects-path      "~/Projects")
          (open-projects-path (getenv "OPENPROJECTS_PATH"))
          (paths (delq nil (list projects-path
                                 (unless (string= projects-path open-projects-path)
@@ -468,27 +466,29 @@ Call interactively to force reinstall of all grammars."
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
-;; Exec-path-from-shell
-(use-package! exec-path-from-shell
-  :init
-  (when (memq window-system '(mac ns x))
-    (setq exec-path-from-shell-arguments '("-l"))
-    (setq exec-path-from-shell-variables '("PATH"
-                                           "MISE_SHELL"
-                                           "DEFAULT_GIT_COMMIT_MESSAGE"
-                                           "GITHUB_PULL_REQUEST_REVIEWERS"
-                                           "JIRA_USER"
-                                           "JIRA_TOKEN"
-                                           "JIRA_ISSUE_BASE_URL"
-                                           "JIRA_ISSUE_KEY_PREFIX"))
-    (exec-path-from-shell-initialize)
-    ;; Copy extras, ignoring any that aren't set
-    (dolist (var exec-path-from-shell-variables)
-      (ignore-errors (exec-path-from-shell-copy-env var)))))
+;;; ── exec-path-from-shell ─────────────────────────────────────────────────────
 
-;; Org
-(after! org
-  ;; Set custom TODO keywords and faces
+(use-package! exec-path-from-shell
+  :when (memq window-system '(mac ns x))
+  :init
+  (setq exec-path-from-shell-arguments '("-l")
+        exec-path-from-shell-variables '("PATH"
+                                         "MISE_SHELL"
+                                         "DEFAULT_GIT_COMMIT_MESSAGE"
+                                         "GITHUB_PULL_REQUEST_REVIEWERS"
+                                         "JIRA_USER"
+                                         "JIRA_TOKEN"
+                                         "JIRA_ISSUE_BASE_URL"
+                                         "JIRA_ISSUE_KEY_PREFIX"))
+  :config
+  (exec-path-from-shell-initialize)
+  (dolist (var exec-path-from-shell-variables)
+    (ignore-errors (exec-path-from-shell-copy-env var))))
+
+;;; ── Org ──────────────────────────────────────────────────────────────────────
+
+(use-package! org
+  :config
   (setq org-todo-keywords
         '((sequence
            "TODO(t)"
@@ -498,28 +498,23 @@ Call interactively to force reinstall of all grammars."
            "|" "DONE(d)" "CANCELED(c)"))
         org-log-done 'time
         org-todo-keyword-faces
-        '(("TODO" . (:foreground "#008080" :weight bold))
-          ("DOING" . (:foreground "#00ff00" :weight bold))
-          ("BLOCKED" . (:foreground "#ff0000" :weight bold))
-          ("REVIEW" . (:foreground "#00ffff" :weight bold))
-          ("DONE" . (:foreground "#708090" :weight bold)))
+        '(("TODO"     . (:foreground "#008080" :weight bold))
+          ("DOING"    . (:foreground "#00ff00" :weight bold))
+          ("BLOCKED"  . (:foreground "#ff0000" :weight bold))
+          ("REVIEW"   . (:foreground "#00ffff" :weight bold))
+          ("DONE"     . (:foreground "#708090" :weight bold)))
         org-use-fast-todo-selection 'auto)
 
-  ;; helper command: always insert timestamp WITH time
   (defun my/org-time-stamp-with-time ()
     "Insert an Org timestamp including time."
     (interactive)
-    (org-time-stamp '(4))) ;; C-u prefix forces time
+    (org-time-stamp '(4)))
 
-  ;; Keybindings for org-mode
-  ;; SPC m t  => cycle/set TODO state (expert fast-selection menu)
-  ;; SPC m T  => insert timestamp with time
   (map! :map org-mode-map
         :localleader
-        :desc "Set TODO state" "t" #'org-todo
-        :desc "Insert timestamp with time" "T" #'my/org-time-stamp-with-time)
+        :desc "Set TODO state"          "t" #'org-todo
+        :desc "Insert timestamp w/time" "T" #'my/org-time-stamp-with-time)
 
-  ;; Prettify symbols in org-mode
   (defun tao/org-prettify-symbols ()
     "Set up prettify symbols for Org buffers."
     (setq-local prettify-symbols-alist
@@ -529,17 +524,18 @@ Call interactively to force reinstall of all grammars."
     (prettify-symbols-mode 1))
   (add-hook 'org-mode-hook #'tao/org-prettify-symbols)
 
-  ;; Highlight tasks with clock entries
   (defface org-task-with-clock
     '((t :foreground "Cyan")
       :group 'org)
     "Face for Org tasks with clock entries.")
+
   (defun tao/org-has-clock-entries-p ()
     "Return non-nil if the current headline has clock entries."
     (save-excursion
       (org-back-to-heading t)
       (let ((end (org-entry-end-position)))
         (re-search-forward "^[ \t]*CLOCK:" end t))))
+
   (defun tao/org-fontify-clock-tasks ()
     "Fontify Org tasks with clock entries."
     (save-excursion
@@ -556,20 +552,12 @@ Call interactively to force reinstall of all grammars."
                            (point))))
           (when (tao/org-has-clock-entries-p)
             (add-text-properties text-beg end '(font-lock-face org-task-with-clock)))))))
-  (add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
+
+  (add-hook 'org-mode-hook          #'tao/org-fontify-clock-tasks)
   (add-hook 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
 
-  ;; Pomodoro hooks for fontifying clock tasks
-  (defun tao/org-pomodoro-start-or-finished-hook ()
-    "Hook to run when org-pomodoro starts or finishes."
-    (tao/org-fontify-clock-tasks))
-  (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook)
-
   (defun tao/org-update-last-timestamp ()
-    "Update or insert the #+UPDATED: keyword with the current timestamp in
-     Org mode files, placing it after #+CREATED: if it exists, or display
-the last modified time for other files."
+    "Update or insert #+UPDATED: with the current timestamp."
     (interactive)
     (if (buffer-file-name)
         (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
@@ -578,113 +566,100 @@ the last modified time for other files."
                 (goto-char (point-min))
                 (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
                     (replace-match (concat "#+UPDATED: " timestamp))
-                  ;; Check for #+CREATED: and insert after it
                   (goto-char (point-min))
                   (if (re-search-forward "^#\\+CREATED:.*$" nil t)
-                      (progn
-                        (end-of-line)
-                        (insert "\n#+UPDATED: " timestamp))
-                    ;; Fallback: insert after first Org keyword or at start
+                      (progn (end-of-line)
+                             (insert "\n#+UPDATED: " timestamp))
                     (goto-char (point-min))
                     (if (re-search-forward "^#\\+.*$" nil t)
-                        (progn
-                          (end-of-line)
-                          (insert "\n#+UPDATED: " timestamp))
+                        (progn (end-of-line)
+                               (insert "\n#+UPDATED: " timestamp))
                       (insert "#+UPDATED: " timestamp "\n")))))
             (message "Last modified: %s" timestamp)))
       (message "Buffer is not associated with a file")))
+
   (add-hook 'before-save-hook #'tao/org-update-last-timestamp)
 
   ;; ── Auto-sink DONE/CANCELED headings to bottom of their sibling list ──
 
   (defun tao/org-todo-state-is-terminal-p (state)
-    "Return non-nil if STATE is a terminal keyword (DONE or CANCELED)."
+    "Return non-nil if STATE is DONE or CANCELED."
     (member state '("DONE" "CANCELED")))
 
   (defun tao/org-sink-done-heading ()
-    "Move the current heading to after the last non-terminal sibling at the
-same level.  The entire subtree (body text + children) travels with it.
-Runs via `org-after-todo-state-change-hook'."
+    "Move the current heading after the last non-terminal sibling."
     (when (tao/org-todo-state-is-terminal-p org-state)
       (save-excursion
         (org-back-to-heading t)
         (let* ((level        (org-current-level))
                (stars        (make-string level ?*))
-               ;; Capture the full subtree text
                (subtree-beg  (point))
                (subtree-end  (save-excursion (org-end-of-subtree t t) (point)))
                (subtree-text (buffer-substring subtree-beg subtree-end))
-               ;; Walk siblings to find the last non-terminal one
-               (insert-after  nil))
-
-          ;; Only act if there is at least one sibling to compare against
+               (insert-after nil))
           (save-excursion
-            ;; Go to the first sibling at this level within the parent
             (if (org-up-heading-safe)
                 (org-goto-first-child)
-              ;; Top-level: jump to very first heading at level
               (goto-char (point-min))
               (unless (looking-at (concat "^" stars "[^*]"))
                 (re-search-forward (concat "^" stars "[^*]") nil t)
                 (beginning-of-line)))
-            ;; Iterate siblings
             (while (and (looking-at org-heading-regexp)
                         (= (org-current-level) level))
               (let ((kw (org-get-todo-state)))
                 (unless (tao/org-todo-state-is-terminal-p kw)
-                  ;; Record the END of this non-terminal subtree as a
-                  ;; candidate insertion point
                   (setq insert-after
                         (save-excursion (org-end-of-subtree t t) (point)))))
-              ;; Move to next sibling
               (unless (org-get-next-sibling)
-                (goto-char (point-max)))))   ; break the loop
-
+                (goto-char (point-max)))))
           (when insert-after
-            ;; Avoid a no-op if the heading is already in the right place
             (unless (= subtree-beg insert-after)
               (let ((adjusted-insert
-                     ;; If our subtree sits BEFORE the insertion point the
-                     ;; deletion will shift positions, so compensate.
                      (if (< subtree-beg insert-after)
                          (- insert-after (- subtree-end subtree-beg))
                        insert-after)))
                 (delete-region subtree-beg subtree-end)
                 (goto-char adjusted-insert)
-                ;; Ensure we're at a line boundary before inserting
                 (unless (bolp) (insert "\n"))
                 (insert subtree-text)
-                ;; Leave point on the heading we just moved
                 (goto-char adjusted-insert)
                 (beginning-of-line))))))))
 
   (add-hook 'org-after-todo-state-change-hook #'tao/org-sink-done-heading))
 
-;; org-superstar
-(use-package org-superstar
-  :defer t
-  :hook org-mode
-  :config
-  (setq org-superstar-headline-bullets-list '("✿" "✸" "⬢" "☯" "○" "◆" "▲" "■" "♦" "♢" "▫"))
-  (setq org-superstar-item-bullet-alist '((?* . ?•) (?+ . ?➤) (?- . ?–))))
+;;; ── org-superstar ────────────────────────────────────────────────────────────
 
-;; Org-pomodoro
-(after! org-pomodoro
+(use-package! org-superstar
+  :defer t
+  :hook (org-mode . org-superstar-mode)
+  :config
+  (setq org-superstar-headline-bullets-list
+        '("✿" "✸" "⬢" "☯" "○" "◆" "▲" "■" "♦" "♢" "▫")
+        org-superstar-item-bullet-alist
+        '((?* . ?•) (?+ . ?➤) (?- . ?–))))
+
+;;; ── org-pomodoro ─────────────────────────────────────────────────────────────
+
+(use-package! org-pomodoro
+  :config
   (defcustom org-pomodoro-display-count-p t
     "When non-nil, display the total number of pomodoros in the modeline."
     :group 'org-pomodoro
     :type 'boolean)
+
   (defcustom org-pomodoro-count-format "[%s] "
-    "The format of the total pomodoro count if enabled."
+    "Format string for the total pomodoro count."
     :group 'org-pomodoro
     :type 'string)
+
   (defun org-pomodoro-format-count ()
-    "Format the total number of pomodoros or empty string if not shown."
+    "Format the total number of pomodoros, or empty string if not shown."
     (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
         (format org-pomodoro-count-format org-pomodoro-count)
       ""))
+
   (defun org-pomodoro-update-mode-line ()
-    "Set the modeline accordingly to the current state."
+    "Set the modeline according to the current pomodoro state."
     (let ((s (cl-case org-pomodoro-state
                (:pomodoro
                 (propertize org-pomodoro-format 'face 'org-pomodoro-mode-line))
@@ -699,95 +674,66 @@ Runs via `org-after-todo-state-change-hook'."
                             'face 'org-pomodoro-mode-line-break)))))
       (setq org-pomodoro-mode-line
             (when (and (org-pomodoro-active-p) (> (length s) 0))
-              (list "[" (format s (org-pomodoro-format-seconds)) "] " (org-pomodoro-format-count))))
+              (list "[" (format s (org-pomodoro-format-seconds)) "] "
+                    (org-pomodoro-format-count))))
       (force-mode-line-update t)))
-  (defun tao/org-pomodoro-start-or-finished-hook ()
-    "Hook to run when org-pomodoro starts or finishes."
+
+  (defun tao/org-pomodoro-refresh-hook ()
+    "Refresh clock-task fontification when a pomodoro starts or finishes."
     (tao/org-fontify-clock-tasks))
-  (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
-  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
-;; Custom keybindings via General
-(after! general
-  (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "<escape>" '(buffer-menu :which-key "buffer menu"))
-  (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   :which-key "string inflection"
-   "z" '(:which-key "string inflection")
-   "z a" '(string-inflection-all-cycle :which-key "all cases")
-   "z c" '(string-inflection-camelcase :which-key "camelCase")
-   "z k" '(string-inflection-kebab-case :which-key "kebab-case")
-   "z l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
-   "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
-   "z s" '(string-inflection-underscore :which-key "snake_case")
-   "z u" '(string-inflection-upcase :which-key "UPCASE"))
-  (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "m i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
-  (general-define-key
-   :keymaps 'magit-status-mode-map
-   :states 'normal
-   "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
+  (add-hook 'org-pomodoro-started-hook  #'tao/org-pomodoro-refresh-hook)
+  (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-refresh-hook))
 
-;; control which-key popup and pagination
-(after! which-key
-  (setq which-key-use-C-h-commands t)
-  (setq which-key-show-transient-maps t)
-  (setq which-key-max-display-columns nil)
-  (setq which-key-side-window-max-height 0.5))
+;;; ── which-key ────────────────────────────────────────────────────────────────
 
-(after! apheleia
-  (setf (alist-get 'emacs-lisp-mode apheleia-formatters)
-        '("emacs" "--eval" "(progn
-                              (require 'emacs-lisp)
-                              (indent-region (point-min) (point-max))
-                              (untabify (point-min) (point-max))
-                              (buffer-string))"))
-  (setf (alist-get 'typescript-ts-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'tsx-ts-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'js-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'black apheleia-formatters)
-        '("black" "-"))
-  (setf (alist-get 'python-mode apheleia-mode-alist)
-        'black))
+(use-package! which-key
+  :config
+  (setq which-key-use-C-h-commands t
+        which-key-show-transient-maps t
+        which-key-max-display-columns nil
+        which-key-side-window-max-height 0.5))
 
-(defun tao/conditionally-enable-apheleia ()
-  (when (and (derived-mode-p 'prog-mode)
-             (not (or (bound-and-true-p lsp-mode)
-                      (bound-and-true-p eglot--managed-mode)
-                      (member major-mode '(rust-mode rust-ts-mode
-                                           yaml-mode yaml-ts-mode)))))
-    (apheleia-mode-maybe)))
+;;; ── apheleia ─────────────────────────────────────────────────────────────────
 
-(add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
+(use-package! apheleia
+  :config
+  (setf (alist-get 'typescript-ts-mode apheleia-mode-alist) 'prettier
+        (alist-get 'tsx-ts-mode        apheleia-mode-alist) 'prettier
+        (alist-get 'js-mode            apheleia-mode-alist) 'prettier
+        (alist-get 'python-mode        apheleia-mode-alist) 'black
+        (alist-get 'black              apheleia-formatters) '("black" "-"))
 
-(after! magit
-  (setq ediff-diff-options "")
-  (setq ediff-custom-diff-options "-u")
-  (setq ediff-window-setup-function 'ediff-setup-windows-plain)
-  (setq ediff-split-window-function 'split-window-vertically)
-  (setq magit-ediff-dwim-show-on-hunks t)
-  (setq magit-uniqfy-buffer-names t)
-  (setq magit-save-repository-buffers 'dontask)
-  (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
-  (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
+  (defun tao/conditionally-enable-apheleia ()
+    (when (and (derived-mode-p 'prog-mode)
+               (not (or (bound-and-true-p lsp-mode)
+                        (bound-and-true-p eglot--managed-mode)
+                        (member major-mode '(rust-mode rust-ts-mode
+                                             yaml-mode yaml-ts-mode)))))
+      (apheleia-mode-maybe)))
 
-  (add-hook 'magit-mode-hook
-            (lambda ()
-              (display-line-numbers-mode -1)))
+  (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia))
+
+;;; ── Magit / Forge ────────────────────────────────────────────────────────────
+
+(use-package! magit
+  :config
+  (setq ediff-diff-options ""
+        ediff-custom-diff-options "-u"
+        ediff-window-setup-function 'ediff-setup-windows-plain
+        ediff-split-window-function 'split-window-vertically
+        magit-ediff-dwim-show-on-hunks t
+        magit-uniqfy-buffer-names t
+        magit-save-repository-buffers 'dontask
+        magit-display-buffer-function
+        #'magit-display-buffer-same-window-except-diff-v1
+        forge-topic-list-limit '((pullreq . 50) (issue . 0)))
+
+  (add-hook 'magit-mode-hook (lambda () (display-line-numbers-mode -1)))
 
   (remove-hook 'magit-status-sections-hook #'forge-insert-pullreqs)
+
+  ;; ── Open PRs section ──
 
   (defun +forge-insert-open-prs ()
     (when (forge-get-repository nil t)
@@ -798,11 +744,11 @@ Runs via `org-after-todo-state-change-hook'."
                       :from pullreq
                       :where (and (= repository $s1) (= state "open"))]
                      (forge-get-repository)))
-          (insert (format "#%s  %s\n"
-                          (aref pr 0)
-                          (aref pr 1)))))))
+          (insert (format "#%s  %s\n" (aref pr 0) (aref pr 1)))))))
 
   (add-hook 'magit-status-sections-hook #'+forge-insert-open-prs)
+
+  ;; ── Filtered local branches section ──
 
   (defun +magit-insert-filtered-local-branches ()
     (let ((branches
@@ -817,12 +763,10 @@ Runs via `org-after-todo-state-change-hook'."
             (magit-insert-section (branch branch)
               (insert (format "%s\n" branch))))))))
 
-  (add-hook 'magit-status-sections-hook
-            #'+magit-insert-filtered-local-branches
-            20)
+  (add-hook 'magit-status-sections-hook #'+magit-insert-filtered-local-branches 20)
+  (add-to-list 'magit-section-initial-visibility-alist '(local-branches . hide))
 
-  (add-to-list 'magit-section-initial-visibility-alist
-               '(local-branches . hide))
+  ;; ── Jump to first uncommitted change on status open ──
 
   (defun +magit-move-to-first-uncommitted-change ()
     (when (eq major-mode 'magit-status-mode)
@@ -835,25 +779,24 @@ Runs via `org-after-todo-state-change-hook'."
            (goto-char (match-beginning 0))
            (forward-line 1))))))
 
-  (add-hook 'magit-status-mode-hook
-            #'+magit-move-to-first-uncommitted-change)
+  (add-hook 'magit-status-mode-hook #'+magit-move-to-first-uncommitted-change)
+
+  ;; ── Worktrees ──
 
   (defun tao/magit-worktree-flat-branch-name (branch)
     (and branch (string-replace "/" "-" branch)))
 
   (defun tao/magit-read-worktree-directory (prompt branch)
-    (let* ((root (magit-toplevel))
-           (parent (file-name-directory (directory-file-name root)))
-           (proj (file-name-nondirectory (directory-file-name root)))
-           (base (expand-file-name (concat proj "-worktrees/") parent))
-           (default-name (or (tao/magit-worktree-flat-branch-name branch)
-                             "worktree")))
+    (let* ((root       (magit-toplevel))
+           (parent     (file-name-directory (directory-file-name root)))
+           (proj       (file-name-nondirectory (directory-file-name root)))
+           (base       (expand-file-name (concat proj "-worktrees/") parent))
+           (default-name (or (tao/magit-worktree-flat-branch-name branch) "worktree")))
       (unless (file-directory-p base)
         (make-directory base t))
       (read-directory-name prompt base nil nil default-name)))
 
-  (setq magit-read-worktree-directory-function
-        #'tao/magit-read-worktree-directory)
+  (setq magit-read-worktree-directory-function #'tao/magit-read-worktree-directory)
 
   (defun +magit-worktree-dirty-p (path)
     (not (string-empty-p
@@ -867,9 +810,7 @@ Runs via `org-after-todo-state-change-hook'."
                  (shell-quote-argument path)))
            (out (string-trim (shell-command-to-string cmd))))
       (when (string-match "\\([0-9]+\\)[ \t]+\\([0-9]+\\)" out)
-        (format "↑%s ↓%s"
-                (match-string 1 out)
-                (match-string 2 out)))))
+        (format "↑%s ↓%s" (match-string 1 out) (match-string 2 out)))))
 
   (defun +magit-insert-worktrees ()
     (when-let ((worktrees (magit-list-worktrees)))
@@ -878,20 +819,17 @@ Runs via `org-after-todo-state-change-hook'."
         (let ((current (magit-toplevel)))
           (dolist (wt worktrees)
             (pcase-let ((`(,path ,branch ,_head ,_locked) wt))
-              (let* ((is-current
-                      (string=
-                       (file-truename path)
-                       (file-truename current)))
-                     (dot (if is-current "●" " "))
-                     (dirty (+magit-worktree-dirty-p path))
-                     (status (if dirty "✗" "✓"))
-                     (status-face (if dirty 'error 'success))
+              (let* ((is-current   (string= (file-truename path)
+                                            (file-truename current)))
+                     (dot          (if is-current "●" " "))
+                     (dirty        (+magit-worktree-dirty-p path))
+                     (status       (if dirty "✗" "✓"))
+                     (status-face  (if dirty 'error 'success))
                      (ahead-behind (+magit-worktree-ahead-behind path))
-                     (branch-name
-                      (if (and branch
-                               (not (string-match-p "^[0-9a-f]\\{7,\\}$" branch)))
-                          branch
-                        "(detached)")))
+                     (branch-name  (if (and branch
+                                            (not (string-match-p "^[0-9a-f]\\{7,\\}$" branch)))
+                                       branch
+                                     "(detached)")))
                 (magit-insert-section (worktree path)
                   (insert
                    (format "%s %-40s %-20s %s %s\n"
@@ -901,52 +839,36 @@ Runs via `org-after-todo-state-change-hook'."
                            (or ahead-behind "")
                            (propertize status 'face status-face)))))))))))
 
-  (add-hook 'magit-status-sections-hook
-            #'+magit-insert-worktrees
-            5)
-
-  (add-to-list 'magit-section-initial-visibility-alist
-               '(worktrees . show))
+  (add-hook 'magit-status-sections-hook #'+magit-insert-worktrees 5)
+  (add-to-list 'magit-section-initial-visibility-alist '(worktrees . show))
 
   (defun +magit-visit-worktree ()
     (when-let* ((section (magit-current-section))
-                (path (oref section value)))
+                (path    (oref section value)))
       (dired path)))
 
-  (define-key magit-status-mode-map
-              (kbd "RET")
-              #'+magit-visit-worktree)
+  (define-key magit-status-mode-map (kbd "RET") #'+magit-visit-worktree)
 
   (defun tao/magit-switch-worktree ()
     (let* ((worktrees (magit-list-worktrees))
-           (paths (mapcar #'car worktrees))
-           (choice (completing-read "Worktree: " paths nil t)))
+           (paths     (mapcar #'car worktrees))
+           (choice    (completing-read "Worktree: " paths nil t)))
       (dired choice)))
 
   (defun tao/magit-create-worktree-from-branch ()
     (interactive)
     (let* ((branch (magit-read-branch "Branch"))
-           (dir (tao/magit-read-worktree-directory
-                 "Worktree directory: "
-                 branch)))
+           (dir    (tao/magit-read-worktree-directory "Worktree directory: " branch)))
       (magit-run-git "worktree" "add" dir branch)
       (magit-refresh)))
-  
+
   (map! :leader
-        :desc "Switch git worktree"
-        "g w" #'tao/magit-switch-worktree
-        :desc "Create worktree from branch"
-        "g W" #'tao/magit-create-worktree-from-branch)
+        :desc "Switch git worktree"        "g w" #'tao/magit-switch-worktree
+        :desc "Create worktree from branch" "g W" #'tao/magit-create-worktree-from-branch)
 
   (map! :map magit-status-mode-map
         :n "n" #'magit-section-forward
         :n "p" #'magit-section-backward)
-
-  (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "m g c" '(git-tools-open-all-conflict-files :which-key "git open conflict files"))
 
   (defun +magit-toggle-local-branches-section ()
     (save-excursion
@@ -954,57 +876,85 @@ Runs via `org-after-todo-state-change-hook'."
       (when (re-search-forward "^Local Branches$" nil t)
         (let ((section (magit-current-section)))
           (when (magit-section-p section)
-            (magit-section-toggle section)))))))
+            (magit-section-toggle section))))))
 
-;; vterm
-(use-package vterm
+  ;; ── General keybindings ──
+
+  (after! general
+    (general-define-key
+     :states 'normal
+     :keymaps 'override
+     :prefix doom-leader-key
+     "<escape>" '(buffer-menu :which-key "buffer menu"))
+
+    (general-define-key
+     :states 'normal
+     :keymaps 'override
+     :prefix doom-leader-key
+     :which-key "string inflection"
+     "z"   '(:which-key "string inflection")
+     "z a" '(string-inflection-all-cycle       :which-key "all cases")
+     "z c" '(string-inflection-camelcase       :which-key "camelCase")
+     "z k" '(string-inflection-kebab-case      :which-key "kebab-case")
+     "z l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
+     "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
+     "z s" '(string-inflection-underscore      :which-key "snake_case")
+     "z u" '(string-inflection-upcase          :which-key "UPCASE"))
+
+    (general-define-key
+     :states 'normal
+     :keymaps 'override
+     :prefix doom-leader-key
+     "m i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
+
+    (general-define-key
+     :states 'normal
+     :keymaps 'override
+     :prefix doom-leader-key
+     "m g c" '(git-tools-open-all-conflict-files :which-key "git open conflict files"))
+
+    (general-define-key
+     :keymaps 'magit-status-mode-map
+     :states 'normal
+     "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches"))))
+
+;;; ── vterm ────────────────────────────────────────────────────────────────────
+
+(use-package! vterm
   :config
   (setq vterm-always-compile-module t)
-  (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
+  (define-key vterm-mode-map (kbd "<tab>") #'vterm-send-tab))
 
-;; port-number => load from ~/.config/elisp
-(use-package port-number)
+;;; ── ws-butler ────────────────────────────────────────────────────────────────
 
-;; nodoze => load from ~/.config/elisp
-(use-package nodoze)
-
-;; colima => load from ~/.config/elisp
-(use-package colima)
-
-;; git-tools => load from ~/.config/elisp
-(use-package git-tools)
-
-;; pg-tools => load from ~/.config/elisp
-(use-package pg-tools)
-
-;; status => load from ~/.config/elisp
-(use-package status)
-
-;; ws-butler => load from ~/.config/elisp
 (use-package! ws-butler
   :config
-  ;; Enable in programming and text buffers
-  (add-hook 'prog-mode-hook #'ws-butler-mode)
-  (add-hook 'text-mode-hook #'ws-butler-mode)
-
-  ;; Disable in modes where whitespace is meaningful
+  (add-hook 'prog-mode-hook     #'ws-butler-mode)
+  (add-hook 'text-mode-hook     #'ws-butler-mode)
   (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
   (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
+
+;;; ── Local packages (from ~/.config/elisp) ────────────────────────────────────
+
+(use-package! port-number)
+(use-package! nodoze)
+(use-package! colima)
+(use-package! git-tools)
+(use-package! pg-tools)
+(use-package! status)
+(use-package! markdown-tools)
 
 (use-package! jira-todo
   :after request)
 
-;; markdown-tools => load from ~/.config/elisp
-(use-package markdown-tools)
-
-;; display slack message count in the modeline
 (use-package! slackcount
   :if (slackcount-available-p)
   :config
   (setq slackcount-alert-sound "/System/Library/Sounds/Funk.aiff")
   (slackcount-mode 1))
 
-;; Custom file
+;;; ── Custom file ──────────────────────────────────────────────────────────────
+
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
 (when (file-exists-p custom-file)
   (load custom-file))
