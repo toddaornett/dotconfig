@@ -54,7 +54,7 @@
 (setq doom-symbol-font (font-spec :family "Symbols Nerd Font Mono"))
 
 ;; Set nerd-icons vars *before* nerd-icons is ever used so the default face is valid
-(setq nerd-icons-font-family "FiraCode Nerd Font")
+(setq nerd-icons-font-family "Symbols Nerd Font Mono")
 ;; Slightly > 1.0 gives icons room so they don’t clip or look squashed
 (setq nerd-icons-scale-factor 1.15)
 (setq doom-modeline-vcs-max-length 50)
@@ -918,6 +918,12 @@ Runs via `org-after-todo-state-change-hook'."
         :n "n" #'magit-section-forward
         :n "p" #'magit-section-backward)
 
+  (general-define-key
+   :states 'normal
+   :keymaps 'override
+   :prefix doom-leader-key
+   "m g c" '(git-tools-open-all-conflict-files :which-key "git open conflict files"))
+
   (defun +magit-toggle-local-branches-section ()
     (save-excursion
       (goto-char (point-min))
@@ -966,6 +972,13 @@ Runs via `org-after-todo-state-change-hook'."
 
 ;; markdown-tools => load from ~/.config/elisp
 (use-package markdown-tools)
+
+;; display slack message count in the modeline
+(use-package! slackcount
+  :if (slackcount-available-p)
+  :config
+  (setq slackcount-alert-sound "/System/Library/Sounds/Funk.aiff")
+  (slackcount-mode 1))
 
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-private-dir))
