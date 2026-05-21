@@ -11,8 +11,8 @@
 ;; Created: `(format-time-string "%B %d, %Y")`
 ;; Modified: `(format-time-string "%B %d, %Y")`
 ;; Version: 0.0.1
-;; Keywords: ${1:+`(tao/snippet-keywords-from-description yas-text)`}
-;; Homepage: `(tao/snippet-homepage-url)`
+;; Keywords: `(tao/snippet-keywords-from-description yas-text)`
+;; Homepage: `(git-tools-remote-origin-url)`
 ;; Package-Requires: ((emacs "27.1"))
 ;;
 ;; This file is not part of GNU Emacs.
