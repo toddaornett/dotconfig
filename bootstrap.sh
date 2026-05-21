@@ -53,7 +53,7 @@ if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
 fi
 
 #################################
-# Set globals for git 
+# Set globals for git
 #################################
 git config --global status.submoduleSummary true
 
@@ -156,29 +156,32 @@ fi
 #################################
 # Build emacs-libvterm module
 #################################
-VTERM_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
+VTERM_BUILD_DIR="${DOOM_DIR}/.local/straight/build-$(emacs --batch --eval '(princ emacs-version)' 2>/dev/null)/vterm"
+VTERM_REPO_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
 
-if [ -d "$VTERM_DIR" ]; then
-  echo "🛠️ Building vterm native module..."
+if [ -d "$VTERM_BUILD_DIR" ]; then
+  echo "🛠️  Building vterm native module..."
   (
     unset CC
     unset CXX
-    cd "$VTERM_DIR" || true
+    # Prefer xcrun clang over any potentially stale gcc symlink
+    export CC="$(xcrun --find cc 2>/dev/null || echo clang)"
+    export CXX="$(xcrun --find c++ 2>/dev/null || echo clang++)"
 
-    if [ -f Makefile ]; then
-      make clean || true
-      make || true
+    cd "$VTERM_BUILD_DIR"
+
+    if [ -f CMakeCache.txt ]; then
+      cmake --build . --clean-first || true
     else
-      mkdir -p build
-      cd build || true
-      cmake .. || true
-      make || true
+      cmake . || true
     fi
+    make || true
   )
-  cp ${DOOM_DIR}/.local/straight/repos/emacs-libvterm/vterm-module.so \
-    ${DOOM_DIR}/.local/straight/build-*/vterm/ || true
-
   echo "✅ vterm module build step finished"
+elif [ -d "$VTERM_REPO_DIR" ]; then
+  echo "⚠️  vterm build dir not found but repo exists — run 'doom sync' first, then re-run bootstrap"
+else
+  echo "ℹ️  vterm not installed yet — will be built on first Doom sync"
 fi
 
 #################################
@@ -271,171 +274,23 @@ if ! command -v mise >/dev/null 2>&1; then
 fi
 
 #################################
-# Install krew package manager for kubectl
-#################################
-
-#################################
-# Preconfigure Krew PATH
-#################################
-KREW_ROOT="${KREW_ROOT:-$HOME/.krew}"
-export KREW_ROOT
-export PATH="${KREW_ROOT}/bin:$PATH"
-
-KREW_PATH_LINE='export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"'
-
-# Persist for future shells
-if ! grep -Fqs 'KREW_ROOT:-$HOME/.krew}/bin' "$HOME/.zshrc" 2>/dev/null; then
-  echo "$KREW_PATH_LINE" >>"$HOME/.zshrc"
-fi
-
-#################################
 # Install Krew if missing
 #################################
 if ! command -v kubectl-krew >/dev/null 2>&1; then
   echo "☸️ Installing Krew..."
-
+  export KREW_ROOT="$HOME/.krew"
   (
-<<<<<<< Updated upstream
-    export KREW_ROOT="$HOME/.krew"
-    set -x; cd "$(mktemp -d)" &&
-    OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
-    ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
-    KREW="krew-${OS}_${ARCH}" &&
-    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
-    tar zxvf "${KREW}.tar.gz" &&
-||||||| Stash base
-    set -x; cd "$(mktemp -d)" &&
-    OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
-    ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
-    KREW="krew-${OS}_${ARCH}" &&
-    curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
-    tar zxvf "${KREW}.tar.gz" &&
-=======
     set -x
-    cd "$(mktemp -d)"
-
-    OS="$(uname | tr '[:upper:]' '[:lower:]')"
-
-    ARCH="$(uname -m | \
-      sed -e 's/x86_64/amd64/' \
-          -e 's/\(arm\)\(64\)\?.*/\1\2/' \
-          -e 's/aarch64$/arm64/')"
-
-    KREW="krew-${OS}_${ARCH}"
-
-    curl -fsSLO \
-      "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz"
-
-    tar zxvf "${KREW}.tar.gz"
-
->>>>>>> Stashed changes
+    cd "$(mktemp -d)" &&
+      OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
+      ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
+      KREW="krew-${OS}_${ARCH}" &&
+      curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
+      tar zxvf "${KREW}.tar.gz"
     ./"${KREW}" install krew
   )
-<<<<<<< Updated upstream
-||||||| Stash base
   echo "export KREW_ROOT=$HOME/.krew" >>"$ZSHENV"
   echo "path+=\"${KREW_ROOT}/bin\"" >>"$ZSHENV"
-fi
-
-#################################
-# Doom install + sync
-#################################
-echo "🔥 Installing Doom packages..."
-
-DOOM_BIN="$DOOM_DIR/bin"
-
-if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
-  echo "path+=$DOOM_BIN" >>"$ZSHENV"
-fi
-
-"$DOOM_BIN/doom" install
-"$DOOM_BIN/doom" sync
-
-#################################
-# Build emacs-libvterm module
-#################################
-VTERM_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
-
-if [ -d "$VTERM_DIR" ]; then
-  echo "🛠️  Building vterm native module..."
-  (
-    unset CC
-    unset CXX
-    cd "$VTERM_DIR" || true
-
-    if [ -f Makefile ]; then
-      make clean || true
-      make || true
-    else
-      mkdir -p build
-      cd build || true
-      cmake .. || true
-      make || true
-    fi
-  )
-
-  cp ${DOOM_DIR}/.local/straight/repos/emacs-libvterm/vterm-module.so \
-    ${DOOM_DIR}/.local/straight/build-*/vterm/ || true
-
-  echo "✅ vterm module build step finished"
-=======
-
-  #################################
-  # Verify Krew install
-  #################################
-  if command -v kubectl-krew >/dev/null 2>&1; then
-    echo "✅ Krew installed and available"
-  else
-    echo "⚠️ Krew installed but not yet available in PATH"
-  fi
-else
-  echo "✅ Krew already installed"
-fi
-
-#################################
-# Doom install + sync
-#################################
-echo "🔥 Installing Doom packages..."
-
-DOOM_BIN="$DOOM_DIR/bin"
-
-if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
-  echo "path+=$DOOM_BIN" >>"$ZSHENV"
-fi
-
-"$DOOM_BIN/doom" install
-"$DOOM_BIN/doom" sync
-
-#################################
-# Build emacs-libvterm module
-#################################
-VTERM_BUILD_DIR="${DOOM_DIR}/.local/straight/build-$(emacs --batch --eval '(princ emacs-version)' 2>/dev/null)/vterm"
-VTERM_REPO_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
-
-if [ -d "$VTERM_BUILD_DIR" ]; then
-  echo "🛠️  Building vterm native module..."
-  (
-    unset CC
-    unset CXX
-    # Prefer xcrun clang over any potentially stale gcc symlink
-    export CC="$(xcrun --find cc 2>/dev/null || echo clang)"
-    export CXX="$(xcrun --find c++ 2>/dev/null || echo clang++)"
-
-    cd "$VTERM_BUILD_DIR"
-
-    if [ -f CMakeCache.txt ]; then
-      cmake --build . --clean-first || true
-    else
-      cmake . || true
-    fi
-    make || true
-  )
-  echo "✅ vterm module build step finished"
-elif [ -d "$VTERM_REPO_DIR" ]; then
-  echo "⚠️  vterm build dir not found but repo exists — run 'doom sync' first, then re-run bootstrap"
-else
-  echo "ℹ️  vterm not installed yet — will be built on first Doom sync"
->>>>>>> Stashed changes
 fi
 
 #################################

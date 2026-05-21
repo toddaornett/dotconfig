@@ -11,6 +11,7 @@ cask "nikitabobko/tap/aerospace"
 cask "zed"
 cask "dbeaver-community"
 cask "clickhouse"
+cask "karabiner-elements"
 
 # Use full tap path so bundle finds formula even before tap is fully updated
 brew "d12frosted/emacs-plus/emacs-plus@30"
