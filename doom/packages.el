@@ -91,3 +91,9 @@
 (package! jira)
 
 (package! request)
+
+(package! hydra)
+
+(package! expand-region)
+
+(package! expreg)

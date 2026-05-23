@@ -296,18 +296,7 @@ Call interactively to force reinstall of all grammars."
       (tao/treesit-save-grammars-hash)
       (message "treesit: grammars updated"))))
 
-(use-package! treesit
-  :mode (("\\.tsx\\'" . tsx-ts-mode)
-         ("\\.js\\'"  . typescript-ts-mode)
-         ("\\.mjs\\'" . typescript-ts-mode)
-         ("\\.mts\\'" . typescript-ts-mode)
-         ("\\.cjs\\'" . typescript-ts-mode)
-         ("\\.ts\\'"  . typescript-ts-mode)
-         ("\\.jsx\\'" . tsx-ts-mode)
-         ("\\.json\\'" . json-ts-mode)
-         ("\\.Dockerfile\\'" . dockerfile-ts-mode)
-         ("\\.prisma\\'" . prisma-ts-mode))
-  :init
+(after! treesit
   (dolist (mapping
            '((python-mode     . python-ts-mode)
              (css-mode        . css-ts-mode)
@@ -323,8 +312,49 @@ Call interactively to force reinstall of all grammars."
              (sh-mode         . bash-ts-mode)
              (sh-base-mode    . bash-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
-  :config
   (tao/setup-install-grammars))
+
+(use-package! expand-region
+  :commands er/expand-region)
+
+(use-package! expreg
+  :demand t)
+
+(defun tao/expand-region ()
+  (interactive)
+  (if (treesit-parser-list)
+      (expreg-expand)
+    (er/expand-region 1)))
+
+(defun tao/contract-region ()
+  (interactive)
+  (if (treesit-parser-list)
+      (expreg-contract)
+    (er/contract-region 1)))
+
+(after! hydra
+  (defhydra tao/hydra-expand-region (:hint nil)
+    "
+^Expand Region^
+^──────────────^
+_+_: expand
+_-_: contract
+_q_: quit
+"
+    ("+" #'tao/expand-region)
+    ("-" #'tao/contract-region)
+    ("q" nil :exit t))
+
+  (defun tao/expand-region-hydra ()
+    (interactive)
+    (tao/expand-region)
+    (tao/hydra-expand-region/body))
+
+  (map! :n "C-c e" #'tao/expand-region
+        :n "C-c E" #'tao/contract-region
+        :leader
+        :n "+" #'tao/expand-region-hydra
+        :n "-" #'tao/hydra-expand-region/body))
 
 (use-package lsp-mode
   :diminish "LSP"
