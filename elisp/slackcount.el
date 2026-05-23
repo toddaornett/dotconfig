@@ -2,9 +2,9 @@
 
 ;; Author: Your Name
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "27.1")))
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, slack
-;; URL: https://example.com/slackcount
+;; Homepage: https://github.com/toddaornett/dotconfig
 
 ;;; Commentary:
 

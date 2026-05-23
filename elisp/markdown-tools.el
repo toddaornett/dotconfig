@@ -1,12 +1,14 @@
-;;; markdown-tools.el --- some markdown tools -*- lexical-binding: t; -*-
+;;; markdown-tools.el --- Some markdown tools -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
 ;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
+;; Version: 0.1.0
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: May 08, 2026
-;; Keywords: markdown tool url
+;; Keywords: tools, url, markdown
 ;; Package-Requires: ((emacs "30.2"))
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;;
 ;; This file is not part of GNU Emacs.
 ;;

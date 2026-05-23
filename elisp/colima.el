@@ -1,4 +1,4 @@
-;;; colima.el --- drop-in replacement of docker desktop -*- lexical-binding: t -*-
+;;; colima.el --- Drop-in replacement of docker desktop -*- lexical-binding: t -*-
 
 ;;; Commentary:
 ;;

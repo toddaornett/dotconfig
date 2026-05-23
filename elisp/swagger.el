@@ -1,9 +1,10 @@
-;;; swagger.el --- Launch Swagger Editor from Docker -*- lexical-binding: t; -*-
+;;; swagger.el --- Launch Swagger Editor from Docker -*- lexical-binding: t -*-
 
 ;; Author: Todd Ornett
 ;; Version: 1.0
 ;; Keywords: tools, docker, swagger
 ;; Package-Requires: ((emacs "24.3"))
+;; Homepage: https://github.com/toddaornett/dotconfig
 
 ;;; Commentary:
 
