@@ -1,4 +1,4 @@
-;;; status.el --- create status messages from org task buffer -*- lexical-binding: t; -*-
+;;; status.el --- Create status messages from org task buffer -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
 ;; Author: Todd Ornett <toddgh@acquirus.com>

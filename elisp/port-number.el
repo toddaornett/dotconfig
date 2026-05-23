@@ -1,9 +1,11 @@
-;;; port-number.el --- generate port number based on current directory name -*- lexical-binding: t -*-
+;;; port-number.el --- Generate port number based on current directory name -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2024
 ;; Author: Todd Ornett
-;; Keywords: lisp
-;; Version: 0.0.1
+;; Version: 0.1.0
+;; Package-Requires: ((emacs "27.1"))
+;; Keywords: convenience, utility
+;; Homepage: https://github.com/toddaornett/dotconfig
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by

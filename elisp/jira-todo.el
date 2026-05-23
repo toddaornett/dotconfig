@@ -1,4 +1,4 @@
-;;; jira-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t; -*-
+;;; jira-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
 ;; Author: Todd Ornett <toddgh@acquirus.com>
@@ -9,7 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
-;; Package-Requires: ((emacs "27.1") (request "0.3.0"))
+;; Package-Requires: ((emacs "27.1"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
