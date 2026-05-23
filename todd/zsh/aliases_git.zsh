@@ -598,6 +598,14 @@ function gau_bitbucket() {
   git remote add upstream $u
 }
 
+function gdelete() {
+  if [ -z "$1" ]; then
+    echo "Usage: gdelete <branch-name>"
+    return 1
+  fi
+  git branch -d "$1" && git push origin --delete "$1"
+}
+
 function grename() {
   if [[ -z "$1" || -z "$2" ]]; then
     echo "Usage: $0 old_branch new_branch"
