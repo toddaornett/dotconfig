@@ -55,7 +55,29 @@ fi
 #################################
 # Set globals for git
 #################################
+echo "🔀 Configure git ..."
 git config --global status.submoduleSummary true
+GITIGNORE_FILEPATH="$HOME/.gitignore_global"
+git config --global core.excludesfile "$GITIGNORE_FILEPATH"
+if [ ! -f "$GITIGNORE_FILEPATH" ]; then
+  echo "  create $GITIGNORE_FILEPATH"
+  cat >>"$GITIGNORE_FILEPATH" <<'EOF'
+# macOS
+.DS_Store
+
+# Emacs
+*~
+#*#
+.elc
+
+# Vim
+*.swp
+
+# Local env files
+.env
+.env.local
+EOF
+fi
 
 #################################
 # Verify correct Emacs is used
