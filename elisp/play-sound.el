@@ -1,11 +1,12 @@
-;;; play-sound.el --- play sound files on OSX  -*- lexical-binding: t; -*-
+;;; play-sound.el --- Play sound files on OSX  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2011-2013  Leo Liu
 ;; Author: Leo Liu <sdl.web@gmail.com>
 ;; Version: 1.0
 ;; Updated: 2025-03-31 to not require cl
-;; 
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: comm, tools, convenience
+;; Homepage: https://github.com/toddaornett/dotconfig
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by

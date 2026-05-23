@@ -1,4 +1,4 @@
-;;; gha.el --- Tools for maintaining GitHub Actions -*- lexical-binding: t; -*-
+;;; gha.el --- Tools for maintaining GitHub Actions -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2025 Todd Ornett
 ;; Author: Todd Ornett <toddgh@acquirus.com>

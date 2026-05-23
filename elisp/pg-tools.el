@@ -1,4 +1,4 @@
-;;; pg-tools.el --- some PostgreSQL tools -*- lexical-binding: t; -*-
+;;; pg-tools.el --- Some PostgreSQL tools -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2025 Todd Ornett
 ;;
@@ -8,7 +8,7 @@
 ;; Modified: June 11, 2025
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
-;; Homepage: https://github.com/todd.ornett/git-tools
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;; Package-Requires: ((emacs "29.1"))
 ;;
 ;; This file is not part of GNU Emacs.

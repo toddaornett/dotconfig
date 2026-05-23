@@ -1,9 +1,11 @@
-;;; insert-random-uuid-into-buffer.el --- generate uuid and insert in buffer -*- lexical-binding: t -*-
+;;; insert-random-uuid-into-buffer.el --- Generate uuid and insert in buffer -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2014  Nic Ferrier
 
 ;; Author: Xah Lee
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: lisp
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;; Version: 0.0.1
 
 ;; This program is free software; you can redistribute it and/or modify

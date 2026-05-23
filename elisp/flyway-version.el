@@ -1,9 +1,10 @@
-;;; flyway-version.el --- handle project flyway version migrations -*- lexical-binding: t; -*-
+;;; flyway-version.el --- Handle project flyway version migrations -*- lexical-binding: t -*-
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 03, 2025
 ;; Modified: June 19, 2025
 ;; Version: 0.0.3
-;; Package-Requires: ((emacs "24.3") (magit "3.3.0"))
+;; Package-Requires: ((emacs "24.3"))
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;;
 ;;; Commentary:
 ;;
