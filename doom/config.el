@@ -318,7 +318,10 @@ Call interactively to force reinstall of all grammars."
   :commands er/expand-region)
 
 (use-package! expreg
-  :demand t)
+  :init
+  (add-to-list 'load-path
+               (expand-file-name ".local/straight/repos/expreg" user-emacs-directory))
+  :commands (expreg-expand expreg-contract))
 
 (defun tao/expand-region ()
   (interactive)
