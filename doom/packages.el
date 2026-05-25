@@ -96,4 +96,5 @@
 
 (package! expand-region)
 
-(package! expreg)
+(package! expreg
+  :recipe (:host github :repo "casouri/expreg"))
