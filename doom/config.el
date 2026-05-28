@@ -989,11 +989,42 @@ Runs via `org-after-todo-state-change-hook'."
           (when (magit-section-p section)
             (magit-section-toggle section)))))))
 
-;; vterm
+(use-package! ws-butler
+  :config
+  ;; Enable in programming and text buffers
+  (add-hook 'prog-mode-hook #'ws-butler-mode)
+  (add-hook 'text-mode-hook #'ws-butler-mode)
+
+  ;; Disable in modes where whitespace is meaningful
+  (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
+  (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
+
 (use-package vterm
   :config
   (setq vterm-always-compile-module t)
   (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
+
+(use-package! autoinsert
+  :config
+  (setq auto-insert-query nil)
+  (auto-insert-mode 1)
+  ;; Remove stale entry so reload always picks up changes
+  (setq auto-insert-alist
+        (assoc-delete-all '(org-mode . "Org file skeleton") auto-insert-alist))
+  (defun tao/org-file-title ()
+    "Convert buffer filename to a clean title-cased string."
+    (let* ((base (file-name-base (buffer-file-name)))
+           (spaced (replace-regexp-in-string "[[:punct:]]+" " " base))
+           (trimmed (string-trim spaced))
+           (words (split-string trimmed " " t)))
+      (mapconcat #'capitalize words " ")))
+  (define-auto-insert
+    '(org-mode . "Org file skeleton")
+    '(""
+      "#+TITLE: " (tao/org-file-title) "\n"
+      "#+CREATED: " (format-time-string "[%Y-%m-%d %a %H:%M]") "\n"
+      "#+STARTUP: overview\n\n"
+      (concat "* " (tao/org-file-title) " Introduction\n"))))
 
 ;; port-number => load from ~/.config/elisp
 (use-package port-number)
@@ -1013,17 +1044,7 @@ Runs via `org-after-todo-state-change-hook'."
 ;; status => load from ~/.config/elisp
 (use-package status)
 
-;; ws-butler => load from ~/.config/elisp
-(use-package! ws-butler
-  :config
-  ;; Enable in programming and text buffers
-  (add-hook 'prog-mode-hook #'ws-butler-mode)
-  (add-hook 'text-mode-hook #'ws-butler-mode)
-
-  ;; Disable in modes where whitespace is meaningful
-  (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
-  (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
-
+;; jira-todo => load from ~/.config/elisp
 (use-package! jira-todo
   :after request)
 
