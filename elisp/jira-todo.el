@@ -22,6 +22,7 @@
 
 (require 'request)
 (require 'json)
+(require 'subr-x)
 
 (defgroup jira-todo nil
   "Generate `org-mode' TODOs from JIRA tickets."
@@ -77,17 +78,32 @@
 
 (defun jira-todo--format-output (data)
   "Format `org-mode' TODO and Slack message from parsed JIRA DATA."
-  (let* ((key     (alist-get 'key data))
-         (fields  (alist-get 'fields data))
-         (summary (alist-get 'summary fields))
-         (url     (jira-todo--key-to-browse-url key)))
+  (let* ((key             (format "%s" (alist-get 'key data)))
+         (fields          (alist-get 'fields data))
+         (summary         (format "%s" (alist-get 'summary fields)))
+         (url             (jira-todo--key-to-browse-url key))
+         (clean-summary   (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
+         (branch-words    (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
+         (branch-compact  (replace-regexp-in-string "-+" "-" branch-words))
+         (branch-trimmed  (replace-regexp-in-string "-+$" "" branch-compact))
+         (branch-summ     (downcase branch-trimmed))
+         (branch          (format "%s_%s" key branch-summ)))
     (concat
-     (format "*** TODO CR: %s %s\n" key summary)
-     (format "PR: TBD\n")
+     (format "*** TODO CR: %s %s\n" key clean-summary)
      (format "JIRA: [[%s][%s]]\n" url key)
+     (format "PR: TBD\n")
+     (format "Branch: %s\n" branch)
+     (format "PR Text --begin--\n")
+     (format "## JIRA\n")
+     (format "[%s](%s)\n" key url)
+     (format "## Description\n")
+     (format "%s\n" clean-summary)
+     (format "  --end--\n")
+     (format "Slack --begin--\n")
      (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
-     (format "%s\n" summary)
+     (format "%s\n" clean-summary)
      (format "TBD\n")
+     (format "  --end--\n")
      (format ":LOGBOOK:\n")
      (format ":END:"))))
 
