@@ -90,9 +90,9 @@
          (branch          (format "%s_%s" key branch-summ)))
     (concat
      (format "*** TODO CR: %s %s\n" key clean-summary)
-     (format "PR: TBD\n")
      (format "JIRA: [[%s][%s]]\n" url key)
      (format "Branch: %s\n" branch)
+     (format "PR: TBD\n")
      (format "PR Text:\n")
      (format "--begin--\n")
      (format "## JIRA\n")
@@ -102,7 +102,6 @@
      (format "--end--\n")
      (format "Slack:\n")
      (format "--begin--\n")
-     (format "Branch: %s\n" branch)
      (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
      (format "%s\n" clean-summary)
      (format "TBD\n")
