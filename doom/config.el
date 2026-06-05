@@ -941,14 +941,20 @@ Runs via `org-after-todo-state-change-hook'."
   (add-to-list 'magit-section-initial-visibility-alist
                '(worktrees . show))
 
-  (defun +magit-visit-worktree ()
-    (when-let* ((section (magit-current-section))
-                (path (oref section value)))
-      (dired path)))
+  (defun +magit-dwim-visit ()
+    (interactive)
+    (let ((section (magit-current-section)))
+      (pcase (oref section type)
+        ('worktree
+         (dired (oref section value)))
+        ((or 'untracked 'unstaged 'staged 'file)
+         (magit-diff-visit-file (oref section value)))
+        (_
+         (call-interactively #'magit-visit-thing)))))
 
   (define-key magit-status-mode-map
               (kbd "RET")
-              #'+magit-visit-worktree)
+              #'+magit-dwim-visit)
 
   (defun tao/magit-switch-worktree ()
     (let* ((worktrees (magit-list-worktrees))
