@@ -181,7 +181,7 @@ Only works when called from a Dired buffer."
 (after! eglot
   (setq eglot-sync-connect 0)
   (setq eglot-autoshutdown t)
-  (setq eglot-events-buffer-size 1000000)
+  (setq eglot-events-buffer-config '(:size 1000000 :format full))
   (add-to-list 'eglot-server-programs
                '(rustic-mode . ("rust-analyzer"
                                 :initializationOptions
