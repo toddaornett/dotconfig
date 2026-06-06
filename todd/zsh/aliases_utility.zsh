@@ -526,6 +526,31 @@ r2d() {
   echo "$result"
 }
 
+pass() {
+  local stamp=~/.password-store/.git/.last_pull
+  local interval=3600  # seconds
+  local now=$(date +%s)
+  local last=0
+  local branch
+
+  if [ -f "$stamp" ]; then
+    last=$(cat "$stamp")
+  else
+    command -v pass &>/dev/null \
+      && [ -d ~/.password-store ] \
+      && git -C ~/.password-store remote get-url origin &>/dev/null \
+      || { command pass "$@"; return; }
+  fi
+
+  if [ $((now - last)) -gt $interval ]; then
+    branch=$(git_main_branch)
+    git -C ~/.password-store pull --rebase origin "$branch"
+    echo "$now" > "$stamp"
+  fi
+
+  command pass "$@"
+}
+
 # Using pass program, copy username and password from specified key to
 # the system clipboard and open url with default browser or specified browser
 function passC {
