@@ -823,19 +823,29 @@ Runs via `org-after-todo-state-change-hook'."
   (remove-hook 'magit-status-sections-hook #'forge-insert-pullreqs)
 
   (defun +forge-insert-open-prs ()
-    (when (forge-get-repository nil t)
-      (magit-insert-section (forge-pullreqs)
-        (magit-insert-heading "Open Pull Requests")
-        (dolist (pr (forge-sql
-                     [:select [number title state author login]
-                      :from pullreq
-                      :where (and (= repository $s1) (= state "open"))]
-                     (forge-get-repository)))
-          (insert (format "#%s  %s\n"
-                          (aref pr 0)
-                          (aref pr 1)))))))
-
-  (add-hook 'magit-status-sections-hook #'+forge-insert-open-prs)
+    (when-let* ((repo-row (car (forge-sql
+                                [:select [id] :from repository
+                                 :where (= worktree $s1)]
+                                (expand-file-name default-directory))))
+                (repo-id (car repo-row))
+                (prs (forge-sql
+                      [:select [number title]
+                       :from pullreq
+                       :where (and (= repository $s1)
+                                   (= state 'open))]
+                      repo-id))
+                (_ prs))
+      (magit-insert-section (forge-pullreqs nil t)
+        (magit-insert-heading
+          (propertize (format "Open Pull Requests (%d)" (length prs))
+                      'face 'magit-section-heading))
+        (dolist (pr prs)
+          (magit-insert-section (pullreq (car pr))
+            (insert (format "  #%-4s  %s\n"
+                            (car pr)
+                            (cadr pr)))))
+        (insert ?\n))))
+  (add-hook 'magit-status-sections-hook #'+forge-insert-open-prs t)
 
   (defun +magit-insert-filtered-local-branches ()
     (let ((branches
@@ -947,6 +957,19 @@ Runs via `org-after-todo-state-change-hook'."
       (pcase (oref section type)
         ('worktree
          (dired (oref section value)))
+        ('pullreq
+         (when-let* ((number (oref section value))
+                     (repo-row (car (forge-sql
+                                     [:select [id] :from repository
+                                      :where (= worktree $s1)]
+                                     (expand-file-name default-directory))))
+                     (repo-id (car repo-row))
+                     (pr (car (forge-sql
+                               [:select [id] :from pullreq
+                                :where (and (= repository $s1)
+                                            (= number $s2))]
+                               repo-id number))))
+           (forge-visit-topic (forge-get-topic (car pr)))))
         ((or 'untracked 'unstaged 'staged 'file)
          (magit-diff-visit-file (oref section value)))
         (_
@@ -955,6 +978,54 @@ Runs via `org-after-todo-state-change-hook'."
   (define-key magit-status-mode-map
               (kbd "RET")
               #'+magit-dwim-visit)
+
+  (defun +magit-dwim-browse ()
+    (interactive)
+    (let ((section (magit-current-section)))
+      (pcase (oref section type)
+        ('pullreq
+         (forge-browse-topic
+          (forge-get-topic
+           (car (car (forge-sql
+                      [:select [id] :from pullreq
+                       :where (and (= repository $s1)
+                                   (= number $s2))]
+                      (car (car (forge-sql
+                                 [:select [id] :from repository
+                                  :where (= worktree $s1)]
+                                 (expand-file-name default-directory))))
+                      (oref section value)))))))
+        (_ (call-interactively #'magit-reset)))))
+
+  (map! :map magit-status-mode-map
+        :n "o" #'+magit-dwim-browse)
+
+  (defun +magit-checkout-pr-at-point ()
+    (interactive)
+    (let ((section (magit-current-section)))
+      (when (eq (oref section type) 'pullreq)
+        (let* ((number (oref section value))
+               (branch (caar (forge-sql
+                              [:select [head-ref] :from pullreq
+                               :where (and (= repository $s1)
+                                           (= number $s2))]
+                              (car (car (forge-sql
+                                         [:select [id] :from repository
+                                          :where (= worktree $s1)]
+                                         (expand-file-name default-directory))))
+                              number))))
+          (magit--checkout branch)))))
+
+  (map! :leader
+        :desc "Checkout PR at point"
+        "g p" #'+magit-checkout-pr-at-point)
+
+  (map! :leader
+        :desc "Forge pull"
+        "g F" #'forge-pull)
+
+  (map! :map magit-status-mode-map
+        :n "c" #'magit-commit)
 
   (defun tao/magit-switch-worktree ()
     (let* ((worktrees (magit-list-worktrees))
