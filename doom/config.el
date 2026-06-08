@@ -564,9 +564,10 @@ _q_: quit
 
   ;; Highlight tasks with clock entries
   (defface org-task-with-clock
-    '((t :foreground "Cyan")
-      :group 'org)
-    "Face for Org tasks with clock entries.")
+    '((t :foreground "Cyan"))
+    "Face for Org tasks with clock entries."
+    :group 'org)
+
   (defun tao/org-has-clock-entries-p ()
     "Return non-nil if the current headline has clock entries."
     (save-excursion
@@ -1136,6 +1137,6 @@ Runs via `org-after-todo-state-change-hook'."
   (slackcount-mode 1))
 
 ;; Custom file
-(setq custom-file (expand-file-name "custom.el" doom-private-dir))
+(setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)
   (load custom-file))

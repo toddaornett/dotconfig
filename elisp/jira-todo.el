@@ -92,6 +92,7 @@
      (format "*** TODO CR: %s %s\n" key clean-summary)
      (format "JIRA: [[%s][%s]]\n" url key)
      (format "Branch: %s\n" branch)
+     (format "Title: %s: %s\n" key clean-summary)
      (format "PR: TBD\n")
      (format "PR Text:\n")
      (format "--begin--\n")
