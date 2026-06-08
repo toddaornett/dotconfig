@@ -416,4 +416,15 @@ command_not_found_handler() {
   run_script "$@"
 }
 
+##########
+# load ssh-agent keys
+##########
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval "$(ssh-agent -s)"
+fi
+
+for key in $(find ~/.config -type f | xargs grep -l "PRIVATE KEY" 2>/dev/null); do
+  ssh-add "$key" 2>/dev/null
+done
+
 eval "$(starship init zsh)"
