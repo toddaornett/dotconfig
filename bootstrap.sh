@@ -2,9 +2,80 @@
 set -euo pipefail
 
 ZSHENV="$HOME/.zshenv"
+ZSHRC="$HOME/.zshrc"
+BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
+
 if [ ! -f "$ZSHENV" ]; then
   echo "typeset -U path PATH" >>$ZSHENV
 fi
+
+export_macos_build_env() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  local sdk
+  sdk="$(xcrun --sdk macosx --show-sdk-path 2>/dev/null || true)"
+  if [ -n "$sdk" ]; then
+    export SDKROOT="$sdk"
+  fi
+
+  export CC="${CC:-$(xcrun --find cc 2>/dev/null || echo clang)}"
+  export CXX="${CXX:-$(xcrun --find c++ 2>/dev/null || echo clang++)}"
+  export CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I${BREW_PREFIX:-$(brew --prefix)}/include"
+  export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L${BREW_PREFIX:-$(brew --prefix)}/lib"
+  export PKG_CONFIG_PATH="${BREW_PREFIX:-$(brew --prefix)}/opt/boost/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+}
+
+verify_macos_compiler() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  if ! xcode-select -p >/dev/null 2>&1; then
+    echo "❌ Xcode Command Line Tools are not installed."
+    echo "   Run: xcode-select --install"
+    note_shell_init_for_builds
+    return 1
+  fi
+
+  local sdk="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path 2>/dev/null || true)}"
+  if [ -z "$sdk" ] || [ ! -f "$sdk/usr/include/stdlib.h" ]; then
+    echo "❌ macOS SDK headers not found (stdlib.h missing)."
+    echo "   SDK path: ${sdk:-<none>}"
+    note_shell_init_for_builds
+    return 1
+  fi
+
+  return 0
+}
+
+note_shell_init_for_builds() {
+  echo "   Update ~/.zshrc with SDKROOT and Homebrew include/lib paths,"
+  echo "   then restart your shell: source ~/.zshrc"
+}
+
+ensure_macos_build_env_in_shell() {
+  echo "🛠️ Verify build env vars ..."
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  if grep -Fq "$BUILD_FLAGS_MARKER" "$ZSHRC" 2>/dev/null || \
+     grep -q 'Homebrew build flags' "$ZSHRC" 2>/dev/null; then
+    return 0
+  fi
+
+  cat >>"$ZSHRC" <<EOF
+
+# $BUILD_FLAGS_MARKER
+if [[ "\$(uname -s)" == Darwin ]]; then
+  [[ -z "\$SDKROOT" ]] && export SDKROOT="\$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
+  [[ " \$CPPFLAGS " != *" -I${BREW_PREFIX}/include "* ]] && \
+    export CPPFLAGS="\${CPPFLAGS:+\$CPPFLAGS }-I${BREW_PREFIX}/include"
+  [[ " \$LDFLAGS " != *" -L${BREW_PREFIX}/lib "* ]] && \
+    export LDFLAGS="\${LDFLAGS:+\$LDFLAGS }-L${BREW_PREFIX}/lib"
+  [[ ":\$PKG_CONFIG_PATH:" != *":${BREW_PREFIX}/opt/boost/lib/pkgconfig:"* ]] && \
+    export PKG_CONFIG_PATH="${BREW_PREFIX}/opt/boost/lib/pkgconfig\${PKG_CONFIG_PATH:+:\$PKG_CONFIG_PATH}"
+fi
+EOF
+  echo "  Added macOS build env vars to $ZSHRC"
+  note_shell_init_for_builds
+}
 
 echo "🧠 Bootstrapping system..."
 
@@ -178,28 +249,37 @@ fi
 #################################
 # Build emacs-libvterm module
 #################################
+ensure_macos_build_env_in_shell
+
 VTERM_BUILD_DIR="${DOOM_DIR}/.local/straight/build-$(emacs --batch --eval '(princ emacs-version)' 2>/dev/null)/vterm"
 VTERM_REPO_DIR="${DOOM_DIR}/.local/straight/repos/emacs-libvterm"
 
 if [ -d "$VTERM_BUILD_DIR" ]; then
-  echo "🛠️  Building vterm native module..."
-  (
-    unset CC
-    unset CXX
-    # Prefer xcrun clang over any potentially stale gcc symlink
-    export CC="$(xcrun --find cc 2>/dev/null || echo clang)"
-    export CXX="$(xcrun --find c++ 2>/dev/null || echo clang++)"
+  echo "🛠️ Building vterm native module..."
+  vterm_build_ok=0
+  if verify_macos_compiler; then
+    (
+      export_macos_build_env
+      cd "$VTERM_BUILD_DIR"
 
-    cd "$VTERM_BUILD_DIR"
+      if [ -f CMakeCache.txt ]; then
+        cmake --build . --clean-first
+      else
+        cmake .
+        make
+      fi
+    ) && vterm_build_ok=1
+  fi
 
-    if [ -f CMakeCache.txt ]; then
-      cmake --build . --clean-first || true
-    else
-      cmake . || true
-    fi
-    make || true
-  )
-  echo "✅ vterm module build step finished"
+  if [ "$vterm_build_ok" -eq 1 ]; then
+    echo "✅ vterm module built successfully"
+  else
+    echo "❌ vterm module build failed"
+    echo "   If you saw 'stdlib.h: file not found', install Xcode CLT: xcode-select --install"
+    note_shell_init_for_builds
+    echo "   Then re-run bootstrap or build manually:"
+    echo "     cd \"$VTERM_BUILD_DIR\" && cmake --build . --clean-first"
+  fi
 elif [ -d "$VTERM_REPO_DIR" ]; then
   echo "⚠️  vterm build dir not found but repo exists — run 'doom sync' first, then re-run bootstrap"
 else
@@ -208,13 +288,37 @@ fi
 
 #################################
 # Install chemacs2
-#############################
+#################################
 CHEMACS2_PROFILES_FILE="$HOME/.emacs-profiles.el"
+CHEMACS2_DIR="$HOME/.config/emacs"
+
+write_chemacs2_profiles() {
+  cat >"$CHEMACS2_PROFILES_FILE" <<'EOF'
+(("default" .  ((user-emacs-directory . "~/.config/doom-emacs")))
+ ("scratch" . ((user-emacs-directory . "~/.config/scratch-emacs"))))
+EOF
+}
+
 if [ ! -f "$CHEMACS2_PROFILES_FILE" ]; then
-  echo "🦬 λ Installing chemacs2 with Doom Emacs as default"
-  git clone https://github.com/plexus/chemacs2.git "$DOOM_DIR/../emacs"
-  echo '(("default" .  ((user-emacs-directory . "~/.config/doom-emacs")))' >>"$CHEMACS2_PROFILES_FILE"
-  echo '("scratch" . ((user-emacs-directory . "~/.config/scratch-emacs"))))' >>"$CHEMACS2_PROFILES_FILE"
+  if [ -d "$CHEMACS2_DIR/.git" ]; then
+    echo "✅ chemacs2 repo already present at $CHEMACS2_DIR"
+    write_chemacs2_profiles
+    echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
+  elif [ -e "$CHEMACS2_DIR" ]; then
+    echo "⚠️  Cannot install chemacs2: $CHEMACS2_DIR already exists and is not a git repo."
+    echo "   Move or rename that directory, then re-run bootstrap."
+    echo "   Or create $CHEMACS2_PROFILES_FILE manually if chemacs2 is installed elsewhere."
+  else
+    echo "🦬 λ Installing chemacs2 with Doom Emacs as default"
+    if git clone https://github.com/plexus/chemacs2.git "$CHEMACS2_DIR"; then
+      write_chemacs2_profiles
+      echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
+    else
+      echo "❌ chemacs2 clone failed — see errors above"
+    fi
+  fi
+else
+  echo "✅ chemacs2 profiles already configured"
 fi
 
 #################################
@@ -342,6 +446,12 @@ if jq --arg path "$NEW_PATH" '
 else
   echo "❌ Failed to update Docker config."
 fi
+
+#################################
+# Configure Boost / native build env
+#################################
+echo "🚀 Checking Boost cpp library configuration ..."
+ensure_macos_build_env_in_shell
 
 #################################
 # Final message
