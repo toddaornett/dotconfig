@@ -65,11 +65,11 @@ end
 hs.hotkey.bind({ "command" }, "escape", launch_terminal)
 
 hs.hotkey.bind({ "command", "alt" }, "b", function()
-	hs.execute("open /Applications/Brave Browser.app")
+	hs.execute('open "/Applications/Brave Browser.app"')
 end)
 
-hs.hotkey.bind({ "command", "alt" }, "c", function()
-	hs.execute("open /Applications/Google Chrome.app")
+hs.hotkey.bind({ "command", "alt", "shift" }, "g", function()
+  hs.execute('open "/Applications/Google Chrome.app"')
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "e", function()
@@ -85,7 +85,7 @@ hs.hotkey.bind({ "command", "alt" }, "m", function()
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "o", function()
-	hs.execute("open /Applications/Microsoft Outlook.app")
+	hs.execute('open "/Applications/Microsoft Outlook.app"')
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "p", function()
@@ -97,7 +97,7 @@ hs.hotkey.bind({ "command", "alt" }, "s", function()
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "t", function()
-	hs.execute("open /Applications/Microsoft Teams.app")
+	hs.execute('open "/Applications/Microsoft Teams.app"')
 end)
 
 hs.hotkey.bind({ "command", "alt" }, "z", function()
