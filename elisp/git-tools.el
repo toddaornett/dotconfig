@@ -470,5 +470,41 @@ Return t if any changes made, nil otherwise."
         (find-file (expand-file-name file (magit-toplevel))))
       (message "Opened %d conflicting file(s)." (length files)))))
 
+;;;###autoload
+(defun git-tools-authors-insert (directory)
+  "List all unique authors (name and email) in the git repository at DIRECTORY.
+Results are sorted alphabetically and displayed in a dedicated buffer."
+  (interactive "DGit repository directory: ")
+  (let* ((default-directory (expand-file-name directory))
+         (output (shell-command-to-string
+                  "git log --format='%aN <%aE>' | sort -u"))
+         (buf (get-buffer-create "*Git Authors*")))
+    (if (string-empty-p (string-trim output))
+        (message "No authors found or not a git repository: %s" directory)
+      (with-current-buffer buf
+        (read-only-mode -1)
+        (erase-buffer)
+        (insert (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
+        (insert (make-string 40 ?=) "\n")
+        (insert output)
+        (goto-char (point-min))
+        (read-only-mode 1))
+      (pop-to-buffer buf))))
+
+;;;###autoload
+(defun git-tools-authors-list (directory)
+  "Return a list of unique author strings \"Name <email>\" for DIRECTORY."
+  (interactive "DGit repository directory: ")
+  (let* ((default-directory (expand-file-name directory))
+         (output (shell-command-to-string
+                  "git log --format='%aN <%aE>' | sort -u")))
+    (if (string-empty-p (string-trim output))
+        (message "No authors found or not a git repository: %s" directory)
+      (progn
+        (erase-buffer)
+        (message (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
+        (message (make-string 40 ?=) "\n")
+        (message output)))))
+
 (provide 'git-tools)
 ;;; git-tools.el ends here

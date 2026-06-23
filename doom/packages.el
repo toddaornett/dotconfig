@@ -76,6 +76,10 @@
   :recipe (:local-repo "~/.config/elisp"
            :files ("slackcount.el")))
 
+(package! git-tools
+  :recipe (:local-repo "~/.config/elisp"
+           :files ("git-tools.el")))
+
 (package! ibuffer-projectile)
 
 (package! yasnippet-snippets)

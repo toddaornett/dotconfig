@@ -359,7 +359,7 @@ _q_: quit
         :n "+" #'tao/expand-region-hydra
         :n "-" #'tao/hydra-expand-region/body))
 
-(use-package lsp-mode
+(use-package! lsp-mode
   :diminish "LSP"
   :hook ((lsp-mode . lsp-diagnostics-mode)
          (lsp-mode . lsp-enable-which-key-integration)
@@ -416,11 +416,11 @@ _q_: quit
   :init
   (setq lsp-use-plists t))
 
-(use-package lsp-completion
+(use-package! lsp-completion
   :no-require
   :hook ((lsp-mode . lsp-completion-mode)))
 
-(use-package lsp-ui
+(use-package! lsp-ui
   :commands
   (lsp-ui-doc-show
    lsp-ui-doc-glance)
@@ -433,7 +433,7 @@ _q_: quit
                 lsp-ui-doc-include-signature t       ; Show signature
                 lsp-ui-doc-position 'at-point))
 
-(use-package typescript-ts-mode
+(use-package! typescript-ts-mode
   :hook
   ((typescript-ts-mode . lsp)
    (tsx-ts-mode . lsp)))
@@ -695,7 +695,7 @@ Runs via `org-after-todo-state-change-hook'."
   (add-hook 'org-after-todo-state-change-hook #'tao/org-sink-done-heading))
 
 ;; org-superstar
-(use-package org-superstar
+(use-package! org-superstar
   :defer t
   :hook org-mode
   :config
@@ -1077,7 +1077,7 @@ Runs via `org-after-todo-state-change-hook'."
   (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
   (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
 
-(use-package vterm
+(use-package! vterm
   :config
   (setq vterm-always-compile-module t)
   (define-key vterm-mode-map (kbd "<tab>") 'vterm-send-tab))
@@ -1105,29 +1105,29 @@ Runs via `org-after-todo-state-change-hook'."
       (concat "* " (tao/org-file-title) " Introduction\n"))))
 
 ;; port-number => load from ~/.config/elisp
-(use-package port-number)
+(use-package! port-number)
 
 ;; nodoze => load from ~/.config/elisp
-(use-package nodoze)
+(use-package! nodoze)
 
 ;; colima => load from ~/.config/elisp
-(use-package colima)
+(use-package! colima)
 
 ;; git-tools => load from ~/.config/elisp
-(use-package git-tools)
+(use-package! git-tools)
 
 ;; pg-tools => load from ~/.config/elisp
-(use-package pg-tools)
+(use-package! pg-tools)
 
 ;; status => load from ~/.config/elisp
-(use-package status)
+(use-package! status)
 
 ;; jira-todo => load from ~/.config/elisp
 (use-package! jira-todo
   :after request)
 
 ;; markdown-tools => load from ~/.config/elisp
-(use-package markdown-tools)
+(use-package! markdown-tools)
 
 ;; display slack message count in the modeline
 (use-package! slackcount
