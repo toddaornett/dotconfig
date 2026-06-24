@@ -13,8 +13,9 @@ cask "dbeaver-community"
 cask "clickhouse"
 cask "karabiner-elements"
 
-# Use full tap path so bundle finds formula even before tap is fully updated
-brew "d12frosted/emacs-plus/emacs-plus@30"
+brew "gcc", args: ["build-from-source"]
+brew "libgccjit", args: ["build-from-source"]
+brew "emacs-plus"
 brew "git"
 brew "ripgrep"
 brew "fd"
