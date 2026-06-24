@@ -1136,6 +1136,13 @@ Runs via `org-after-todo-state-change-hook'."
   (setq slackcount-alert-sound "/System/Library/Sounds/Funk.aiff")
   (slackcount-mode 1))
 
+;; display Teams message count in the modeline
+(use-package! teamscount
+  :if (teamscount-available-p)
+  :config
+  (setq teamscount-alert-sound "/System/Library/Sounds/Funk.aiff")
+  (teamscount-mode 1))
+
 ;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)
