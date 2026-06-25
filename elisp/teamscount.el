@@ -1,7 +1,7 @@
 ;;; teamscount.el --- Display Teams unread counts in the mode line -*- lexical-binding: t -*-
 
 ;; Author: Todd Ornett
-;; Version: 0.3.0
+;; Version: 0.1.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, teams
 ;; Homepage: https://github.com/toddaornett/dotconfig
@@ -64,6 +64,21 @@ If nil, no sound is played."
   :type 'integer
   :group 'teamscount)
 
+(defcustom teamscount-icon-name "nf-md-microsoft_teams"
+  "The icon name id for the Nerd Fonts icon."
+  :type 'string
+  :group 'teamscount)
+
+(defcustom teamscount-icon-fg-color "#6264A7"
+  "Foreground color of Microsoft Teams icon.
+#6264A7 — official color.
+#8B8CC8 — lighter purple, still recognizably Teams
+#A0A2D4 — even lighter, more pastel
+#7B83EB — the brighter Teams light variant Microsoft uses in some contexts."
+  :type '(choice (color :tag "Pick a color")
+          (string :tag "Hex code (e.g., #6264A7)"))
+  :group 'teamscount)
+
 (defvar teamscount--timer nil
   "Timer object for periodic refresh.")
 
@@ -96,7 +111,8 @@ If nil, no sound is played."
   (file-readable-p teamscount-script))
 
 (defun teamscount--fetch ()
-  "Fetch Teams unread data and return a plist (:unreads N :mentions N :threads [...]).
+  "Fetch Teams unread data and return a plist.
+Format is (:unreads N :mentions N :threads [...]).
 Returns nil if data cannot be retrieved."
   (unless (teamscount--python-available-p)
     (message "teamscount: Python not found at %s" teamscount-python-executable)
@@ -125,7 +141,6 @@ Returns nil if data cannot be retrieved."
   "Construct a msteams:// deep link URL for THREAD alist."
   (let* ((thread-id (alist-get 'id       thread ""))
          (group-id  (alist-get 'group_id thread nil))
-         (team-id   (alist-get 'team_id  thread nil))
          (msg-id    (alist-get 'oldest_unread_id thread nil)))
     (if group-id
         ;; Channel in a team — deep link to the channel
@@ -176,38 +191,45 @@ Returns nil if data cannot be retrieved."
     (pop-to-buffer buf)))
 
 (defun teamscount--format (data)
-  "Format DATA (a plist from `teamscount--fetch') into a mode-line string."
-  (let ((icon (propertize (nerd-icons-mdicon "nf-md-microsoft_teams")
-                          'face '(:foreground "#7B83EB")
-                          'display '(raise 0.05))))
+  "Format DATA (a plist from teamscount--fetch) into a mode-line string."
+  (let* ((icon-color-spec `(:foreground ,teamscount-icon-fg-color))
+         ;; 1. Generate the icon base string from nerd-icons
+         (icon (nerd-icons-mdicon teamscount-icon-name))
+         (click-map (let ((map (make-sparse-keymap)))
+                      (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
+                      map)))
+
+    ;; 2. Forcefully inject the foreground color into the existing icon face attributes
+    (add-face-text-property 0 (length icon) icon-color-spec t icon)
+
+    ;; 3. Apply the display raise property safely
+    (put-text-property 0 (length icon) 'display '(raise 0.05) icon)
+
     (if (null data)
-        (concat icon "? ")
-      (let* ((unreads  (plist-get data :unreads))
+        (concat icon " ")
+      (let* ((unreads (plist-get data :unreads))
              (mentions (plist-get data :mentions))
-             (counts
-              (cond
-               ((> mentions 0)
-                (unless teamscount--alerted
-                  (teamscount--play-alert)
-                  (setq teamscount--alerted t))
-                (concat (propertize (format "%d" mentions)
-                                    'face '(:foreground "orange"))
-                        (when (> unreads 0) (format "/%d" unreads))))
-               ((> unreads 0)
-                (setq teamscount--alerted nil)
-                (format "%d" unreads))
-               (t
-                (setq teamscount--alerted nil)
-                nil))))
-        (if counts
-            (propertize (concat icon counts " ")
-                        'mouse-face 'mode-line-highlight
-                        'help-echo  "Teams unreads — click to view"
-                        'local-map  (let ((map (make-sparse-keymap)))
-                                      (define-key map [mode-line mouse-1]
-                                                  #'teamscount-show-unreads)
-                                      map))
-          "")))))
+             (counts (cond ((> mentions 0)
+                            (unless teamscount--alerted
+                              (teamscount--play-alert)
+                              (setq teamscount--alerted t))
+                            (let ((m-str (format "%d" mentions)))
+                              ;; Use add-face-text-property here too if "orange" fails to apply
+                              (add-face-text-property 0 (length m-str) '(:foreground "orange") t m-str)
+                              (concat m-str (when (> unreads 0) (format "/%d" unreads)))))
+                           ((> unreads 0)
+                            (setq teamscount--alerted nil)
+                            (format "%d" unreads))
+                           (t (setq teamscount--alerted nil) nil))))
+        (when counts
+          (concat (propertize icon
+                              'mouse-face 'mode-line-highlight
+                              'help-echo "Teams unreads — click to view"
+                              'local-map click-map)
+                  (propertize (concat counts " ")
+                              'mouse-face 'mode-line-highlight
+                              'help-echo "Teams unreads — click to view"
+                              'local-map click-map)))))))
 
 (defun teamscount-update ()
   "Refresh the Teams unread count and update the mode line."
@@ -227,9 +249,9 @@ Returns nil if data cannot be retrieved."
 (define-minor-mode teamscount-mode
   "Minor mode to display Teams unread counts in the mode line.
 
-When enabled, the mode line shows mention counts (orange when non-zero)
-and general unread counts, refreshed every `teamscount-refresh-interval'
-seconds. Click the segment to see a buffer of unread channels."
+  When enabled, the mode line shows mention counts (orange when non-zero)
+  and general unread counts, refreshed every `teamscount-refresh-interval'
+  seconds. Click the segment to see a buffer of unread channels."
   :global t
   :lighter nil
   :group 'teamscount
@@ -246,8 +268,7 @@ seconds. Click the segment to see a buffer of unread channels."
     (when teamscount--timer
       (cancel-timer teamscount--timer)
       (setq teamscount--timer nil))
-    (setq global-mode-string
-          (delq '(:eval teamscount--mode-line-string) global-mode-string))
+    (setq global-mode-string (delete '(:eval teamscount--mode-line-string) global-mode-string))
     (setq teamscount--mode-line-string "")))
 
 (provide 'teamscount)

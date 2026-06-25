@@ -1143,7 +1143,8 @@ Runs via `org-after-todo-state-change-hook'."
 (use-package! teamscount
   :if (teamscount-available-p)
   :config
-  (setq teamscount-alert-sound "/System/Library/Sounds/Funk.aiff")
+  (setq teamscount-alert-sound "/System/Library/Sounds/Funk.aiff"
+        teamscount-icon-fg-color "#7B83EB")
   (teamscount-mode 1))
 
 ;; Custom file
