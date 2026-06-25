@@ -119,6 +119,8 @@
 
 ;; Delay garbage collection for performance
 (setq gc-cons-threshold (* 50 1000 1000))
+(after! gcmh
+  (setq gcmh-high-cons-threshold 67108864)) ; 64MB
 
 ;; Make deleted files go to the trash can
 (setq delete-by-moving-to-trash t
@@ -149,7 +151,8 @@ Only works when called from a Dired buffer."
   ;; Use C-<tab> for company completion if TAB is busy
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
 
-  (setq company-idle-delay 0.2) ; Auto-popup with delay
+  (setq company-idle-delay 1) ; Increase to 0.5s or higher
+
   (setq company-minimum-prefix-length 1) ; Trigger after 1 character
   (setq company-tooltip-limit 10)
   (setq company-dabbrev-ignore-buffers (lambda (buffer)
@@ -368,7 +371,7 @@ _q_: quit
            js-ts-mode) . lsp-deferred))
   :custom
   (lsp-keymap-prefix "C-c l")           ; Prefix for LSP actions
-  (lsp-completion-provider :none)       ; Using Corfu as the provider
+  (lsp-completion-provider :none)
   (lsp-diagnostics-provider :flycheck)
   (lsp-session-file (locate-user-emacs-file ".lsp-session"))
   (lsp-log-io nil)                      ; IMPORTANT! Use only for debugging! Drastically affects performance
