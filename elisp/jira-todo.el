@@ -23,6 +23,7 @@
 (require 'request)
 (require 'json)
 (require 'subr-x)
+(require 'org)
 
 (defgroup jira-todo nil
   "Generate `org-mode' TODOs from JIRA tickets."
@@ -53,8 +54,15 @@
   :group 'jira-todo)
 
 (defcustom jira-todo-pr-reviewers
-  (or (getenv "GITHUB_PULL_REQUEST_REVIEWERS") "")
+  (or (getenv "PULL_REQUEST_REVIEWERS") "")
   "GitHub PR reviewers for Slack message."
+  :type 'string
+  :group 'jira-todo)
+
+(defcustom jira-todo-pr-messaging-provider
+  (or (getenv "MESSAGING_PROVIDER") "slack")
+  "Determine the format of message format.
+`slack' or `teams' (Microsoft Teams)"
   :type 'string
   :group 'jira-todo)
 
@@ -76,8 +84,62 @@
            (concat jira-todo-username ":" jira-todo-token)
            t)))
 
+(defun jira-todo--smart-open-line-above ()
+  "Insert an empty line above the current line and indent it.
+If in an `org-mode' buffer within a TODO, move point to a new line
+immediately above the first sibling TODO under the parent heading."
+  (if (derived-mode-p 'org-mode)
+      (let ((target nil)
+            (current-level (save-excursion
+                             (org-back-to-heading t)
+                             (org-current-level))))
+        (save-excursion
+          ;; Go up to parent heading
+          (org-back-to-heading t)
+          (when (org-up-heading-safe)
+            (let ((parent-end (save-excursion (org-end-of-subtree t t))))
+              (while (and (not target)
+                          (re-search-forward org-heading-regexp parent-end t))
+                (when (and (= (org-current-level) current-level)
+                           (org-entry-is-todo-p))
+                  (setq target (line-beginning-position)))))))
+        (if target
+            (progn
+              (goto-char target)
+              (open-line 1))
+          ;; Fallback: original behavior
+          (move-beginning-of-line nil)
+          (newline-and-indent)
+          (forward-line -1)
+          (indent-according-to-mode)))
+    ;; Not in org-mode: original behavior
+    (move-beginning-of-line nil)
+    (newline-and-indent)
+    (forward-line -1)
+    (indent-according-to-mode)))
+
+(defun jira-todo--format-slack-message (summary)
+  "Format message with SUMMARY for Slack."
+  (concat
+   (format "Slack:\n")
+   (format "--begin--\n")
+   (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
+   (format "%s\n" summary)
+   (format "TBD\n")
+   (format "--end--\n")))
+
+(defun jira-todo--format-teams-message (summary)
+  "Format message with SUMMARY for Microsoft Teams."
+  (concat
+   (format "Teams:\n")
+   (format "--begin--\n")
+   (format "PTAL %s\n" jira-todo-pr-reviewers)
+   (format "TBD\n")
+   (format "%s\n" summary)
+   (format "--end--\n")))
+
 (defun jira-todo--format-output (data)
-  "Format `org-mode' TODO and Slack message from parsed JIRA DATA."
+  "Format `org-mode' TODO and message from parsed JIRA DATA."
   (let* ((key             (format "%s" (alist-get 'key data)))
          (fields          (alist-get 'fields data))
          (summary         (format "%s" (alist-get 'summary fields)))
@@ -101,12 +163,10 @@
      (format "## Description\n")
      (format "%s\n" clean-summary)
      (format "--end--\n")
-     (format "Slack:\n")
-     (format "--begin--\n")
-     (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
-     (format "%s\n" clean-summary)
-     (format "TBD\n")
-     (format "--end--\n")
+     (pcase jira-todo-pr-messaging-provider
+       ("slack" (jira-todo--format-slack-message clean-summary))
+       ("teams" (jira-todo--format-teams-message clean-summary))
+       (_ ""))
      (format ":LOGBOOK:\n")
      (format ":END:"))))
 
@@ -115,7 +175,11 @@
   (let ((output (jira-todo--format-output data))
         (buf (current-buffer)))
     (with-current-buffer buf
-      (insert output))))
+      (jira-todo--smart-open-line-above)
+      (let ((start (point)))
+        (insert output)
+        (goto-char start)
+        (org-back-to-heading t)))))
 
 (defun jira-todo--parse-input (input)
   "Parse INPUT into a JIRA key.
