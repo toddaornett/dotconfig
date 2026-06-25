@@ -3,14 +3,21 @@
 teamscount.py - Read Microsoft Teams unread and mention counts from local IndexedDB.
 
 Outputs a single JSON object to stdout:
-  {"unreads": <int>, "mentions": <int>}
-
-Strategy:
-  - Iterate all conversations in the conversation-manager store
-  - Keep only the highest-version record per thread ID
-  - unreads: only threads where interest != "NotInterested"
-  - mentions: all threads regardless of interest, so a direct mention
-    in a muted/ignored channel is still surfaced
+  {
+    "unreads": <int>,
+    "mentions": <int>,
+    "threads": [
+      {
+        "id": "<thread-id>",
+        "name": "<channel or chat name>",
+        "type": "<Topic|Chat|Space|...>",
+        "mention": <bool>,
+        "group_id": "<AAD group id or null>",
+        "oldest_unread_id": "<message id or null>"
+      },
+      ...
+    ]
+  }
 
 Exit codes:
   0 - success
@@ -61,8 +68,23 @@ def get_user_mri(records: dict) -> str:
     return ""
 
 
+def thread_display_name(v: dict) -> str:
+    """Return a human-readable name for the thread."""
+    # Channel/topic: use threadProperties.topic
+    tp = v.get("threadProperties", {}) or {}
+    topic = tp.get("topic") or tp.get("topicThreadTopic") or tp.get("spaceThreadTopic")
+    if topic:
+        return topic
+    # Chat: use chatTitle
+    ct = v.get("chatTitle", {}) or {}
+    long_title = ct.get("longTitle")
+    if long_title:
+        return long_title
+    return v.get("id", "Unknown")
+
+
 def check_mention(v: dict, horizon_ts: float, user_mri: str) -> bool:
-    """Return True if the last unread message in v directly mentions user_mri."""
+    """Return True if the last unread message directly mentions user_mri."""
     if not user_mri:
         return False
     try:
@@ -129,11 +151,12 @@ def fetch_counts() -> dict:
 
     unreads  = 0
     mentions = 0
+    threads  = []
 
     for thread_id, v in records.items():
         try:
-            member      = v.get("memberProperties", {}) or {}
-            interest    = member.get("interest", "")
+            member         = v.get("memberProperties", {}) or {}
+            interest       = member.get("interest", "")
             not_interested = interest == "NotInterested"
 
             last_msg_time = float(v.get("lastMessageTimeUtc", 0) or 0)
@@ -142,20 +165,48 @@ def fetch_counts() -> dict:
             horizon_ts    = parse_consumption_horizon(horizon_str)
 
             if last_msg_time <= horizon_ts:
-                continue  # fully read — skip entirely
+                continue  # fully read
 
-            # Always check mentions regardless of interest level
-            if check_mention(v, horizon_ts, user_mri):
+            is_mention = check_mention(v, horizon_ts, user_mri)
+            if is_mention:
                 mentions += 1
-
-            # Only count as unread if the user hasn't muted this thread
             if not not_interested:
                 unreads += 1
+            else:
+                if not is_mention:
+                    continue  # not interested and no mention — skip from thread list
+
+            # Build thread info for the buffer
+            tp       = v.get("threadProperties", {}) or {}
+            group_id = tp.get("groupId") or v.get("teamId") or None
+            # team_id is the parent space/team thread id for channel topics
+            team_id  = v.get("teamId") or None
+
+            # oldest_unread_id: the message just after the horizon
+            # We use the horizon message id (3rd part of consumptionhorizon) as anchor
+            oldest_unread_id = None
+            if horizon_str:
+                parts = horizon_str.split(";")
+                if len(parts) >= 3 and parts[2]:
+                    oldest_unread_id = parts[2]
+
+            threads.append({
+                "id":               thread_id,
+                "name":             thread_display_name(v),
+                "type":             v.get("type", ""),
+                "mention":          is_mention,
+                "group_id":         group_id,
+                "team_id":          team_id,
+                "oldest_unread_id": oldest_unread_id,
+            })
 
         except Exception:
             pass
 
-    return {"unreads": int(unreads), "mentions": int(mentions)}
+    # Sort: mentions first, then alphabetically
+    threads.sort(key=lambda t: (not t["mention"], t["name"].lower()))
+
+    return {"unreads": int(unreads), "mentions": int(mentions), "threads": threads}
 
 
 if __name__ == "__main__":
