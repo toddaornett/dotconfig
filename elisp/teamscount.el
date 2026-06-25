@@ -110,6 +110,11 @@ If nil, no sound is played."
   "Return non-nil if the teamscount.py script exists."
   (file-readable-p teamscount-script))
 
+(defun teamscount-available-p ()
+  "Return non-nil if both Python and script are available."
+  (and (teamscount--python-available-p)
+       (teamscount--script-available-p)))
+
 (defun teamscount--fetch ()
   "Fetch Teams unread data and return a plist.
 Format is (:unreads N :mentions N :threads [...]).
@@ -193,16 +198,13 @@ Returns nil if data cannot be retrieved."
 (defun teamscount--format (data)
   "Format DATA (a plist from teamscount--fetch) into a mode-line string."
   (let* ((icon-color-spec `(:foreground ,teamscount-icon-fg-color))
-         ;; 1. Generate the icon base string from nerd-icons
          (icon (nerd-icons-mdicon teamscount-icon-name))
          (click-map (let ((map (make-sparse-keymap)))
                       (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
                       map)))
 
-    ;; 2. Forcefully inject the foreground color into the existing icon face attributes
+    ;; Apply dynamic color properties securely to the base icon layout
     (add-face-text-property 0 (length icon) icon-color-spec t icon)
-
-    ;; 3. Apply the display raise property safely
     (put-text-property 0 (length icon) 'display '(raise 0.05) icon)
 
     (if (null data)
@@ -214,63 +216,62 @@ Returns nil if data cannot be retrieved."
                               (teamscount--play-alert)
                               (setq teamscount--alerted t))
                             (let ((m-str (format "%d" mentions)))
-                              ;; Use add-face-text-property here too if "orange" fails to apply
                               (add-face-text-property 0 (length m-str) '(:foreground "orange") t m-str)
                               (concat m-str (when (> unreads 0) (format "/%d" unreads)))))
                            ((> unreads 0)
                             (setq teamscount--alerted nil)
                             (format "%d" unreads))
                            (t (setq teamscount--alerted nil) nil))))
-        (when counts
-          (concat (propertize icon
-                              'mouse-face 'mode-line-highlight
-                              'help-echo "Teams unreads — click to view"
-                              'local-map click-map)
-                  (propertize (concat counts " ")
-                              'mouse-face 'mode-line-highlight
-                              'help-echo "Teams unreads — click to view"
-                              'local-map click-map)))))))
+        (if counts
+            (concat (propertize icon
+                                'mouse-face 'mode-line-highlight
+                                'help-echo "Teams unreads — click to view"
+                                'local-map click-map)
+                    (propertize (concat counts " ")
+                                'mouse-face 'mode-line-highlight
+                                'help-echo "Teams unreads — click to view"
+                                'local-map click-map))
+          ;; Fallback string if there are no mentions or unreads
+          (concat icon " "))))))
 
 (defun teamscount-update ()
-  "Refresh the Teams unread count and update the mode line."
+  "Fetch latest data and rebuild the mode line string."
   (interactive)
-  (let ((data (teamscount--fetch)))
-    (setq teamscount--last-data data)
-    (setq teamscount--mode-line-string (teamscount--format data))
-    (force-mode-line-update t)))
+  (setq teamscount--last-data (teamscount--fetch))
+  (setq teamscount--mode-line-string (teamscount--format teamscount--last-data))
+  (force-mode-line-update t))
 
-;;;###autoload
-(defun teamscount-available-p ()
-  "Return non-nil if the Python venv and teamscount script are both present."
-  (and (teamscount--python-available-p)
-       (teamscount--script-available-p)))
+(defun teamscount--start-timer ()
+  "Start the periodic refresh timer if it isn't running."
+  (unless teamscount--timer
+    (setq teamscount--timer
+          (run-at-time 0 teamscount-refresh-interval #'teamscount-update))))
+
+(defun teamscount--stop-timer ()
+  "Cancel and clear the periodic refresh timer."
+  (when teamscount--timer
+    (cancel-timer teamscount--timer)
+    (setq teamscount--timer nil)))
 
 ;;;###autoload
 (define-minor-mode teamscount-mode
-  "Minor mode to display Teams unread counts in the mode line.
-
-  When enabled, the mode line shows mention counts (orange when non-zero)
-  and general unread counts, refreshed every `teamscount-refresh-interval'
-  seconds. Click the segment to see a buffer of unread channels."
+  "Toggle Teams notification tracking in your mode line."
   :global t
-  :lighter nil
   :group 'teamscount
   (if teamscount-mode
-      (if (not (teamscount-available-p))
-          (progn
-            (message "teamscount: disabled — Python venv or script not found")
-            (setq teamscount-mode nil))
-        (unless (memq 'teamscount--mode-line-string global-mode-string)
-          (add-to-list 'global-mode-string '(:eval teamscount--mode-line-string) t))
+      (progn
+        ;; Add the dynamic wrapper safely to the default mode-line-format sequence
+        (unless (member '((:eval teamscount--mode-line-string)) global-mode-line-format)
+          (setq-default global-mode-line-format
+                        (append global-mode-line-format '((:eval teamscount--mode-line-string)))))
+        ;; Execute initial capture and spin up loop
         (teamscount-update)
-        (setq teamscount--timer
-              (run-at-time t teamscount-refresh-interval #'teamscount-update)))
-    (when teamscount--timer
-      (cancel-timer teamscount--timer)
-      (setq teamscount--timer nil))
-    (setq global-mode-string (delete '(:eval teamscount--mode-line-string) global-mode-string))
-    (setq teamscount--mode-line-string "")))
+        (teamscount--start-timer))
+    ;; Mode turned off: tear down timer and remove construct safely
+    (teamscount--stop-timer)
+    (setq-default global-mode-line-format
+                  (delete '((:eval teamscount--mode-line-string)) global-mode-line-format))
+    (force-mode-line-update t)))
 
 (provide 'teamscount)
-
 ;;; teamscount.el ends here

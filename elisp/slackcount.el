@@ -194,10 +194,9 @@ seconds."
     (when slackcount--timer
       (cancel-timer slackcount--timer)
       (setq slackcount--timer nil))
-    (setq global-mode-string
-          (delq '(:eval slackcount--mode-line-string) global-mode-string))
+    (setq-default global-mode-line-format
+                  (delete '((:eval slackcount--mode-line-string)) global-mode-string))
     (setq slackcount--mode-line-string "")))
 
 (provide 'slackcount)
-
 ;;; slackcount.el ends here
