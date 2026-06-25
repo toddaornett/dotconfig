@@ -1,7 +1,7 @@
 ;;; teamscount.el --- Display Teams unread counts in the mode line -*- lexical-binding: t -*-
 
 ;; Author: Todd Ornett
-;; Version: 0.1.0
+;; Version: 0.3.0
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, teams
 ;; Homepage: https://github.com/toddaornett/dotconfig
@@ -14,6 +14,7 @@
 ;; The mode line segment shows:
 ;;   "<icon><mentions>/<unreads> "
 ;; where mentions are highlighted in orange when non-zero.
+;; Clicking the segment opens a buffer listing unread channels with links.
 ;;
 ;; Usage:
 ;;   (use-package teamscount
@@ -73,6 +74,9 @@ If nil, no sound is played."
 (defvar teamscount--alerted nil
   "Non-nil if the mention alert sound has already been played this cycle.")
 
+(defvar teamscount--last-data nil
+  "Last parsed data plist from teamscount--fetch.")
+
 (defun teamscount--play-alert ()
   "Play the configured alert sound."
   (when teamscount-alert-sound
@@ -92,7 +96,7 @@ If nil, no sound is played."
   (file-readable-p teamscount-script))
 
 (defun teamscount--fetch ()
-  "Fetch Teams unread data and return a plist (:unreads N :mentions N).
+  "Fetch Teams unread data and return a plist (:unreads N :mentions N :threads [...]).
 Returns nil if data cannot be retrieved."
   (unless (teamscount--python-available-p)
     (message "teamscount: Python not found at %s" teamscount-python-executable)
@@ -109,47 +113,107 @@ Returns nil if data cannot be retrieved."
               (let* ((output (string-trim (buffer-string)))
                      (data   (json-read-from-string output)))
                 (list :unreads  (alist-get 'unreads  data 0)
-                      :mentions (alist-get 'mentions data 0)))
+                      :mentions (alist-get 'mentions data 0)
+                      :threads  (alist-get 'threads  data [])))
             (message "teamscount: script exited with code %d" exit-code)
             nil)))
     (error
      (message "teamscount: error running script: %s" (error-message-string err))
      nil)))
 
+(defun teamscount--make-teams-url (thread)
+  "Construct a msteams:// deep link URL for THREAD alist."
+  (let* ((thread-id (alist-get 'id       thread ""))
+         (group-id  (alist-get 'group_id thread nil))
+         (team-id   (alist-get 'team_id  thread nil))
+         (msg-id    (alist-get 'oldest_unread_id thread nil)))
+    (if group-id
+        ;; Channel in a team — deep link to the channel
+        (concat "msteams://teams/l/channel/"
+                (url-hexify-string thread-id)
+                "/channel"
+                "?groupId=" group-id
+                (when msg-id (concat "&messageId=" msg-id)))
+      ;; Direct chat or space without a group
+      (concat "msteams://teams/l/chat/"
+              (url-hexify-string thread-id)
+              "/0"
+              (when msg-id (concat "?messageId=" msg-id))))))
+
+(defun teamscount-show-unreads ()
+  "Open a buffer listing unread Teams channels with clickable links."
+  (interactive)
+  (let* ((data    teamscount--last-data)
+         (threads (when data (plist-get data :threads)))
+         (buf     (get-buffer-create "*Teams Unreads*")))
+    (with-current-buffer buf
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (insert (propertize "Teams Unread Channels\n" 'face 'bold))
+        (insert (make-string 40 ?─) "\n\n")
+        (if (or (null threads) (zerop (length threads)))
+            (insert "No unread messages.\n")
+          (seq-do
+           (lambda (thread)
+             (let* ((name    (alist-get 'name    thread "Unknown"))
+                    (mention (alist-get 'mention thread nil))
+                    (url     (teamscount--make-teams-url thread))
+                    (label   (if mention
+                                 (propertize (concat "[@] " name) 'face '(:foreground "orange" :weight bold))
+                               (propertize (concat "[ ] " name) 'face 'default))))
+               (insert-button label
+                              'action (lambda (_) (browse-url url))
+                              'follow-link t
+                              'help-echo (concat "Open in Teams: " url))
+               (insert "\n")))
+           threads))
+        (insert "\n")
+        (insert (propertize "Press q to close, RET or click to open in Teams.\n"
+                            'face 'font-lock-comment-face)))
+      (special-mode)
+      (local-set-key (kbd "q") #'quit-window)
+      (goto-char (point-min)))
+    (pop-to-buffer buf)))
+
 (defun teamscount--format (data)
   "Format DATA (a plist from `teamscount--fetch') into a mode-line string."
   (let ((icon (propertize (nerd-icons-mdicon "nf-md-microsoft_teams")
-                          'face '(:foreground "#6264A7")
+                          'face '(:foreground "#7B83EB")
                           'display '(raise 0.05))))
     (if (null data)
         (concat icon "? ")
       (let* ((unreads  (plist-get data :unreads))
-             (mentions (plist-get data :mentions)))
-        (cond
-         ;; Direct mentions take priority — alert and show in orange
-         ((> mentions 0)
-          (unless teamscount--alerted
-            (teamscount--play-alert)
-            (setq teamscount--alerted t))
-          (concat icon
-                  (propertize (format "%d" mentions)
-                              'face '(:foreground "orange"))
-                  (when (> unreads 0)
-                    (format "/%d" unreads))
-                  " "))
-         ;; Unreads only
-         ((> unreads 0)
-          (setq teamscount--alerted nil)
-          (concat icon (format "%d " unreads)))
-         ;; Nothing to show
-         (t
-          (setq teamscount--alerted nil)
-          ""))))))
+             (mentions (plist-get data :mentions))
+             (counts
+              (cond
+               ((> mentions 0)
+                (unless teamscount--alerted
+                  (teamscount--play-alert)
+                  (setq teamscount--alerted t))
+                (concat (propertize (format "%d" mentions)
+                                    'face '(:foreground "orange"))
+                        (when (> unreads 0) (format "/%d" unreads))))
+               ((> unreads 0)
+                (setq teamscount--alerted nil)
+                (format "%d" unreads))
+               (t
+                (setq teamscount--alerted nil)
+                nil))))
+        (if counts
+            (propertize (concat icon counts " ")
+                        'mouse-face 'mode-line-highlight
+                        'help-echo  "Teams unreads — click to view"
+                        'local-map  (let ((map (make-sparse-keymap)))
+                                      (define-key map [mode-line mouse-1]
+                                                  #'teamscount-show-unreads)
+                                      map))
+          "")))))
 
 (defun teamscount-update ()
   "Refresh the Teams unread count and update the mode line."
   (interactive)
   (let ((data (teamscount--fetch)))
+    (setq teamscount--last-data data)
     (setq teamscount--mode-line-string (teamscount--format data))
     (force-mode-line-update t)))
 
@@ -165,7 +229,7 @@ Returns nil if data cannot be retrieved."
 
 When enabled, the mode line shows mention counts (orange when non-zero)
 and general unread counts, refreshed every `teamscount-refresh-interval'
-seconds."
+seconds. Click the segment to see a buffer of unread channels."
   :global t
   :lighter nil
   :group 'teamscount
@@ -183,7 +247,7 @@ seconds."
       (cancel-timer teamscount--timer)
       (setq teamscount--timer nil))
     (setq global-mode-string
-          (delete '(:eval teamscount--mode-line-string) global-mode-string))
+          (delq '(:eval teamscount--mode-line-string) global-mode-string))
     (setq teamscount--mode-line-string "")))
 
 (provide 'teamscount)
