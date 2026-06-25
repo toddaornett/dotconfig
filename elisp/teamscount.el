@@ -232,7 +232,7 @@ Returns nil if data cannot be retrieved."
                                 'help-echo "Teams unreads — click to view"
                                 'local-map click-map))
           ;; Fallback string if there are no mentions or unreads
-          (concat icon " "))))))
+          "")))))
 
 (defun teamscount-update ()
   "Fetch latest data and rebuild the mode line string."
@@ -241,36 +241,34 @@ Returns nil if data cannot be retrieved."
   (setq teamscount--mode-line-string (teamscount--format teamscount--last-data))
   (force-mode-line-update t))
 
-(defun teamscount--start-timer ()
-  "Start the periodic refresh timer if it isn't running."
-  (unless teamscount--timer
-    (setq teamscount--timer
-          (run-at-time 0 teamscount-refresh-interval #'teamscount-update))))
-
-(defun teamscount--stop-timer ()
-  "Cancel and clear the periodic refresh timer."
-  (when teamscount--timer
-    (cancel-timer teamscount--timer)
-    (setq teamscount--timer nil)))
-
 ;;;###autoload
 (define-minor-mode teamscount-mode
-  "Toggle Teams notification tracking in your mode line."
+  "Minor mode to display Teams unread counts in the mode line.
+
+When enabled, the mode line shows direct-message highlights and an
+indicator for general unreads, refreshed every `teamscount-refresh-interval'
+seconds."
   :global t
+  :lighter nil
   :group 'teamscount
   (if teamscount-mode
-      (progn
-        ;; Add the dynamic wrapper safely to the default mode-line-format sequence
-        (unless (member '((:eval teamscount--mode-line-string)) global-mode-line-format)
-          (setq-default global-mode-line-format
-                        (append global-mode-line-format '((:eval teamscount--mode-line-string)))))
-        ;; Execute initial capture and spin up loop
+      (if (not (teamscount-available-p))
+          (progn
+            (message "teamscount: disabled")
+            (setq teamscount-mode nil))
+        ;; Add segment to global mode line if not already present.
+        (unless (memq 'teamscount--mode-line-string global-mode-string)
+          (add-to-list 'global-mode-string '(:eval teamscount--mode-line-string) t))
         (teamscount-update)
-        (teamscount--start-timer))
-    ;; Mode turned off: tear down timer and remove construct safely
-    (teamscount--stop-timer)
+        (setq teamscount--timer
+              (run-at-time t teamscount-refresh-interval #'teamscount-update)))
+    ;; Disable: cancel timer and remove mode line segment.
+    (when teamscount--timer
+      (cancel-timer teamscount--timer)
+      (setq teamscount--timer nil))
     (setq-default global-mode-line-format
-                  (delete '((:eval teamscount--mode-line-string)) global-mode-line-format))
+                  (delete '((:eval teamscount--mode-line-string)) global-mode-string))
+    (setq teamscount--mode-line-string "")
     (force-mode-line-update t)))
 
 (provide 'teamscount)
