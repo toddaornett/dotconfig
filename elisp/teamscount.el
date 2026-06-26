@@ -82,6 +82,13 @@ If nil, no sound is played."
 (defvar teamscount--timer nil
   "Timer object for periodic refresh.")
 
+(defvar teamscount--script-error nil
+  "Flag set to t when the script fails, and nil on successful connection.
+Used by the UI layer to clear out the mode-line elements on failure.")
+
+(defvar teamscount--last-script-error nil
+  "Internal tracking variable used to prevent log-flooding in *Messages*.")
+
 (defvar teamscount--mode-line-string ""
   "Current mode line string for teamscount.")
 (put 'teamscount--mode-line-string 'risky-local-variable t)
@@ -121,26 +128,46 @@ If nil, no sound is played."
 Format is (:unreads N :mentions N :threads [...]).
 Returns nil if data cannot be retrieved."
   (unless (teamscount--python-available-p)
-    (message "teamscount: Python not found at %s" teamscount-python-executable)
+    (setq teamscount--script-error t)
+    (unless teamscount--last-script-error
+      (message "teamscount: Python not found at %s" teamscount-python-executable)
+      (setq teamscount--last-script-error t))
     (cl-return-from teamscount--fetch nil))
+
   (unless (teamscount--script-available-p)
-    (message "teamscount: script not found at %s" teamscount-script)
+    (setq teamscount--script-error t)
+    (unless teamscount--last-script-error
+      (message "teamscount: script not found at %s" teamscount-script)
+      (setq teamscount--last-script-error t))
     (cl-return-from teamscount--fetch nil))
+
   (condition-case err
       (with-temp-buffer
+        ;; Changed t to (list t t) so error messages on stderr are visible in the buffer
         (let ((exit-code (call-process teamscount-python-executable
-                                       nil t nil
+                                       nil (list t t) nil
                                        teamscount-script)))
-          (if (zerop exit-code)
-              (let* ((output (string-trim (buffer-string)))
-                     (data   (json-read-from-string output)))
-                (list :unreads  (alist-get 'unreads  data 0)
-                      :mentions (alist-get 'mentions data 0)
-                      :threads  (alist-get 'threads  data [])))
-            (message "teamscount: script exited with code %d" exit-code)
-            nil)))
+          (let ((output (string-trim (buffer-string))))
+            (if (zerop exit-code)
+                (let ((data (json-read-from-string output)))
+                  (setq teamscount--script-error nil) ; Clear error on success
+                  (when teamscount--last-script-error
+                    (message "teamscount: connection recovered.")
+                    (setq teamscount--last-script-error nil))
+                  (list :unreads  (alist-get 'unreads  data 0)
+                        :mentions (alist-get 'mentions data 0)
+                        :threads  (alist-get 'threads  data [])))
+
+              (setq teamscount--script-error t)
+              (unless teamscount--last-script-error
+                (message "teamscount: script exited with code %d. Output: %s" exit-code output)
+                (setq teamscount--last-script-error t))
+              nil))))
     (error
-     (message "teamscount: error running script: %s" (error-message-string err))
+     (setq teamscount--script-error t)
+     (unless teamscount--last-script-error
+       (message "teamscount: error running script: %s" (error-message-string err))
+       (setq teamscount--last-script-error t))
      nil)))
 
 (defun teamscount--make-teams-url (thread)
@@ -238,10 +265,29 @@ Returns nil if data cannot be retrieved."
 (defun teamscount-update ()
   "Fetch latest data and rebuild the mode line string."
   (interactive)
-  (setq teamscount--last-data (teamscount--fetch))
-  (setq teamscount--mode-line-string (teamscount--format teamscount--last-data))
-  (force-mode-line-update t))
+  (let ((data (teamscount--fetch)))
+    (setq teamscount--last-data data)
+    (if (or teamscount--script-error (null data))
+        ;; Clear the mode line completely if an error happens
+        (progn
+          (setq teamscount--mode-line-string "")
+          (force-mode-line-update t))
 
+      ;; Restore your original formatting logic
+      (let ((base-text (teamscount--format data))
+            (map (make-sparse-keymap)))
+
+        ;; Bind left-click (mouse-1) to your custom unread listing buffer
+        (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
+
+        ;; Apply click functionality and hover effects to your original design
+        (setq teamscount--mode-line-string
+              (propertize base-text
+                          'local-map map
+                          'mouse-face 'mode-line-highlight
+                          'help-echo "Mouse-1: Show unread channels"))
+
+        (force-mode-line-update t)))))
 ;;;###autoload
 (define-minor-mode teamscount-mode
   "Minor mode to display Teams unread counts in the mode line.
@@ -253,22 +299,31 @@ seconds."
   :lighter nil
   :group 'teamscount
   (if teamscount-mode
+      ;; Mode is being ENABLED
       (if (not (teamscount-available-p))
           (progn
-            (message "teamscount: disabled")
+            (message "teamscount: dependency check failed, disabling.")
             (setq teamscount-mode nil))
-        ;; Add segment to global mode line if not already present.
-        (unless (memq 'teamscount--mode-line-string global-mode-string)
-          (add-to-list 'global-mode-string '(:eval teamscount--mode-line-string) t))
+
+        ;; Add segment to global mode line safely using append if not present
+        (unless (member '(:eval teamscount--mode-line-string) global-mode-string)
+          (setq global-mode-string (append global-mode-string (list '(:eval teamscount--mode-line-string)))))
+
+        ;; Run immediate update (will clear out the icon instantly if an error is active)
         (teamscount-update)
+
+        ;; Start the background loop timer
+        (when teamscount--timer
+          (cancel-timer teamscount--timer))
         (setq teamscount--timer
               (run-at-time t teamscount-refresh-interval #'teamscount-update)))
-    ;; Disable: cancel timer and remove mode line segment.
+
+    ;; Mode is being DISABLED
     (when teamscount--timer
       (cancel-timer teamscount--timer)
       (setq teamscount--timer nil))
-    (setq-default global-mode-line-format
-                  (delete '((:eval teamscount--mode-line-string)) global-mode-string))
+    ;; Cleanly excise our precise segment from the global mode line list
+    (setq global-mode-string (delete '(:eval teamscount--mode-line-string) global-mode-string))
     (setq teamscount--mode-line-string "")
     (force-mode-line-update t)))
 

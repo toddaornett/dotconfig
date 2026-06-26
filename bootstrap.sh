@@ -561,6 +561,21 @@ else
 fi
 
 #################################
+# Deal with Microsoft Teams cleanup to prevent future crashes
+#################################
+if [ -d "/Applications/Microsoft Teams.app" ]; then
+  echo "Sucks to be you dealing with M$ Teams, so we try to prevent future crashes"
+  if [ ! -f ~/.zlogin ]; then
+    touch ~/.zlogin
+    chmod +x ~/.zlogin
+  fi
+  if ! grep "microsoft.teams" ~/.zlogin; then
+    echo "rm -rf ~/Library/Group\ Containers/UBF8T346G9.com.microsoft.teams" >> ~/.zlogin
+    echo "sudo rm -rf ~/Library/Containers/com.microsoft.teams2" >> ~/.zlogin
+  fi
+fi
+
+#################################
 # Configure Boost / native build env
 #################################
 echo "🚀 Checking Boost cpp library configuration ..."
