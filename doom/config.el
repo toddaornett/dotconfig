@@ -1105,7 +1105,7 @@ Runs via `org-after-todo-state-change-hook'."
       "#+TITLE: " (tao/org-file-title) "\n"
       "#+CREATED: " (format-time-string "[%Y-%m-%d %a %H:%M]") "\n"
       "#+STARTUP: overview\n\n"
-      (concat "* " (tao/org-file-title) " Introduction\n"))))
+      (concat "* " (tao/org-file-title) "\n** Introduction\n"))))
 
 ;; port-number => load from ~/.config/elisp
 (use-package! port-number)
