@@ -110,6 +110,7 @@ If nil, no sound is played."
   "Return non-nil if the teamscount.py script exists."
   (file-readable-p teamscount-script))
 
+;;;###autoload
 (defun teamscount-available-p ()
   "Return non-nil if both Python and script are available."
   (and (teamscount--python-available-p)
