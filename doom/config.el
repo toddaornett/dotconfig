@@ -94,6 +94,134 @@
             (defun tao/doom-dashboard-line-spacing ()
               (setq-local line-spacing 0.35))
             nil t))
+;; ── Dashboard: collapsible web-link sections ────────────────────────────────
+
+(defvar tao/dashboard-link-sections
+  '(("Work"
+     ("📋  Jira"            . "https://YOUR-DOMAIN.atlassian.net")
+     ("💬  Slack"           . "https://app.slack.com")
+     ("📊  Datadog"         . "https://app.datadoghq.com")
+     ("🔎  GitHub"          . "https://github.com"))
+    ("Personal"
+     ("📧  Gmail"           . "https://mail.google.com")
+     ("🗓️  Google Calendar" . "https://calendar.google.com")
+     ("📰  Feedly"          . "https://feedly.com"))
+    ("AI Tools"
+     ("🤖  Claude"          . "https://claude.ai")
+     ("🧠  ChatGPT"         . "https://chatgpt.com")
+     ("🔬  Perplexity"      . "https://perplexity.ai")))
+  "Sections of web links for the dashboard.
+Each element: (SECTION-TITLE (LABEL . URL) ...)")
+
+;; Persists collapsed state across refreshes within a session
+(defvar tao/dashboard-collapsed-sections (make-hash-table :test 'equal))
+
+(defface tao/dashboard-section-header
+  '((t :inherit bold :height 1.05))
+  "Face for collapsible section headers on the dashboard.")
+
+(defface tao/dashboard-link-face
+  '((t :inherit link :weight normal :height 0.95))
+  "Face for web links in dashboard sections.")
+
+(defun tao/dashboard--center-x (width)
+  "Return a left-padding string to center content of WIDTH chars."
+  (make-string (max 0 (/ (- (window-width) width) 2)) ?\s))
+
+(defun tao/dashboard--section-collapsed-p (title)
+  (gethash title tao/dashboard-collapsed-sections nil))
+
+(defun tao/dashboard--toggle-section (title)
+  "Toggle collapsed state for TITLE and redraw the dashboard."
+  (puthash title
+           (not (tao/dashboard--section-collapsed-p title))
+           tao/dashboard-collapsed-sections)
+  (+doom-dashboard/reload))
+
+(defun tao/dashboard--make-link-button (label url col-width)
+  "Return a propertized button string for LABEL opening URL."
+  (let* ((display (format " %-*s" (- col-width 2) label))
+         (km (make-sparse-keymap)))
+    (define-key km [mouse-1] (lambda () (interactive) (browse-url url)))
+    (define-key km (kbd "RET") (lambda () (interactive) (browse-url url)))
+    (propertize display
+                'face       'tao/dashboard-link-face
+                'mouse-face 'highlight
+                'help-echo  (concat "RET / click → " url)
+                'url        url
+                'keymap     km)))
+
+(defun tao/dashboard-insert-link-sections ()
+  "Insert collapsible web-link sections into the dashboard."
+  (let* ((cols      2)
+         (col-width 36)
+         (total-w   (* cols col-width))
+         (pad       (tao/dashboard--center-x total-w))
+         (hpad      (tao/dashboard--center-x 24)))
+
+    (insert "\n")
+    (insert hpad
+            (propertize "⬡  Quick Links\n\n"
+                        'face '(:inherit doom-dashboard-menu-title
+                                :weight bold :height 1.1)))
+
+    (dolist (section tao/dashboard-link-sections)
+      (let* ((title     (car section))
+             (links     (cdr section))
+             (collapsed (tao/dashboard--section-collapsed-p title))
+             (arrow     (if collapsed "▸" "▾"))
+             (header-km (make-sparse-keymap)))
+
+        ;; TAB or RET on the header toggles the section
+        (dolist (key '([tab] (kbd "TAB") (kbd "RET")))
+          (define-key header-km key
+                      (let ((ttl title))
+                        (lambda () (interactive)
+                          (tao/dashboard--toggle-section ttl)))))
+        (define-key header-km [mouse-1]
+                    (let ((ttl title))
+                      (lambda () (interactive)
+                        (tao/dashboard--toggle-section ttl))))
+
+        ;; Section header
+        (insert pad)
+        (insert (propertize
+                 (format "%s  %s  " arrow title)
+                 'face       'tao/dashboard-section-header
+                 'mouse-face 'highlight
+                 'help-echo  "TAB / click to toggle"
+                 'keymap     header-km))
+        (when collapsed
+          (insert (propertize
+                   (format "(%d links)" (length links))
+                   'face 'font-lock-comment-face)))
+        (insert "\n")
+
+        ;; Links grid (hidden when collapsed via overlay)
+        (unless collapsed
+          (let ((i 0))
+            (dolist (pair links)
+              (let ((col (mod i cols)))
+                (when (= col 0) (insert pad))
+                (insert (tao/dashboard--make-link-button
+                         (car pair) (cdr pair) col-width))
+                (when (= col (1- cols)) (insert "\n"))
+                (setq i (1+ i))))
+            ;; Close an incomplete final row
+            (unless (zerop (mod (length links) cols))
+              (insert "\n")))
+          (insert "\n"))))))
+
+(after! doom-dashboard
+  ;; Keep your existing line-spacing hook
+  (add-hook '+doom-dashboard-mode-hook
+            (defun tao/doom-dashboard-line-spacing ()
+              (setq-local line-spacing 0.35)))
+
+  ;; Wire in the sections widget (appended after default widgets)
+  (add-to-list '+doom-dashboard-functions
+               #'tao/dashboard-insert-link-sections
+               t))
 
 ;; Theme
 (setq doom-theme 'doom-palenight)
