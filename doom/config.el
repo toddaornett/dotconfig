@@ -6,8 +6,6 @@
 (setq epg-pinentry-mode 'loopback)
 (load "~/.emacs_private.el" t)
 
-;; Fonts
-;; Unicode fallback fonts (modern replacement for Symbola)
 (when (display-graphic-p)
   (dolist (font '("Noto Emoji" "Noto Sans Symbols 2"))
     (when (member font (font-family-list))
@@ -35,12 +33,10 @@
 (defun tao/ensure-doom-fonts ()
   "Ensure Doom-required fonts are installed."
   (when (display-graphic-p)
-    ;; Main Doom font (Fira Code Nerd Font - must match doom-font and nerd-icons)
     (unless (tao/font-installed-p "FiraCode Nerd Font")
       (message "🔤 Installing Fira Code Nerd Font…")
       (tao/install-nerd-font))
 
-    ;; Icon fonts (nerd-icons for Doom v3)
     (when (featurep 'nerd-icons)
       (unless (tao/font-installed-p "FiraCode Nerd Font")
         (message "🎨 Nerd icons use Fira Code Nerd Font; install it if icons look wrong."))
@@ -53,13 +49,10 @@
 
 (setq doom-symbol-font (font-spec :family "Symbols Nerd Font Mono"))
 
-;; Set nerd-icons vars *before* nerd-icons is ever used so the default face is valid
 (setq nerd-icons-font-family "Symbols Nerd Font Mono")
-;; Slightly > 1.0 gives icons room so they don’t clip or look squashed
 (setq nerd-icons-scale-factor 1.15)
 (setq doom-modeline-vcs-max-length 50)
 
-;; Load nerd-icons early so nerd-icons-default-face exists before dashboard/modeline run
 (when (display-graphic-p)
   (require 'nerd-icons nil t))
 
@@ -74,10 +67,8 @@
 (custom-set-faces!
   '(font-lock-comment-face :slant italic)
   '(font-lock-keyword-face :slant italic)
-  ;; Dashboard menu icons use this face; give height and no slant to avoid clipping
   '(doom-dashboard-menu-title :height 1.2 :slant normal :inherit default))
 
-;; Customize nerd-icons face: no slant, enough height/width to avoid clipping
 (after! nerd-icons
   (when (facep 'nerd-icons-default-face)
     (set-face-attribute 'nerd-icons-default-face nil
@@ -88,148 +79,10 @@
                         :width 'normal
                         :inherit nil)))
 
-;; Dashboard: extra line spacing so icon lines don’t get clipped by the next line
-(after! doom-dashboard
-  (add-hook '+doom-dashboard-mode-hook
-            (defun tao/doom-dashboard-line-spacing ()
-              (setq-local line-spacing 0.35))
-            nil t))
-;; ── Dashboard: collapsible web-link sections ────────────────────────────────
-
-(defvar tao/dashboard-link-sections
-  '(("Work"
-     ("📋  Jira"            . "https://YOUR-DOMAIN.atlassian.net")
-     ("💬  Slack"           . "https://app.slack.com")
-     ("📊  Datadog"         . "https://app.datadoghq.com")
-     ("🔎  GitHub"          . "https://github.com"))
-    ("Personal"
-     ("📧  Gmail"           . "https://mail.google.com")
-     ("🗓️  Google Calendar" . "https://calendar.google.com")
-     ("📰  Feedly"          . "https://feedly.com"))
-    ("AI Tools"
-     ("🤖  Claude"          . "https://claude.ai")
-     ("🧠  ChatGPT"         . "https://chatgpt.com")
-     ("🔬  Perplexity"      . "https://perplexity.ai")))
-  "Sections of web links for the dashboard.
-Each element: (SECTION-TITLE (LABEL . URL) ...)")
-
-;; Persists collapsed state across refreshes within a session
-(defvar tao/dashboard-collapsed-sections (make-hash-table :test 'equal))
-
-(defface tao/dashboard-section-header
-  '((t :inherit bold :height 1.05))
-  "Face for collapsible section headers on the dashboard.")
-
-(defface tao/dashboard-link-face
-  '((t :inherit link :weight normal :height 0.95))
-  "Face for web links in dashboard sections.")
-
-(defun tao/dashboard--center-x (width)
-  "Return a left-padding string to center content of WIDTH chars."
-  (make-string (max 0 (/ (- (window-width) width) 2)) ?\s))
-
-(defun tao/dashboard--section-collapsed-p (title)
-  (gethash title tao/dashboard-collapsed-sections nil))
-
-(defun tao/dashboard--toggle-section (title)
-  "Toggle collapsed state for TITLE and redraw the dashboard."
-  (puthash title
-           (not (tao/dashboard--section-collapsed-p title))
-           tao/dashboard-collapsed-sections)
-  (+doom-dashboard/reload))
-
-(defun tao/dashboard--make-link-button (label url col-width)
-  "Return a propertized button string for LABEL opening URL."
-  (let* ((display (format " %-*s" (- col-width 2) label))
-         (km (make-sparse-keymap)))
-    (define-key km [mouse-1] (lambda () (interactive) (browse-url url)))
-    (define-key km (kbd "RET") (lambda () (interactive) (browse-url url)))
-    (propertize display
-                'face       'tao/dashboard-link-face
-                'mouse-face 'highlight
-                'help-echo  (concat "RET / click → " url)
-                'url        url
-                'keymap     km)))
-
-(defun tao/dashboard-insert-link-sections ()
-  "Insert collapsible web-link sections into the dashboard."
-  (let* ((cols      2)
-         (col-width 36)
-         (total-w   (* cols col-width))
-         (pad       (tao/dashboard--center-x total-w))
-         (hpad      (tao/dashboard--center-x 24)))
-
-    (insert "\n")
-    (insert hpad
-            (propertize "⬡  Quick Links\n\n"
-                        'face '(:inherit doom-dashboard-menu-title
-                                :weight bold :height 1.1)))
-
-    (dolist (section tao/dashboard-link-sections)
-      (let* ((title     (car section))
-             (links     (cdr section))
-             (collapsed (tao/dashboard--section-collapsed-p title))
-             (arrow     (if collapsed "▸" "▾"))
-             (header-km (make-sparse-keymap)))
-
-        ;; TAB or RET on the header toggles the section
-        (dolist (key '([tab] (kbd "TAB") (kbd "RET")))
-          (define-key header-km key
-                      (let ((ttl title))
-                        (lambda () (interactive)
-                          (tao/dashboard--toggle-section ttl)))))
-        (define-key header-km [mouse-1]
-                    (let ((ttl title))
-                      (lambda () (interactive)
-                        (tao/dashboard--toggle-section ttl))))
-
-        ;; Section header
-        (insert pad)
-        (insert (propertize
-                 (format "%s  %s  " arrow title)
-                 'face       'tao/dashboard-section-header
-                 'mouse-face 'highlight
-                 'help-echo  "TAB / click to toggle"
-                 'keymap     header-km))
-        (when collapsed
-          (insert (propertize
-                   (format "(%d links)" (length links))
-                   'face 'font-lock-comment-face)))
-        (insert "\n")
-
-        ;; Links grid (hidden when collapsed via overlay)
-        (unless collapsed
-          (let ((i 0))
-            (dolist (pair links)
-              (let ((col (mod i cols)))
-                (when (= col 0) (insert pad))
-                (insert (tao/dashboard--make-link-button
-                         (car pair) (cdr pair) col-width))
-                (when (= col (1- cols)) (insert "\n"))
-                (setq i (1+ i))))
-            ;; Close an incomplete final row
-            (unless (zerop (mod (length links) cols))
-              (insert "\n")))
-          (insert "\n"))))))
-
-(after! doom-dashboard
-  ;; Keep your existing line-spacing hook
-  (add-hook '+doom-dashboard-mode-hook
-            (defun tao/doom-dashboard-line-spacing ()
-              (setq-local line-spacing 0.35)))
-
-  ;; Wire in the sections widget (appended after default widgets)
-  (add-to-list '+doom-dashboard-functions
-               #'tao/dashboard-insert-link-sections
-               t))
-
-;; Theme
 (setq doom-theme 'doom-palenight)
 
-;; Templates for new files
 (set-file-template! "/\\.config/elisp/.*\\.el$" :trigger "__package.el" :mode 'emacs-lisp-mode)
 
-;; Configure highlight-indent-guides to avoid indentation line bleeding into tops of characters
 (use-package! highlight-indent-guides
   :diminish
   :commands highlight-indent-guides-mode
@@ -239,22 +92,17 @@ Each element: (SECTION-TITLE (LABEL . URL) ...)")
   (highlight-indent-guides-display-first t)
   (line-spacing 0.1))
 
-;; Line numbers
 (setq display-line-numbers-type t)
 
-;; Org directory
 (setq org-directory "~/Notes/")
 
-;; Delay garbage collection for performance
 (setq gc-cons-threshold (* 50 1000 1000))
 (after! gcmh
-  (setq gcmh-high-cons-threshold 67108864)) ; 64MB
+  (setq gcmh-high-cons-threshold 67108864))
 
-;; Make deleted files go to the trash can
 (setq delete-by-moving-to-trash t
       trash-directory "~/.Trash")
 
-;; disable automatic linking of system clipboard to emacs
 (setq select-enable-clipboard nil)
 (map! :nvi
       "s-c" #'clipboard-kill-ring-save
@@ -276,30 +124,25 @@ Only works when called from a Dired buffer."
       :n "o" #'tao/dired-open-all-files-in-directory)
 
 (after! company
-  ;; Use C-<tab> for company completion if TAB is busy
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
 
-  (setq company-idle-delay 1) ; Increase to 0.5s or higher
+  (setq company-idle-delay 1)
 
-  (setq company-minimum-prefix-length 1) ; Trigger after 1 character
+  (setq company-minimum-prefix-length 1)
   (setq company-tooltip-limit 10)
   (setq company-dabbrev-ignore-buffers (lambda (buffer)
                                          (string-match-p "^#" (buffer-name buffer))))
 
-  ;; Use C-<tab> for explicit company completion
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
 
-  ;; previous and next bindings for completion box
   (define-key company-active-map (kbd "M-n") 'company-select-next)
   (define-key company-active-map (kbd "M-p") 'company-select-previous)
   (define-key company-active-map (kbd "down") 'company-select-next)
   (define-key company-active-map (kbd "up") 'company-select-previous)
 
-  ;; Ensure that TAB does not interfere with completion
   (define-key company-active-map (kbd "TAB") nil)
   (define-key company-active-map (kbd "<tab>") nil))
 
-;; Rust with Eglot
 (after! rustic
   (setq rustic-lsp-client 'eglot)
   (setq rustic-format-on-save t)
@@ -498,51 +341,45 @@ _q_: quit
            typescript-ts-mode
            js-ts-mode) . lsp-deferred))
   :custom
-  (lsp-keymap-prefix "C-c l")           ; Prefix for LSP actions
+  (lsp-keymap-prefix "C-c l")
   (lsp-completion-provider :none)
   (lsp-diagnostics-provider :flycheck)
   (lsp-session-file (locate-user-emacs-file ".lsp-session"))
-  (lsp-log-io nil)                      ; IMPORTANT! Use only for debugging! Drastically affects performance
-  (lsp-keep-workspace-alive nil)        ; Close LSP server if all project buffers are closed
-  (lsp-idle-delay 0.5)                  ; Debounce timer for `after-change-function'
-  ;; core
-  (lsp-enable-xref t)                   ; Use xref to find references
-  (lsp-auto-configure t)                ; Used to decide between current active servers
-  (lsp-eldoc-enable-hover t)            ; Display signature information in the echo area
-  (lsp-enable-dap-auto-configure t)     ; Debug support
+  (lsp-log-io nil)
+  (lsp-keep-workspace-alive nil)
+  (lsp-idle-delay 0.5)
+  (lsp-enable-xref t)
+  (lsp-auto-configure t)
+  (lsp-eldoc-enable-hover t)
+  (lsp-enable-dap-auto-configure t)
   (lsp-enable-file-watchers nil)
-  (lsp-enable-folding nil)              ; I disable folding since I use origami
+  (lsp-enable-folding nil)
   (lsp-enable-imenu t)
-  (lsp-enable-indentation nil)          ; I use prettier
-  (lsp-enable-links nil)                ; No need since we have `browse-url'
-  (lsp-enable-on-type-formatting nil)   ; Prettier handles this
-  (lsp-enable-suggest-server-download t) ; Useful prompt to download LSP providers
-  (lsp-enable-symbol-highlighting t)     ; Shows usages of symbol at point in the current buffer
-  (lsp-enable-text-document-color nil)   ; This is Treesitter's job
+  (lsp-enable-indentation nil)
+  (lsp-enable-links nil)
+  (lsp-enable-on-type-formatting nil)
+  (lsp-enable-suggest-server-download t)
+  (lsp-enable-symbol-highlighting t)
+  (lsp-enable-text-document-color nil)
 
-  (lsp-ui-sideline-show-hover nil)      ; Sideline used only for diagnostics
-  (lsp-ui-sideline-diagnostic-max-lines 20) ; 20 lines since typescript errors can be quite big
-  ;; completion
+  (lsp-ui-sideline-show-hover nil)
+  (lsp-ui-sideline-diagnostic-max-lines 20)
   (lsp-completion-enable t)
-  (lsp-completion-enable-additional-text-edit t) ; Ex: auto-insert an import for a completion candidate
-  (lsp-enable-snippet t)                         ; Important to provide full JSX completion
-  (lsp-completion-show-kind t)                   ; Optional
-  ;; headerline
-  (lsp-headerline-breadcrumb-enable t)  ; Optional, I like the breadcrumbs
-  (lsp-headerline-breadcrumb-enable-diagnostics nil) ; Don't make them red, too noisy
+  (lsp-completion-enable-additional-text-edit t)
+  (lsp-enable-snippet t)
+  (lsp-completion-show-kind t)
+  (lsp-headerline-breadcrumb-enable t)
+  (lsp-headerline-breadcrumb-enable-diagnostics nil)
   (lsp-headerline-breadcrumb-enable-symbol-numbers nil)
   (lsp-headerline-breadcrumb-icons-enable nil)
-  ;; modeline
-  (lsp-modeline-code-actions-enable nil) ; Modeline should be relatively clean
-  (lsp-modeline-diagnostics-enable nil)  ; Already supported through `flycheck'
-  (lsp-modeline-workspace-status-enable nil) ; Modeline displays "LSP" when lsp-mode is enabled
-  (lsp-signature-doc-lines 1)                ; Don't raise the echo area. It's distracting
-  (lsp-ui-doc-use-childframe t)              ; Show docs for symbol at point
-  (lsp-eldoc-render-all nil)            ; This would be very useful if it would respect `lsp-signature-doc-lines', currently it's distracting
-  ;; lens
-  (lsp-lens-enable nil)                 ; Optional, I don't need it
-  ;; semantic
-  (lsp-semantic-tokens-enable nil)      ; Related to highlighting, and we defer to treesitter
+  (lsp-modeline-code-actions-enable nil)
+  (lsp-modeline-diagnostics-enable nil)
+  (lsp-modeline-workspace-status-enable nil)
+  (lsp-signature-doc-lines 1)
+  (lsp-ui-doc-use-childframe t)
+  (lsp-eldoc-render-all nil)
+  (lsp-lens-enable nil)
+  (lsp-semantic-tokens-enable nil)
 
   :init
   (setq lsp-use-plists t))
@@ -559,9 +396,9 @@ _q_: quit
               ("C-c C-d" . 'lsp-ui-doc-glance))
   :after (lsp-mode evil)
   :config (setq lsp-ui-doc-enable t
-                evil-lookup-func #'lsp-ui-doc-glance ; Makes K in evil-mode toggle the doc for symbol at point
-                lsp-ui-doc-show-with-cursor nil      ; Don't show doc when cursor is over symbol - too distracting
-                lsp-ui-doc-include-signature t       ; Show signature
+                evil-lookup-func #'lsp-ui-doc-glance
+                lsp-ui-doc-show-with-cursor nil
+                lsp-ui-doc-include-signature t
                 lsp-ui-doc-position 'at-point))
 
 (use-package! typescript-ts-mode
@@ -569,7 +406,6 @@ _q_: quit
   ((typescript-ts-mode . lsp)
    (tsx-ts-mode . lsp)))
 
-;; Project root for Eglot
 (cl-defmethod project-root ((project (head eglot-project)))
   (cdr project))
 
@@ -581,7 +417,6 @@ _q_: quit
   (add-to-list 'eglot-server-programs
                '((typescript-mode) "typescript-language-server" "--stdio")))
 
-;; Keybindings
 (defun insert-backslash ()
   "Insert backslash"
   (interactive)
@@ -595,7 +430,6 @@ _q_: quit
   (newline-and-indent))
 (global-set-key (kbd "C-<return>") 'insert-blank-line-after-comment)
 
-;; URL encoding/decoding
 (defun url-decode-region (start end)
   "Replace a region with the same contents, only URL decoded."
   (interactive "r")
@@ -610,15 +444,12 @@ _q_: quit
     (delete-region start end)
     (insert text)))
 
-;; Enable company in insert mode
 (after! evil
   (add-hook 'evil-insert-state-entry-hook #'company-mode))
 
-;; Project
 (after! project
   (add-to-list 'project-vc-extra-root-markers ".git"))
 
-;; Projectile
 (after! projectile
   (let* ((projects-path "~/Projects")
          (open-projects-path (getenv "OPENPROJECTS_PATH"))
@@ -632,7 +463,6 @@ _q_: quit
           (add-to-list 'projectile-project-search-path entry)))))
   (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
 
-;; Exec-path-from-shell
 (use-package! exec-path-from-shell
   :init
   (when (memq window-system '(mac ns x))
@@ -646,13 +476,10 @@ _q_: quit
                                            "JIRA_ISSUE_BASE_URL"
                                            "JIRA_ISSUE_KEY_PREFIX"))
     (exec-path-from-shell-initialize)
-    ;; Copy extras, ignoring any that aren't set
     (dolist (var exec-path-from-shell-variables)
       (ignore-errors (exec-path-from-shell-copy-env var)))))
 
-;; Org
 (after! org
-  ;; Set custom TODO keywords and faces
   (setq org-todo-keywords
         '((sequence
            "TODO(t)"
@@ -669,21 +496,16 @@ _q_: quit
           ("DONE" . (:foreground "#708090" :weight bold)))
         org-use-fast-todo-selection 'auto)
 
-  ;; helper command: always insert timestamp WITH time
   (defun my/org-time-stamp-with-time ()
     "Insert an Org timestamp including time."
     (interactive)
-    (org-time-stamp '(4))) ;; C-u prefix forces time
+    (org-time-stamp '(4)))
 
-  ;; Keybindings for org-mode
-  ;; SPC m t  => cycle/set TODO state (expert fast-selection menu)
-  ;; SPC m T  => insert timestamp with time
   (map! :map org-mode-map
         :localleader
         :desc "Set TODO state" "t" #'org-todo
         :desc "Insert timestamp with time" "T" #'my/org-time-stamp-with-time)
 
-  ;; Prettify symbols in org-mode
   (defun tao/org-prettify-symbols ()
     "Set up prettify symbols for Org buffers."
     (setq-local prettify-symbols-alist
@@ -693,7 +515,6 @@ _q_: quit
     (prettify-symbols-mode 1))
   (add-hook 'org-mode-hook #'tao/org-prettify-symbols)
 
-  ;; Highlight tasks with clock entries
   (defface org-task-with-clock
     '((t :foreground "Cyan"))
     "Face for Org tasks with clock entries."
@@ -705,6 +526,7 @@ _q_: quit
       (org-back-to-heading t)
       (let ((end (org-entry-end-position)))
         (re-search-forward "^[ \t]*CLOCK:" end t))))
+
   (defun tao/org-fontify-clock-tasks ()
     "Fontify Org tasks with clock entries."
     (save-excursion
@@ -724,7 +546,6 @@ _q_: quit
   (add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
   (add-hook 'org-agenda-finalize-hook #'tao/org-fontify-clock-tasks)
 
-  ;; Pomodoro hooks for fontifying clock tasks
   (defun tao/org-pomodoro-start-or-finished-hook ()
     "Hook to run when org-pomodoro starts or finishes."
     (tao/org-fontify-clock-tasks))
@@ -743,13 +564,11 @@ the last modified time for other files."
                 (goto-char (point-min))
                 (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
                     (replace-match (concat "#+UPDATED: " timestamp))
-                  ;; Check for #+CREATED: and insert after it
                   (goto-char (point-min))
                   (if (re-search-forward "^#\\+CREATED:.*$" nil t)
                       (progn
                         (end-of-line)
                         (insert "\n#+UPDATED: " timestamp))
-                    ;; Fallback: insert after first Org keyword or at start
                     (goto-char (point-min))
                     (if (re-search-forward "^#\\+.*$" nil t)
                         (progn
@@ -759,8 +578,6 @@ the last modified time for other files."
             (message "Last modified: %s" timestamp)))
       (message "Buffer is not associated with a file")))
   (add-hook 'before-save-hook #'tao/org-update-last-timestamp)
-
-  ;; ── Auto-sink DONE/CANCELED headings to bottom of their sibling list ──
 
   (defun tao/org-todo-state-is-terminal-p (state)
     "Return non-nil if STATE is a terminal keyword (DONE or CANCELED)."
@@ -775,57 +592,42 @@ Runs via `org-after-todo-state-change-hook'."
         (org-back-to-heading t)
         (let* ((level        (org-current-level))
                (stars        (make-string level ?*))
-               ;; Capture the full subtree text
                (subtree-beg  (point))
                (subtree-end  (save-excursion (org-end-of-subtree t t) (point)))
                (subtree-text (buffer-substring subtree-beg subtree-end))
-               ;; Walk siblings to find the last non-terminal one
                (insert-after  nil))
 
-          ;; Only act if there is at least one sibling to compare against
           (save-excursion
-            ;; Go to the first sibling at this level within the parent
             (if (org-up-heading-safe)
                 (org-goto-first-child)
-              ;; Top-level: jump to very first heading at level
               (goto-char (point-min))
               (unless (looking-at (concat "^" stars "[^*]"))
                 (re-search-forward (concat "^" stars "[^*]") nil t)
                 (beginning-of-line)))
-            ;; Iterate siblings
             (while (and (looking-at org-heading-regexp)
                         (= (org-current-level) level))
               (let ((kw (org-get-todo-state)))
                 (unless (tao/org-todo-state-is-terminal-p kw)
-                  ;; Record the END of this non-terminal subtree as a
-                  ;; candidate insertion point
                   (setq insert-after
                         (save-excursion (org-end-of-subtree t t) (point)))))
-              ;; Move to next sibling
               (unless (org-get-next-sibling)
-                (goto-char (point-max)))))   ; break the loop
+                (goto-char (point-max)))))
 
           (when insert-after
-            ;; Avoid a no-op if the heading is already in the right place
             (unless (= subtree-beg insert-after)
               (let ((adjusted-insert
-                     ;; If our subtree sits BEFORE the insertion point the
-                     ;; deletion will shift positions, so compensate.
                      (if (< subtree-beg insert-after)
                          (- insert-after (- subtree-end subtree-beg))
                        insert-after)))
                 (delete-region subtree-beg subtree-end)
                 (goto-char adjusted-insert)
-                ;; Ensure we're at a line boundary before inserting
                 (unless (bolp) (insert "\n"))
                 (insert subtree-text)
-                ;; Leave point on the heading we just moved
                 (goto-char adjusted-insert)
                 (beginning-of-line))))))))
 
   (add-hook 'org-after-todo-state-change-hook #'tao/org-sink-done-heading))
 
-;; org-superstar
 (use-package! org-superstar
   :defer t
   :hook org-mode
@@ -833,7 +635,6 @@ Runs via `org-after-todo-state-change-hook'."
   (setq org-superstar-headline-bullets-list '("✿" "✸" "⬢" "☯" "○" "◆" "▲" "■" "♦" "♢" "▫"))
   (setq org-superstar-item-bullet-alist '((?* . ?•) (?+ . ?➤) (?- . ?–))))
 
-;; Org-pomodoro
 (after! org-pomodoro
   (defcustom org-pomodoro-display-count-p t
     "When non-nil, display the total number of pomodoros in the modeline."
@@ -872,7 +673,6 @@ Runs via `org-after-todo-state-change-hook'."
   (add-hook 'org-pomodoro-started-hook #'tao/org-pomodoro-start-or-finished-hook)
   (add-hook 'org-pomodoro-finished-hook #'tao/org-pomodoro-start-or-finished-hook))
 
-;; Custom keybindings via General
 (after! general
   (general-define-key
    :states 'normal
@@ -902,7 +702,6 @@ Runs via `org-after-todo-state-change-hook'."
    :states 'normal
    "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
 
-;; control which-key popup and pagination
 (after! which-key
   (setq which-key-use-C-h-commands t)
   (setq which-key-show-transient-maps t)
@@ -937,274 +736,13 @@ Runs via `org-after-todo-state-change-hook'."
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
-(after! magit
-  (setq ediff-diff-options "")
-  (setq ediff-custom-diff-options "-u")
-  (setq ediff-window-setup-function 'ediff-setup-windows-plain)
-  (setq ediff-split-window-function 'split-window-vertically)
-  (setq magit-ediff-dwim-show-on-hunks t)
-  (setq magit-uniqfy-buffer-names t)
-  (setq magit-save-repository-buffers 'dontask)
-  (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
-  (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
-
-  (add-hook 'magit-mode-hook
-            (lambda ()
-              (display-line-numbers-mode -1)))
-
-  (remove-hook 'magit-status-sections-hook #'forge-insert-pullreqs)
-
-  (defun +forge-insert-open-prs ()
-    (when-let* ((repo-row (car (forge-sql
-                                [:select [id] :from repository
-                                 :where (= worktree $s1)]
-                                (expand-file-name default-directory))))
-                (repo-id (car repo-row))
-                (prs (forge-sql
-                      [:select [number title]
-                       :from pullreq
-                       :where (and (= repository $s1)
-                                   (= state 'open))]
-                      repo-id))
-                (_ prs))
-      (magit-insert-section (forge-pullreqs nil t)
-        (magit-insert-heading
-          (propertize (format "Open Pull Requests (%d)" (length prs))
-                      'face 'magit-section-heading))
-        (dolist (pr prs)
-          (magit-insert-section (pullreq (car pr))
-            (insert (format "  #%-4s  %s\n"
-                            (car pr)
-                            (cadr pr)))))
-        (insert ?\n))))
-  (add-hook 'magit-status-sections-hook #'+forge-insert-open-prs t)
-
-  (defun +magit-insert-filtered-local-branches ()
-    (let ((branches
-           (seq-filter
-            (lambda (branch)
-              (not (member branch '("main" "master" "develop"))))
-            (magit-list-local-branch-names))))
-      (when branches
-        (magit-insert-section (local-branches)
-          (magit-insert-heading "Local Branches")
-          (dolist (branch branches)
-            (magit-insert-section (branch branch)
-              (insert (format "%s\n" branch))))))))
-
-  (add-hook 'magit-status-sections-hook
-            #'+magit-insert-filtered-local-branches
-            20)
-
-  (add-to-list 'magit-section-initial-visibility-alist
-               '(local-branches . hide))
-
-  (defun +magit-move-to-first-uncommitted-change ()
-    (when (eq major-mode 'magit-status-mode)
-      (run-at-time
-       0.1 nil
-       (lambda ()
-         (goto-char (point-min))
-         (when (or (re-search-forward "^Unstaged changes" nil t)
-                   (re-search-forward "^Staged changes" nil t))
-           (goto-char (match-beginning 0))
-           (forward-line 1))))))
-
-  (add-hook 'magit-status-mode-hook
-            #'+magit-move-to-first-uncommitted-change)
-
-  (defun tao/magit-worktree-flat-branch-name (branch)
-    (and branch (string-replace "/" "-" branch)))
-
-  (defun tao/magit-read-worktree-directory (prompt branch)
-    (let* ((root (magit-toplevel))
-           (parent (file-name-directory (directory-file-name root)))
-           (proj (file-name-nondirectory (directory-file-name root)))
-           (base (expand-file-name (concat proj "-worktrees/") parent))
-           (default-name (or (tao/magit-worktree-flat-branch-name branch)
-                             "worktree")))
-      (unless (file-directory-p base)
-        (make-directory base t))
-      (read-directory-name prompt base nil nil default-name)))
-
-  (setq magit-read-worktree-directory-function
-        #'tao/magit-read-worktree-directory)
-
-  (defun +magit-worktree-dirty-p (path)
-    (not (string-empty-p
-          (shell-command-to-string
-           (format "git -C %s status --porcelain"
-                   (shell-quote-argument path))))))
-
-  (defun +magit-worktree-ahead-behind (path)
-    (let* ((cmd (format
-                 "git -C %s rev-list --left-right --count HEAD...@{upstream} 2>/dev/null"
-                 (shell-quote-argument path)))
-           (out (string-trim (shell-command-to-string cmd))))
-      (when (string-match "\\([0-9]+\\)[ \t]+\\([0-9]+\\)" out)
-        (format "↑%s ↓%s"
-                (match-string 1 out)
-                (match-string 2 out)))))
-
-  (defun +magit-insert-worktrees ()
-    (when-let ((worktrees (magit-list-worktrees)))
-      (magit-insert-section (worktrees)
-        (magit-insert-heading "Worktrees")
-        (let ((current (magit-toplevel)))
-          (dolist (wt worktrees)
-            (pcase-let ((`(,path ,branch ,_head ,_locked) wt))
-              (let* ((is-current
-                      (string=
-                       (file-truename path)
-                       (file-truename current)))
-                     (dot (if is-current "●" " "))
-                     (dirty (+magit-worktree-dirty-p path))
-                     (status (if dirty "✗" "✓"))
-                     (status-face (if dirty 'error 'success))
-                     (ahead-behind (+magit-worktree-ahead-behind path))
-                     (branch-name
-                      (if (and branch
-                               (not (string-match-p "^[0-9a-f]\\{7,\\}$" branch)))
-                          branch
-                        "(detached)")))
-                (magit-insert-section (worktree path)
-                  (insert
-                   (format "%s %-40s %-20s %s %s\n"
-                           (propertize dot 'face 'magit-branch-local)
-                           (abbreviate-file-name path)
-                           branch-name
-                           (or ahead-behind "")
-                           (propertize status 'face status-face)))))))))))
-
-  (add-hook 'magit-status-sections-hook
-            #'+magit-insert-worktrees
-            5)
-
-  (add-to-list 'magit-section-initial-visibility-alist
-               '(worktrees . show))
-
-  (defun +magit-dwim-visit ()
-    (interactive)
-    (let ((section (magit-current-section)))
-      (pcase (oref section type)
-        ('worktree
-         (dired (oref section value)))
-        ('pullreq
-         (when-let* ((number (oref section value))
-                     (repo-row (car (forge-sql
-                                     [:select [id] :from repository
-                                      :where (= worktree $s1)]
-                                     (expand-file-name default-directory))))
-                     (repo-id (car repo-row))
-                     (pr (car (forge-sql
-                               [:select [id] :from pullreq
-                                :where (and (= repository $s1)
-                                            (= number $s2))]
-                               repo-id number))))
-           (forge-visit-topic (forge-get-topic (car pr)))))
-        ((or 'untracked 'unstaged 'staged 'file)
-         (magit-diff-visit-file (oref section value)))
-        (_
-         (call-interactively #'magit-visit-thing)))))
-
-  (define-key magit-status-mode-map
-              (kbd "RET")
-              #'+magit-dwim-visit)
-
-  (defun +magit-dwim-browse ()
-    (interactive)
-    (let ((section (magit-current-section)))
-      (pcase (oref section type)
-        ('pullreq
-         (forge-browse-topic
-          (forge-get-topic
-           (car (car (forge-sql
-                      [:select [id] :from pullreq
-                       :where (and (= repository $s1)
-                                   (= number $s2))]
-                      (car (car (forge-sql
-                                 [:select [id] :from repository
-                                  :where (= worktree $s1)]
-                                 (expand-file-name default-directory))))
-                      (oref section value)))))))
-        (_ (call-interactively #'magit-reset)))))
-
-  (map! :map magit-status-mode-map
-        :n "o" #'+magit-dwim-browse)
-
-  (defun +magit-checkout-pr-at-point ()
-    (interactive)
-    (let ((section (magit-current-section)))
-      (when (eq (oref section type) 'pullreq)
-        (let* ((number (oref section value))
-               (branch (caar (forge-sql
-                              [:select [head-ref] :from pullreq
-                               :where (and (= repository $s1)
-                                           (= number $s2))]
-                              (car (car (forge-sql
-                                         [:select [id] :from repository
-                                          :where (= worktree $s1)]
-                                         (expand-file-name default-directory))))
-                              number))))
-          (magit--checkout branch)))))
-
-  (map! :leader
-        :desc "Checkout PR at point"
-        "g p" #'+magit-checkout-pr-at-point)
-
-  (map! :leader
-        :desc "Forge pull"
-        "g F" #'forge-pull)
-
-  (map! :map magit-status-mode-map
-        :n "c" #'magit-commit)
-
-  (defun tao/magit-switch-worktree ()
-    (let* ((worktrees (magit-list-worktrees))
-           (paths (mapcar #'car worktrees))
-           (choice (completing-read "Worktree: " paths nil t)))
-      (dired choice)))
-
-  (defun tao/magit-create-worktree-from-branch ()
-    (interactive)
-    (let* ((branch (magit-read-branch "Branch"))
-           (dir (tao/magit-read-worktree-directory
-                 "Worktree directory: "
-                 branch)))
-      (magit-run-git "worktree" "add" dir branch)
-      (magit-refresh)))
-  
-  (map! :leader
-        :desc "Switch git worktree"
-        "g w" #'tao/magit-switch-worktree
-        :desc "Create worktree from branch"
-        "g W" #'tao/magit-create-worktree-from-branch)
-
-  (map! :map magit-status-mode-map
-        :n "n" #'magit-section-forward
-        :n "p" #'magit-section-backward)
-
-  (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "m g c" '(git-tools-open-all-conflict-files :which-key "git open conflict files"))
-
-  (defun +magit-toggle-local-branches-section ()
-    (save-excursion
-      (goto-char (point-min))
-      (when (re-search-forward "^Local Branches$" nil t)
-        (let ((section (magit-current-section)))
-          (when (magit-section-p section)
-            (magit-section-toggle section)))))))
+(load! "config/version-control")
 
 (use-package! ws-butler
   :config
-  ;; Enable in programming and text buffers
   (add-hook 'prog-mode-hook #'ws-butler-mode)
   (add-hook 'text-mode-hook #'ws-butler-mode)
 
-  ;; Disable in modes where whitespace is meaningful
   (add-hook 'makefile-mode-hook (lambda () (ws-butler-mode -1)))
   (add-hook 'markdown-mode-hook (lambda () (ws-butler-mode -1))))
 
@@ -1217,7 +755,6 @@ Runs via `org-after-todo-state-change-hook'."
   :config
   (setq auto-insert-query nil)
   (auto-insert-mode 1)
-  ;; Remove stale entry so reload always picks up changes
   (setq auto-insert-alist
         (assoc-delete-all '(org-mode . "Org file skeleton") auto-insert-alist))
   (defun tao/org-file-title ()
@@ -1235,39 +772,29 @@ Runs via `org-after-todo-state-change-hook'."
       "#+STARTUP: overview\n\n"
       (concat "* " (tao/org-file-title) "\n** Introduction\n"))))
 
-;; port-number => load from ~/.config/elisp
 (use-package! port-number)
 
-;; nodoze => load from ~/.config/elisp
 (use-package! nodoze)
 
-;; colima => load from ~/.config/elisp
 (use-package! colima)
 
-;; git-tools => load from ~/.config/elisp
 (use-package! git-tools)
 
-;; pg-tools => load from ~/.config/elisp
 (use-package! pg-tools)
 
-;; status => load from ~/.config/elisp
 (use-package! status)
 
-;; jira-todo => load from ~/.config/elisp
 (use-package! jira-todo
   :after request)
 
-;; markdown-tools => load from ~/.config/elisp
 (use-package! markdown-tools)
 
-;; display slack message count in the modeline
 (use-package! slackcount
   :if (slackcount-available-p)
   :config
   (setq slackcount-alert-sound "/System/Library/Sounds/Funk.aiff")
   (slackcount-mode 1))
 
-;; display Teams message count in the modeline
 (use-package! teamscount
   :if (teamscount-available-p)
   :config
@@ -1275,7 +802,6 @@ Runs via `org-after-todo-state-change-hook'."
         teamscount-icon-fg-color "#7B83EB")
   (teamscount-mode 1))
 
-;; Custom file
 (setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)
   (load custom-file))
