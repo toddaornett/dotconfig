@@ -12,7 +12,7 @@
 
        :ui
        doom                ; Core Doom UI
-       (dashboard)
+       doom-dashboard
        hl-todo             ; Useful for code annotations
        indent-guides       ; Helpful for Rust code
        (ligatures +monaco) ; Remove +extra to reduce font processing
