@@ -62,8 +62,8 @@ ensure_macos_build_env_in_shell() {
   echo "🛠️ Verify build env vars ..."
   [[ "$(uname -s)" != Darwin ]] && return 0
 
-  if grep -Fq "$BUILD_FLAGS_MARKER" "$ZSHRC" 2>/dev/null || \
-     grep -q 'Homebrew build flags' "$ZSHRC" 2>/dev/null; then
+  if grep -Fq "$BUILD_FLAGS_MARKER" "$ZSHRC" 2>/dev/null ||
+    grep -q 'Homebrew build flags' "$ZSHRC" 2>/dev/null; then
     return 0
   fi
 
@@ -270,11 +270,11 @@ if [ ! -f "$SYMBOLA_PATH" ]; then
   echo "⬇️  Downloading Symbola.ttf..."
   # Try primary source first, fall back to mirror
   curl -fsSL "https://github.com/ChiefMikeK/ttf-symbola/raw/master/Symbola-13.ttf" \
-    -o "$SYMBOLA_PATH" 2>/dev/null || \
-  curl -fsSL "https://raw.githubusercontent.com/ChiefMikeK/ttf-symbola/master/Symbola-13.ttf" \
-    -o "$SYMBOLA_PATH" 2>/dev/null || \
-  curl -fsSL "https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.ttf" \
-    -o "$SYMBOLA_PATH" 2>/dev/null || true
+    -o "$SYMBOLA_PATH" 2>/dev/null ||
+    curl -fsSL "https://raw.githubusercontent.com/ChiefMikeK/ttf-symbola/master/Symbola-13.ttf" \
+      -o "$SYMBOLA_PATH" 2>/dev/null ||
+    curl -fsSL "https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.ttf" \
+      -o "$SYMBOLA_PATH" 2>/dev/null || true
 
   if [ -f "$SYMBOLA_PATH" ] && [ -s "$SYMBOLA_PATH" ]; then
     echo "✅ Symbola font installed (logout may be required to activate)"
@@ -570,8 +570,8 @@ if [ -d "/Applications/Microsoft Teams.app" ]; then
     chmod +x ~/.zlogin
   fi
   if ! grep "microsoft.teams" ~/.zlogin; then
-    echo "rm -rf ~/Library/Group\ Containers/UBF8T346G9.com.microsoft.teams" >> ~/.zlogin
-    echo "sudo rm -rf ~/Library/Containers/com.microsoft.teams2" >> ~/.zlogin
+    echo "rm -rf ~/Library/Group\ Containers/UBF8T346G9.com.microsoft.teams" >>~/.zlogin
+    echo "sudo rm -rf ~/Library/Containers/com.microsoft.teams2" >>~/.zlogin
   fi
 fi
 
@@ -580,6 +580,23 @@ fi
 #################################
 echo "🚀 Checking Boost cpp library configuration ..."
 ensure_macos_build_env_in_shell
+
+#################################
+# Configure optional LLM and give hint if not enabled
+#################################
+if [ -z "$LLM_PROVIDERS" ]; then
+  echo "🤖 AI with local LLMs is not enabled. Set LLM_PROVIDERS to 'ollama' (only one supported now) and re-run to enable it..."
+else
+  if [[ "$LLM_PROVIDERS" == "ollama" ]] && ! command -v "$LLM_PROVIDERS" >/dev/null 2>&1; then
+    echo "🦙 Installing Ollama ..."
+    curl -fsSL https://ollama.com/install.sh | sh
+    echo "🦙 Pulling some language models ..."
+    ollama pull llama3
+    ollama pull qwen3.6
+  fi
+  echo "🦙 Verifying Ollama network exposure..."
+  ifconfig | grep 192 | cut -d ' ' -f 2 | sed -e 's#^#curl -s http://#' -e s'#$#:11434#' | bash | echo
+fi
 
 #################################
 # Final message
