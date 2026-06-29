@@ -106,3 +106,6 @@
 
 (package! expreg
   :recipe (:host github :repo "casouri/expreg"))
+
+(package! ellama)
+(package! minuet)
