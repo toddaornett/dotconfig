@@ -738,6 +738,8 @@ Runs via `org-after-todo-state-change-hook'."
 
 (load! "config/version-control")
 
+(load! "config/ai")
+
 (use-package! ws-butler
   :config
   (add-hook 'prog-mode-hook #'ws-butler-mode)

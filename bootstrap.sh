@@ -584,7 +584,7 @@ ensure_macos_build_env_in_shell
 #################################
 # Configure optional LLM and give hint if not enabled
 #################################
-if [ -z "$LLM_PROVIDERS" ]; then
+if [ -z "${LLM_PROVIDERS:-}" ]; then
   echo "🤖 AI with local LLMs is not enabled. Set LLM_PROVIDERS to 'ollama' (only one supported now) and re-run to enable it..."
 else
   if [[ "$LLM_PROVIDERS" == "ollama" ]] && ! command -v "$LLM_PROVIDERS" >/dev/null 2>&1; then
@@ -595,7 +595,8 @@ else
     ollama pull qwen3.6
   fi
   echo "🦙 Verifying Ollama network exposure..."
-  ifconfig | grep 192 | cut -d ' ' -f 2 | sed -e 's#^#curl -s http://#' -e s'#$#:11434#' | bash | echo
+  ifconfig | grep 192 | cut -d ' ' -f 2 | sed -e 's#^#curl -s http://#' -e s'#$#:11434#' | bash
+  echo ""
 fi
 
 #################################
