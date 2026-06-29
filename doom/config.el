@@ -804,6 +804,19 @@ Runs via `org-after-todo-state-change-hook'."
         teamscount-icon-fg-color "#7B83EB")
   (teamscount-mode 1))
 
+;;; Flycheck
+;; Doom config uses macros (after!, use-package!, …) that flycheck's standalone
+;; emacs-lisp byte-compiler cannot evaluate. Use `doom sync` for real syntax checks.
+(defun tao/flycheck-disable-in-doom-dir ()
+  (when (and buffer-file-name
+             (file-in-directory-p (expand-file-name doom-user-dir)
+                                  (expand-file-name buffer-file-name)))
+    (setq-local flycheck-disabled-checkers
+                (append flycheck-disabled-checkers
+                        '(emacs-lisp emacs-lisp-checkdoc)))))
+
+(add-hook 'emacs-lisp-mode-hook #'tao/flycheck-disable-in-doom-dir -90)
+
 (setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)
   (load custom-file))

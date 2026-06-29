@@ -1,3 +1,4 @@
+;;; $DOOMDIR/config/version-control.el --- magit and forge config -*- lexical-binding: t -*-
 (after! magit
   (setq ediff-diff-options "")
   (setq ediff-custom-diff-options "-u")
