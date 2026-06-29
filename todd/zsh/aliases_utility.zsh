@@ -526,6 +526,21 @@ r2d() {
   echo "$result"
 }
 
+function fwc () {
+  echo "🔥🧱🛡️ check firewall status"
+  sudo /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate
+}
+
+function fwd () {
+  echo "🔥🧱🛡️ disable firewall"
+  sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
+}
+
+function fwe () {
+  echo "🔥🧱🛡️ enable firewall"
+  sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on
+}
+
 pass() {
   local stamp=~/.password-store/.git/.last_pull
   local interval=3600  # seconds
