@@ -16,6 +16,10 @@ cask "karabiner-elements"
 brew "gcc", args: ["build-from-source"]
 brew "libgccjit", args: ["build-from-source"]
 brew "emacs-plus"
+# Keg-only runtime libs for emacs-plus (not symlinked; required at launch)
+brew "jpeg"
+brew "zlib"
+brew "tree-sitter@0.25"
 brew "git"
 brew "ripgrep"
 brew "fd"
