@@ -232,6 +232,33 @@ if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
   exit 1
 fi
 
+# emacs-plus links against keg-only libs that brew cleanup may remove.
+ensure_emacs_runtime_deps() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  echo "🔗 Ensuring Emacs runtime libraries..."
+  local dep missing=()
+  for dep in jpeg zlib tree-sitter@0.25; do
+    if ! brew list "$dep" &>/dev/null; then
+      missing+=("$dep")
+    fi
+  done
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "  Installing missing keg-only deps: ${missing[*]}"
+    brew install "${missing[@]}"
+  fi
+
+  if ! emacs --batch --eval '(message "ok")' &>/dev/null; then
+    echo "❌ Emacs failed to launch (missing dylibs?)."
+    echo "   Try: brew reinstall emacs-plus@30"
+    exit 1
+  fi
+  echo "✅ Emacs runtime libraries OK"
+}
+
+ensure_emacs_runtime_deps
+
 # Link Emacs.app into /Applications if missing (use full formula path for tap)
 EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/emacs-plus@30 2>/dev/null || brew --prefix emacs-plus@30 2>/dev/null)"
 EMACS_APP_SRC="${EMACS_PREFIX}/Emacs.app"
@@ -459,7 +486,11 @@ fi
 #################################
 # Optional language runtimes
 #################################
-read -rp "🌐 Install common language servers (node, python tools)? [y/N] " answer
+if [ -t 0 ]; then
+  read -rp "🌐 Install common language servers (node, python tools)? [y/N] " answer
+else
+  answer="n"
+fi
 if [[ "$answer" =~ ^[Yy]$ ]]; then
   echo "📡 Installing LSP helpers..."
 
