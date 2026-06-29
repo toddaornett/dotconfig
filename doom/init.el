@@ -1,4 +1,9 @@
-;;; init.el -*- lexical-binding: t; -*-
+;;; $DOOMDIR/init.el -*- lexical-binding: t; -*-
+
+;; Flycheck's emacs-lisp checker byte-compiles in a bare subprocess with no Doom
+;; context. Allow .dir-locals.el in $DOOMDIR to disable it without a prompt.
+(dolist (var '(flycheck-disabled-checkers flycheck-emacs-lisp-load-path))
+  (put var 'safe-local-variable (lambda (_val) t)))
 
 (doom! :input
        ;;bidi
