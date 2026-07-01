@@ -5,9 +5,35 @@ ZSHENV="$HOME/.zshenv"
 ZSHRC="$HOME/.zshrc"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 
+#################################
+# Detect Homebrew prefix (ARM / Intel safe)
+#################################
+BREW_PREFIX="$(brew --prefix)"
+echo "🍺 Homebrew prefix: $BREW_PREFIX"
+
+#################################
+# Setup and load zshenv
+#################################
 if [ ! -f "$ZSHENV" ]; then
   echo "typeset -U path PATH" >>$ZSHENV
 fi
+
+echo "🛣️  Ensuring Homebrew is first in PATH and configuring Homebrew..."
+if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
+  echo "export PATH=\"$BREW_PREFIX/bin:\$PATH\"" >>"$ZSHENV"
+fi
+
+lines=(
+  'export XDG_CONFIG_HOME="$HOME/.config"'
+  'export XDG_CACHE_HOME="$HOME/.cache"'
+  'export HOMEBREW_CACHE="$XDG_CACHE_HOME/Homebrew"'
+)
+
+for line in "${lines[@]}"; do
+  grep -Fqx "$line" "$ZSHENV" || echo "$line" >>"$ZSHENV"
+done
+
+source "$ZSHENV"
 
 export_macos_build_env() {
   [[ "$(uname -s)" != Darwin ]] && return 0
@@ -149,12 +175,6 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 #################################
-# Detect Homebrew prefix (ARM / Intel safe)
-#################################
-BREW_PREFIX="$(brew --prefix)"
-echo "🍺 Homebrew prefix: $BREW_PREFIX"
-
-#################################
 # Install Brewfile deps
 #################################
 echo "📌 Ensuring d12frosted/emacs-plus tap..."
@@ -178,14 +198,6 @@ brew link --overwrite emacs-plus@30 || true
 # (Homebrew bottles omit it; source build required for native comp)
 #################################
 ensure_gcc_emutls
-
-#################################
-# Ensure Homebrew bin is first in PATH
-#################################
-echo "🛣️  Ensuring Homebrew is first in PATH..."
-if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
-  echo "export PATH=\"$BREW_PREFIX/bin:\$PATH\"" >>"$ZSHENV"
-fi
 
 #################################
 # Set globals for git
@@ -345,8 +357,8 @@ echo "🔥 Installing Doom packages..."
 
 DOOM_BIN="$DOOM_DIR/bin"
 
-if ! grep -Fqs "$DOOM_BIN" "$ZSHENV" 2>/dev/null; then
-  echo "path+=$DOOM_BIN" >>"$ZSHENV"
+if ! grep -Fqs "$DOOM_BIN" "$ZSHRC" 2>/dev/null; then
+  echo "path+=$DOOM_BIN" >>"$ZSHRC"
 fi
 
 # Set LIBRARY_PATH so libgccjit's embedded gcc driver can find libemutls_w.a.
