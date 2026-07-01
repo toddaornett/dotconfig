@@ -737,8 +737,8 @@ Runs via `org-after-todo-state-change-hook'."
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
 (load! "config/version-control")
-
 (load! "config/ai")
+(load! "config/keybindings")
 
 (use-package! ws-butler
   :config
