@@ -4,6 +4,34 @@
 (add-to-list 'load-path "~/.config/elisp")
 
 (setq epg-pinentry-mode 'loopback)
+
+;; redefine exit behavior
+(defun tao/save-and-kill-emacs-silently ()
+  "Save all file buffers silently, prompt for new non-temp buffers, and exit without asking."
+  (interactive)
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (buffer-modified-p)
+        (let ((name (buffer-name))
+              (file (buffer-file-name)))
+          (cond
+           (file
+            (ignore-errors
+              (save-buffer)))
+           ((and (not file)
+                 (not (string-prefix-p " " name))
+                 (not (string-prefix-p "*" name)))
+            (setq-local buffer-offer-save t)))))))
+  (ignore-errors
+    (save-some-buffers t))
+  (cl-letf (((symbol-function 'process-list) (lambda () nil))
+            ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+            ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+            (kill-emacs-query-functions nil)
+            (confirm-kill-emacs nil))
+    (kill-emacs)))
+(global-set-key (kbd "C-x C-c") 'tao/save-and-kill-emacs-silently)
+
 (load "~/.emacs_private.el" t)
 
 (when (display-graphic-p)
