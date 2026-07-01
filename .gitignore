@@ -16,3 +16,4 @@ configstore
 doom-emacs/
 emacs
 .venv/
+homebrew/trust.json.lock

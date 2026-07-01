@@ -1,0 +1,9 @@
+{
+  "trustedtaps": [
+    "d12frosted/emacs-plus",
+    "nikitabobko/tap"
+  ],
+  "trustedcasks": [
+    "nikitabobko/tap/aerospace"
+  ]
+}
