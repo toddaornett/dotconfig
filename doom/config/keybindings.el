@@ -1,10 +1,15 @@
 ;;; $DOOMDIR/config/keybindings.el --- various keybindings -*- lexical-binding: t -*-
 
 (map! :leader
-  :desc "Comment line" "-" #'comment-line)
+      :desc "Comment line" "-" #'comment-line)
 (map! :leader
-  :desc "Comment region" "=" #'comment-line)
+      :desc "Comment region" "=" #'comment-line)
 
 (map! :after org-pomodoro
-  :leader
-  :n "t t" #'org-pomodoro)
+      :leader
+      :n "t t" #'org-pomodoro)
+
+(map! :leader
+      :desc "Reselect last region"
+      "r r" #'tao/reselect-last-region)
+
