@@ -193,6 +193,12 @@ brew bundle --file="./Brewfile" || true
 echo "🔗 Force-linking emacs-plus@30..."
 brew link --overwrite emacs-plus@30 || true
 
+# silently deal with any quarantine of clickhouse binary if it exists
+CLICKHOUSE_BIN=$(which clickhouse 2>/dev/null)
+xattr -d com.apple.quarantine \
+    "$CLICKHOUSE_BIN" \
+    &>/dev/null
+
 #################################
 # Ensure gcc has libemutls_w.a
 # (Homebrew bottles omit it; source build required for native comp)
