@@ -10,9 +10,28 @@
   (setq ellama-srt-enabled t)
   (ellama-setup-agentic-coding)
   (ellama-context-header-line-global-mode +1)
-  (ellama-session-header-line-global-mode +1))
+  (setq ellama-session-header-line-global-mode +1)
 
-(setq llm-warn-on-nonfree nil)
+  (defun +ellama/abort-generation ()
+    "Cancel the current Ellama generation but keep the chat buffer."
+    (interactive)
+    (if (bound-and-true-p ellama-request-mode)
+        (progn
+          (ellama--cancel-current-request nil)
+          (message "Ellama generation terminated."))
+      (keyboard-quit)))
+
+  (map! :map ellama-request-mode-map
+        :g "C-g" #'+ellama/abort-generation)
+
+  (map! :map ellama-mode-map
+        :g "C-g" #'keyboard-quit)
+
+  (add-hook 'kill-buffer-hook
+            (lambda ()
+              (when (bound-and-true-p ellama--current-request)
+                (ellama--cancel-current-request-and-quit))))
+  (setq llm-warn-on-nonfree nil))
 
 (map! :leader
       (:prefix-map ("l" . "llm")
