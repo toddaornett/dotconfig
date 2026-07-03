@@ -9,6 +9,7 @@
 ;; Version: 0.0.1
 ;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
 ;; Package-Requires: ((emacs "29.1"))
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -22,13 +23,13 @@
 (require 'projectile)
 
 ;; Save Emacs' original identity
-(defvar git-tools/original-user-full-name user-full-name)
-(defvar git-tools/original-user-mail-address user-mail-address)
+(defvar git-tools-original-user-full-name user-full-name)
+(defvar git-tools-original-user-mail-address user-mail-address)
 
 ;; Cache: (ROOT . (NAME . EMAIL))
-(defvar git-tools/git-identity-cache (make-hash-table :test #'equal))
+(defvar git-tools-git-identity-cache (make-hash-table :test #'equal))
 
-(defun git-tools/git-config-value (key)
+(defun git-tools-git-config-value (key)
   "Return git config value for KEY in current repo, or nil."
   (when (and (not (file-remote-p default-directory))
              (locate-dominating-file default-directory ".git"))
@@ -38,34 +39,34 @@
           (car (process-lines "git" "config" "--get" key))
         (error nil)))))
 
-(defun git-tools/git-identity-for-root (root)
+(defun git-tools-git-identity-for-root (root)
   "Return (NAME . EMAIL) for git repo ROOT, using cache."
-  (or (gethash root git-tools/git-identity-cache)
-      (let ((name  (git-tools/git-config-value "user.name"))
-            (email (git-tools/git-config-value "user.email")))
+  (or (gethash root git-tools-git-identity-cache)
+      (let ((name  (git-tools-git-config-value "user.name"))
+            (email (git-tools-git-config-value "user.email")))
         (let ((pair (cons name email)))
-          (puthash root pair git-tools/git-identity-cache)
+          (puthash root pair git-tools-git-identity-cache)
           pair))))
 
-(defun git-tools/set-user-from-git-or-default ()
+(defun git-tools-set-user-from-git-or-default ()
   "Set user identity from git config, or fall back to original values."
   (let ((root (and (not (file-remote-p default-directory))
                    (locate-dominating-file default-directory ".git"))))
     (if root
         (pcase-let ((`(,name . ,email)
-                     (git-tools/git-identity-for-root root)))
-          (setq user-full-name (or name git-tools/original-user-full-name)
-                user-mail-address (or email git-tools/original-user-mail-address)))
+                     (git-tools-git-identity-for-root root)))
+          (setq user-full-name (or name git-tools-original-user-full-name)
+                user-mail-address (or email git-tools-original-user-mail-address)))
       ;; Not in a repo → restore defaults
-      (setq user-full-name git-tools/original-user-full-name
-            user-mail-address git-tools/original-user-mail-address))))
+      (setq user-full-name git-tools-original-user-full-name
+            user-mail-address git-tools-original-user-mail-address))))
 
 ;; Update when opening files
-(add-hook 'find-file-hook #'git-tools/set-user-from-git-or-default)
+(add-hook 'find-file-hook #'git-tools-set-user-from-git-or-default)
 
 (when (featurep 'projectile)
   (add-hook 'projectile-after-switch-project-hook
-            #'git-tools/set-user-from-git-or-default))
+            #'git-tools-set-user-from-git-or-default))
 
 (defun git-tools-remote-origin-url ()
   "Return HTTPS URL derived from git remote origin."
