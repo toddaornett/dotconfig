@@ -81,4 +81,3 @@
         (speedbar-toggle-updates)
         (message "Speedbar updates toggled."))
     (speedbar)))
-                                        ;

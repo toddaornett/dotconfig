@@ -11,7 +11,7 @@
       :n "p" #'org-pomodoro)
 
 (map! :leader
-      :desc "Reselect last region"
+      :desc "Reslect last region"
       "r r" #'tao/reselect-last-region)
 
 (map! :leader
