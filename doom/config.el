@@ -735,6 +735,7 @@ Runs via `org-after-todo-state-change-hook'."
 (load! "config/version-control")
 (load! "config/ai")
 (load! "config/keybindings")
+(load! "config/irc")
 
 (use-package! ws-butler
   :config
