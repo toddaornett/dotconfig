@@ -29,7 +29,7 @@
 (require 'json)
 (require 'nerd-icons)
 (unless (and (fboundp 'play-sound-internal)
-             (subrp (symbol-function 'play-sound-internal)))
+          (subrp (symbol-function 'play-sound-internal)))
   (require 'play-sound))
 
 (defgroup teamscount nil
@@ -37,14 +37,19 @@
   :group 'convenience
   :prefix "teamscount-")
 
+(defcustom teamscount-enabled t
+  "Rather to enable eamscount or not."
+  :type 'boolean
+  :group 'teamscount)
+
 (defcustom teamscount-alert-sound t
   "Whether to play a sound when there are direct mentions.
 If t, play the system beep.
 If a string, treat it as a path to a sound file to play.
 If nil, no sound is played."
   :type '(choice (const :tag "System beep" t)
-          (string :tag "Sound file path")
-          (const :tag "No sound" nil))
+           (string :tag "Sound file path")
+           (const :tag "No sound" nil))
   :group 'teamscount)
 
 (defcustom teamscount-python-executable
@@ -76,7 +81,7 @@ If nil, no sound is played."
 #A0A2D4 — even lighter, more pastel
 #7B83EB — the brighter Teams light variant Microsoft uses in some contexts."
   :type '(choice (color :tag "Pick a color")
-          (string :tag "Hex code (e.g., #6264A7)"))
+           (string :tag "Hex code (e.g., #6264A7)"))
   :group 'teamscount)
 
 (defvar teamscount--timer nil
@@ -103,11 +108,11 @@ Used by the UI layer to clear out the mode-line elements on failure.")
   "Play the configured alert sound."
   (when teamscount-alert-sound
     (cond
-     ((stringp teamscount-alert-sound)
-      (when (file-exists-p teamscount-alert-sound)
-        (play-sound `(sound :file ,teamscount-alert-sound))))
-     (t
-      (beep)))))
+      ((stringp teamscount-alert-sound)
+        (when (file-exists-p teamscount-alert-sound)
+          (play-sound `(sound :file ,teamscount-alert-sound))))
+      (t
+        (beep)))))
 
 (defun teamscount--python-available-p ()
   "Return non-nil if the Python venv executable exists."
@@ -121,7 +126,7 @@ Used by the UI layer to clear out the mode-line elements on failure.")
 (defun teamscount-available-p ()
   "Return non-nil if both Python and script are available."
   (and (teamscount--python-available-p)
-       (teamscount--script-available-p)))
+    (teamscount--script-available-p)))
 
 (defun teamscount--fetch ()
   "Fetch Teams unread data and return a plist.
@@ -142,82 +147,82 @@ Returns nil if data cannot be retrieved."
     (cl-return-from teamscount--fetch nil))
 
   (condition-case err
-      (with-temp-buffer
-        ;; Changed t to (list t t) so error messages on stderr are visible in the buffer
-        (let ((exit-code (call-process teamscount-python-executable
-                                       nil (list t t) nil
-                                       teamscount-script)))
-          (let ((output (string-trim (buffer-string))))
-            (if (zerop exit-code)
-                (let ((data (json-read-from-string output)))
-                  (setq teamscount--script-error nil) ; Clear error on success
-                  (when teamscount--last-script-error
-                    (message "teamscount: connection recovered.")
-                    (setq teamscount--last-script-error nil))
-                  (list :unreads  (alist-get 'unreads  data 0)
-                        :mentions (alist-get 'mentions data 0)
-                        :threads  (alist-get 'threads  data [])))
+    (with-temp-buffer
+      ;; Changed t to (list t t) so error messages on stderr are visible in the buffer
+      (let ((exit-code (call-process teamscount-python-executable
+                         nil (list t t) nil
+                         teamscount-script)))
+        (let ((output (string-trim (buffer-string))))
+          (if (zerop exit-code)
+            (let ((data (json-read-from-string output)))
+              (setq teamscount--script-error nil) ; Clear error on success
+              (when teamscount--last-script-error
+                (message "teamscount: connection recovered.")
+                (setq teamscount--last-script-error nil))
+              (list :unreads  (alist-get 'unreads  data 0)
+                :mentions (alist-get 'mentions data 0)
+                :threads  (alist-get 'threads  data [])))
 
-              (setq teamscount--script-error t)
-              (unless teamscount--last-script-error
-                (message "teamscount: script exited with code %d. Output: %s" exit-code output)
-                (setq teamscount--last-script-error t))
-              nil))))
+            (setq teamscount--script-error t)
+            (unless teamscount--last-script-error
+              (message "teamscount: script exited with code %d. Output: %s" exit-code output)
+              (setq teamscount--last-script-error t))
+            nil))))
     (error
-     (setq teamscount--script-error t)
-     (unless teamscount--last-script-error
-       (message "teamscount: error running script: %s" (error-message-string err))
-       (setq teamscount--last-script-error t))
-     nil)))
+      (setq teamscount--script-error t)
+      (unless teamscount--last-script-error
+        (message "teamscount: error running script: %s" (error-message-string err))
+        (setq teamscount--last-script-error t))
+      nil)))
 
 (defun teamscount--make-teams-url (thread)
   "Construct a msteams:// deep link URL for THREAD alist."
   (let* ((thread-id (alist-get 'id       thread ""))
-         (group-id  (alist-get 'group_id thread nil))
-         (msg-id    (alist-get 'oldest_unread_id thread nil)))
+          (group-id  (alist-get 'group_id thread nil))
+          (msg-id    (alist-get 'oldest_unread_id thread nil)))
     (if group-id
-        ;; Channel in a team — deep link to the channel
-        (concat "msteams://teams/l/channel/"
-                (url-hexify-string thread-id)
-                "/channel"
-                "?groupId=" group-id
-                (when msg-id (concat "&messageId=" msg-id)))
+      ;; Channel in a team — deep link to the channel
+      (concat "msteams://teams/l/channel/"
+        (url-hexify-string thread-id)
+        "/channel"
+        "?groupId=" group-id
+        (when msg-id (concat "&messageId=" msg-id)))
       ;; Direct chat or space without a group
       (concat "msteams://teams/l/chat/"
-              (url-hexify-string thread-id)
-              "/0"
-              (when msg-id (concat "?messageId=" msg-id))))))
+        (url-hexify-string thread-id)
+        "/0"
+        (when msg-id (concat "?messageId=" msg-id))))))
 
 (defun teamscount-show-unreads ()
   "Open a buffer listing unread Teams channels with clickable links."
   (interactive)
   (let* ((data    teamscount--last-data)
-         (threads (when data (plist-get data :threads)))
-         (buf     (get-buffer-create "*Teams Unreads*")))
+          (threads (when data (plist-get data :threads)))
+          (buf     (get-buffer-create "*Teams Unreads*")))
     (with-current-buffer buf
       (let ((inhibit-read-only t))
         (erase-buffer)
         (insert (propertize "Teams Unread Channels\n" 'face 'bold))
         (insert (make-string 40 ?─) "\n\n")
         (if (or (null threads) (zerop (length threads)))
-            (insert "No unread messages.\n")
+          (insert "No unread messages.\n")
           (seq-do
-           (lambda (thread)
-             (let* ((name    (alist-get 'name    thread "Unknown"))
-                    (mention (alist-get 'mention thread nil))
-                    (url     (teamscount--make-teams-url thread))
-                    (label   (if mention
+            (lambda (thread)
+              (let* ((name    (alist-get 'name    thread "Unknown"))
+                      (mention (alist-get 'mention thread nil))
+                      (url     (teamscount--make-teams-url thread))
+                      (label   (if mention
                                  (propertize (concat "[@] " name) 'face '(:foreground "orange" :weight bold))
-                               (propertize (concat "[ ] " name) 'face 'default))))
-               (insert-button label
-                              'action (lambda (_) (browse-url url))
-                              'follow-link t
-                              'help-echo (concat "Open in Teams: " url))
-               (insert "\n")))
-           threads))
+                                 (propertize (concat "[ ] " name) 'face 'default))))
+                (insert-button label
+                  'action (lambda (_) (browse-url url))
+                  'follow-link t
+                  'help-echo (concat "Open in Teams: " url))
+                (insert "\n")))
+            threads))
         (insert "\n")
         (insert (propertize "Press q to close, RET or click to open in Teams.\n"
-                            'face 'font-lock-comment-face)))
+                  'face 'font-lock-comment-face)))
       (special-mode)
       (local-set-key (kbd "q") #'quit-window)
       (goto-char (point-min)))
@@ -226,68 +231,81 @@ Returns nil if data cannot be retrieved."
 (defun teamscount--format (data)
   "Format DATA (a plist from teamscount--fetch) into a mode-line string."
   (let* ((icon-color-spec `(:foreground ,teamscount-icon-fg-color))
-         (icon (nerd-icons-mdicon teamscount-icon-name))
-         (click-map (let ((map (make-sparse-keymap)))
-                      (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
-                      map)))
+          (icon (nerd-icons-mdicon teamscount-icon-name))
+          (click-map (let ((map (make-sparse-keymap)))
+                       (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
+                       map)))
 
     ;; Apply dynamic color properties securely to the base icon layout
     (add-face-text-property 0 (length icon) icon-color-spec t icon)
     (put-text-property 0 (length icon) 'display '(raise 0.05) icon)
 
     (if (null data)
-        (concat icon " ")
+      (concat icon " ")
       (let* ((unreads (plist-get data :unreads))
-             (mentions (plist-get data :mentions))
-             (counts (cond ((> mentions 0)
-                            (unless teamscount--alerted
-                              (teamscount--play-alert)
-                              (setq teamscount--alerted t))
-                            (let ((m-str (format "%d" mentions)))
-                              (add-face-text-property 0 (length m-str) '(:foreground "orange") t m-str)
-                              (concat m-str (when (> unreads 0) (format "/%d" unreads)))))
-                           ((> unreads 0)
-                            (setq teamscount--alerted nil)
-                            (format "%d" unreads))
-                           (t (setq teamscount--alerted nil) nil))))
+              (mentions (plist-get data :mentions))
+              (counts (cond ((> mentions 0)
+                              (unless teamscount--alerted
+                                (teamscount--play-alert)
+                                (setq teamscount--alerted t))
+                              (let ((m-str (format "%d" mentions)))
+                                (add-face-text-property 0 (length m-str) '(:foreground "orange") t m-str)
+                                (concat m-str (when (> unreads 0) (format "/%d" unreads)))))
+                        ((> unreads 0)
+                          (setq teamscount--alerted nil)
+                          (format "%d" unreads))
+                        (t (setq teamscount--alerted nil) nil))))
         (if counts
-            (concat (propertize icon
-                                'mouse-face 'mode-line-highlight
-                                'help-echo "Teams unreads — click to view"
-                                'local-map click-map)
-                    (propertize (concat counts " ")
-                                'mouse-face 'mode-line-highlight
-                                'help-echo "Teams unreads — click to view"
-                                'local-map click-map))
+          (concat (propertize icon
+                    'mouse-face 'mode-line-highlight
+                    'help-echo "Teams unreads — click to view"
+                    'local-map click-map)
+            (propertize (concat counts " ")
+              'mouse-face 'mode-line-highlight
+              'help-echo "Teams unreads — click to view"
+              'local-map click-map))
           ;; Fallback string if there are no mentions or unreads
           "")))))
 
+(defun teamscount--clear-mode-line ()
+  "Blank out the teamscount mode-line segment."
+  (setq teamscount--last-data nil)
+  (setq teamscount--mode-line-string "")
+  (force-mode-line-update t))
+
 (defun teamscount-update ()
-  "Fetch latest data and rebuild the mode line string."
+  "Fetch latest data and rebuild the mode line string.
+If `teamscount-enabled' is nil, this just clears the mode-line segment
+instead of fetching, so that turning the variable off removes
+teamscount from the mode line even while `teamscount-mode' itself is
+still on."
   (interactive)
-  (let ((data (teamscount--fetch)))
-    (setq teamscount--last-data data)
-    (if (or teamscount--script-error (null data))
+  (if (not teamscount-enabled)
+    (teamscount--clear-mode-line)
+
+    (let ((data (teamscount--fetch)))
+      (setq teamscount--last-data data)
+      (if (or teamscount--script-error (null data))
         ;; Clear the mode line completely if an error happens
         (progn
           (setq teamscount--mode-line-string "")
           (force-mode-line-update t))
 
-      ;; Restore your original formatting logic
-      (let ((base-text (teamscount--format data))
-            (map (make-sparse-keymap)))
+        ;; Restore your original formatting logic
+        (let ((base-text (teamscount--format data))
+               (map (make-sparse-keymap)))
 
-        ;; Bind left-click (mouse-1) to your custom unread listing buffer
-        (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
+          ;; Bind left-click (mouse-1) to your custom unread listing buffer
+          (define-key map [mode-line mouse-1] #'teamscount-show-unreads)
 
-        ;; Apply click functionality and hover effects to your original design
-        (setq teamscount--mode-line-string
-              (propertize base-text
-                          'local-map map
-                          'mouse-face 'mode-line-highlight
-                          'help-echo "Mouse-1: Show unread channels"))
+          ;; Apply click functionality and hover effects to your original design
+          (setq teamscount--mode-line-string
+            (propertize base-text
+              'local-map map
+              'mouse-face 'mode-line-highlight
+              'help-echo "Mouse-1: Show unread channels"))
 
-        (force-mode-line-update t)))))
+          (force-mode-line-update t))))))
 ;;;###autoload
 (define-minor-mode teamscount-mode
   "Minor mode to display Teams unread counts in the mode line.
@@ -298,25 +316,25 @@ seconds."
   :global t
   :lighter nil
   :group 'teamscount
-  (if teamscount-mode
-      ;; Mode is being ENABLED
-      (if (not (teamscount-available-p))
-          (progn
-            (message "teamscount: dependency check failed, disabling.")
-            (setq teamscount-mode nil))
+  (if (and teamscount-enabled teamscount-mode)
+    ;; Mode is being ENABLED
+    (if (not (teamscount-available-p))
+      (progn
+        (message "teamscount: dependency check failed, disabling.")
+        (setq teamscount-mode nil))
 
-        ;; Add segment to global mode line safely using append if not present
-        (unless (member '(:eval teamscount--mode-line-string) global-mode-string)
-          (setq global-mode-string (append global-mode-string (list '(:eval teamscount--mode-line-string)))))
+      ;; Add segment to global mode line safely using append if not present
+      (unless (member '(:eval teamscount--mode-line-string) global-mode-string)
+        (setq global-mode-string (append global-mode-string (list '(:eval teamscount--mode-line-string)))))
 
-        ;; Run immediate update (will clear out the icon instantly if an error is active)
-        (teamscount-update)
+      ;; Run immediate update (will clear out the icon instantly if an error is active)
+      (teamscount-update)
 
-        ;; Start the background loop timer
-        (when teamscount--timer
-          (cancel-timer teamscount--timer))
-        (setq teamscount--timer
-              (run-at-time t teamscount-refresh-interval #'teamscount-update)))
+      ;; Start the background loop timer
+      (when teamscount--timer
+        (cancel-timer teamscount--timer))
+      (setq teamscount--timer
+        (run-at-time t teamscount-refresh-interval #'teamscount-update)))
 
     ;; Mode is being DISABLED
     (when teamscount--timer
@@ -326,6 +344,22 @@ seconds."
     (setq global-mode-string (delete '(:eval teamscount--mode-line-string) global-mode-string))
     (setq teamscount--mode-line-string "")
     (force-mode-line-update t)))
+
+(defun teamscount--enabled-watcher (symbol newval operation _where)
+  "Watch `teamscount-enabled' and sync the mode line immediately.
+Runs whenever SYMBOL (`teamscount-enabled') is set to NEWVAL via
+OPERATION.  Only acts while `teamscount-mode' is on; when the mode
+itself is toggled, `teamscount-mode' already handles the mode line."
+  (when (and (eq symbol 'teamscount-enabled)
+          (eq operation 'set)
+          (bound-and-true-p teamscount-mode))
+    (if newval
+      ;; Re-enabled while the mode is on — fetch and redraw right away.
+      (teamscount-update)
+      ;; Disabled while the mode is on — strip the segment immediately.
+      (teamscount--clear-mode-line))))
+
+(add-variable-watcher 'teamscount-enabled #'teamscount--enabled-watcher)
 
 (provide 'teamscount)
 ;;; teamscount.el ends here
