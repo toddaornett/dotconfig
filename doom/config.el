@@ -105,10 +105,6 @@
   trash-directory "~/.Trash")
 
 (setq select-enable-clipboard nil)
-(map! :nvi
-  "s-c" #'clipboard-kill-ring-save
-  "s-v" #'clipboard-yank)
-(define-key minibuffer-local-map (kbd "s-v") #'clipboard-yank)
 
 (defun tao/dired-open-all-files-in-directory ()
   "Open all regular files in the current Dired directory into buffers.
@@ -736,6 +732,7 @@ Runs via `org-after-todo-state-change-hook'."
 (load! "config/ai")
 (load! "config/keybindings")
 (load! "config/irc")
+(load! "config/clipboard")
 
 (use-package! ws-butler
   :config
