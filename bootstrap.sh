@@ -190,14 +190,19 @@ echo "📦 Installing Homebrew packages..."
 brew bundle --file="./Brewfile" || true
 
 # Force-link emacs-plus@30, overwriting stale symlinks from /Applications/Emacs.app
-echo "🔗 Force-linking emacs-plus@30..."
-brew link --overwrite emacs-plus@30 || true
+if ! brew link --dry-run emacs-plus@30 &>/dev/null; then
+  echo "🔗 Relinking emacs-plus@30 to overwrite stale symblinks..."
+  brew unlink emacs-plus@30 &>/dev/null || true
+  brew link --overwrite emacs-plus@30 || true
+else
+  echo "✅ emacs-plus@30 is already successfully linked."
+fi
 
 # silently deal with any quarantine of clickhouse binary if it exists
-CLICKHOUSE_BIN=$(which clickhouse 2>/dev/null)
-xattr -d com.apple.quarantine \
-    "$CLICKHOUSE_BIN" \
-    &>/dev/null
+CLICKHOUSE_BIN="$(command -v clickhouse 2>/dev/null || true)"
+if [ -n "$CLICKHOUSE_BIN" ]; then
+  xattr -d com.apple.quarantine "$CLICKHOUSE_BIN" &>/dev/null || true
+fi
 
 #################################
 # Ensure gcc has libemutls_w.a
