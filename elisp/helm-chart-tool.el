@@ -4,8 +4,8 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: June 17, 2026
-;; Modified: June 17, 2026
-;; Version: 0.0.6
+;; Modified: June 26, 2026
+;; Version: 0.0.7
 ;; Keywords: convenience helm chart
 ;; Homepage: https://github.com/todd.ornett/dotconfig
 ;; Package-Requires: ((emacs "24.4"))
@@ -15,6 +15,21 @@
 ;;; Commentary:
 ;;
 ;; This package provides tools to manage Helm Chart YAML files.
+;;
+;; Two interactive commands are provided:
+;;
+;;   `helm-chart-tool-add-envars'
+;;     Adds variables that are present in the source env file but missing
+;;     from the chart YAML files.  Existing values are never touched.
+;;
+;;   `helm-chart-tool-update-envars'
+;;     Updates variables that already exist in the chart YAML files but
+;;     whose values differ from the source env file.  New variables are
+;;     not added; use `helm-chart-tool-add-envars' for that.
+;;
+;;   `helm-chart-tool-sync-envars'
+;;     Combines both: adds missing variables AND updates changed ones in
+;;     a single pass.
 ;;
 ;;; Code:
 
@@ -31,14 +46,14 @@
   :group 'helm-chart-tool)
 
 (defcustom helm-chart-tool-envars-directory
-  (or (getenv "HELM_CHART_TOOL_ENVARS_DIRECTORY") "~/Projects/service")
+  (or (getenv "HELM_CHART_TOOL_ENVARS_DIRECTORY") "~/dev/Phoenix/golang/clickhouse-ingester-v2")
   "Directory containing `helm-chart-tool-envars-filename'.
 The base-name of this directory is used as the chart name."
   :type 'string
   :group 'helm-chart-tool)
 
 (defcustom helm-chart-tool-charts-directory
-  (or (getenv "HELM_CHART_TOOL_CHARTS_DIRECTORY") "~/Projects/charts/service")
+  (or (getenv "HELM_CHART_TOOL_CHARTS_DIRECTORY") "~/dev/Phoenix/charts")
   "Root directory that contains all Helm chart subdirectories.
 The chart to patch is found at <charts-directory>/<chart-name>/."
   :type 'string
@@ -230,7 +245,7 @@ inserting at END-POS places the new entry after the whole group."
     (nreverse entries)))
 
 
-;;; ---- Buffer patching --------------------------------------------------------
+;;; ---- Buffer patching (add) --------------------------------------------------
 
 (defun helm-chart-tool--patch-env-block (envars env-indent block-start block-end)
   "Insert missing vars from ENVARS into the env: block between BLOCK-START and BLOCK-END.
@@ -301,6 +316,83 @@ Returns a list of (NAME . ANCHOR) pairs for vars added, or nil if none."
       added)))
 
 
+;;; ---- Buffer updating (change existing values) -------------------------------
+
+(defun helm-chart-tool--update-env-block (envars env-indent block-start block-end)
+  "Update vars in ENVARS that already exist in the env: block but have changed values.
+Scans the block between BLOCK-START and BLOCK-END for lines of the form:
+  <entry-indent>NAME: \"OLD_VALUE\"   or   <entry-indent>NAME: OLD_VALUE
+and replaces the value portion with the one from ENVARS when they differ.
+ENV-INDENT is the indentation string of the enclosing env: key.
+Returns a list of (NAME OLD-VALUE NEW-VALUE) triples for every var updated."
+  (let* ((entry-indent (concat env-indent "  "))
+         (envars-map   (copy-sequence envars))   ; alist for fast lookup
+         updated)
+    (save-excursion
+      (goto-char block-start)
+      (while (< (point) block-end)
+        (let* ((line-start (point))
+               (line       (thing-at-point 'line t))
+               ;; Match:  <entry-indent>NAME: ["']?VALUE["']?  (no leading #)
+               (rx         (concat "\\`" (regexp-quote entry-indent)
+                                   "\\([A-Za-z_][A-Za-z0-9_]*\\):"
+                                   "[ \t]*\\(\"[^\"]*\"\\|'[^']*'\\|[^\n]*\\)"))
+               (matched    (and line (string-match rx line))))
+          (if (not matched)
+              (forward-line 1)
+            (let* ((name      (match-string 1 line))
+                   (raw-val   (string-trim (match-string 2 line)))
+                   ;; Strip surrounding quotes from the on-disk value.
+                   (old-value (if (and (> (length raw-val) 1)
+                                       (or (and (string-prefix-p "\"" raw-val)
+                                                (string-suffix-p "\"" raw-val))
+                                           (and (string-prefix-p "'" raw-val)
+                                                (string-suffix-p "'" raw-val))))
+                                  (substring raw-val 1 (1- (length raw-val)))
+                                raw-val))
+                   (source    (assoc name envars-map))
+                   (new-value (cdr source)))
+              (if (and source (not (string= old-value new-value)))
+                  (let* ((new-line (helm-chart-tool--build-env-entry
+                                    name new-value env-indent))
+                         (line-end (save-excursion (end-of-line) (1+ (point)))))
+                    ;; Replace the entire line in place; keep buffer position
+                    ;; consistent by moving forward after deletion+insert.
+                    (delete-region line-start line-end)
+                    (insert new-line)
+                    ;; point is now at the start of the next line — no forward-line.
+                    (push (list name old-value new-value) updated))
+                (forward-line 1)))))))
+    (nreverse updated)))
+
+(defun helm-chart-tool--update-buffer (envars)
+  "Update changed values in every env: block in the current buffer.
+ENVARS is an alist of (NAME . VALUE) sourced from env.example.
+Returns a list of (NAME OLD-VALUE NEW-VALUE) triples for every var changed."
+  (let (updated)
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "^\\([ \t]*\\)env:[ \t]*$" nil t)
+        (let* ((env-indent  (match-string-no-properties 1))
+               (block-start (progn (forward-line 1) (point)))
+               (block-end   (helm-chart-tool--block-end block-start env-indent)))
+          (setq updated
+                (append updated
+                        (helm-chart-tool--update-env-block
+                         envars env-indent block-start block-end))))))
+    updated))
+
+(defun helm-chart-tool--update-yaml-file (path envars)
+  "Update changed env var values in the YAML file at PATH using ENVARS.
+Returns a list of (NAME OLD-VALUE NEW-VALUE) triples for vars changed, or nil."
+  (with-temp-buffer
+    (insert-file-contents path)
+    (let ((updated (helm-chart-tool--update-buffer envars)))
+      (when updated
+        (write-region (point-min) (point-max) path))
+      updated)))
+
+
 ;;; ---- Umbrella chart patching ------------------------------------------------
 
 (defun helm-chart-tool--service-block-region (chart-name)
@@ -365,20 +457,137 @@ Returns a list of (NAME . ANCHOR) pairs for vars added, or nil if none."
         (write-region (point-min) (point-max) path))
       added)))
 
+(defun helm-chart-tool--update-umbrella-buffer (envars chart-name)
+  "Update changed env var values inside the CHART-NAME service block.
+Only the env: block within CHART-NAME's indented region is touched.
+ENVARS is an alist of (NAME . VALUE).
+Returns a list of (NAME OLD-VALUE NEW-VALUE) triples for every var changed."
+  (let ((region (helm-chart-tool--service-block-region chart-name)))
+    (unless region
+      (error "helm-chart-tool: service block '%s:' not found in umbrella values"
+             chart-name))
+    (let ((service-start (car region))
+          (service-end   (cdr region))
+          updated)
+      (save-excursion
+        (goto-char service-start)
+        (when (re-search-forward "^\\([ \t]*\\)env:[ \t]*$" service-end t)
+          (let* ((env-indent  (match-string-no-properties 1))
+                 (block-start (progn (forward-line 1) (point)))
+                 (block-end   (helm-chart-tool--block-end block-start env-indent)))
+            (setq updated
+                  (helm-chart-tool--update-env-block
+                   envars env-indent block-start block-end)))))
+      updated)))
+
+(defun helm-chart-tool--update-umbrella-file (path envars chart-name)
+  "Update changed env var values in the umbrella file at PATH for CHART-NAME.
+Returns a list of (NAME OLD-VALUE NEW-VALUE) triples for vars changed, or nil."
+  (unless (file-exists-p path)
+    (error "helm-chart-tool: umbrella values file not found: %s" path))
+  (with-temp-buffer
+    (insert-file-contents path)
+    (let ((updated (helm-chart-tool--update-umbrella-buffer envars chart-name)))
+      (when updated
+        (write-region (point-min) (point-max) path))
+      updated)))
+
+
+;;; ---- Reporting --------------------------------------------------------------
+
 (defun helm-chart-tool--report-added (buf added yaml-path)
   "Insert a patch report for ADDED vars in YAML-PATH into BUF."
   (with-current-buffer buf
     (if added
         (progn
-          (insert (format "[PATCHED] %s\n" yaml-path))
+          (insert (format "[PATCHED]  %s\n" yaml-path))
           (dolist (pair added)
             (if (cdr pair)
-                (insert (format "          + %-40s (after %s)\n"
+                (insert (format "           + %-40s (after %s)\n"
                                 (car pair) (cdr pair)))
-              (insert (format "          + %-40s (appended)\n"
+              (insert (format "           + %-40s (appended)\n"
                               (car pair))))))
-      (insert (format "[OK]      %s\n" yaml-path)))))
+      (insert (format "[OK]       %s\n" yaml-path)))))
 
+(defun helm-chart-tool--report-updated (buf updated yaml-path)
+  "Insert an update report for UPDATED vars in YAML-PATH into BUF.
+UPDATED is a list of (NAME OLD-VALUE NEW-VALUE) triples."
+  (with-current-buffer buf
+    (if updated
+        (progn
+          (insert (format "[UPDATED]  %s\n" yaml-path))
+          (dolist (triple updated)
+            (insert (format "           ~ %-40s  \"%s\" -> \"%s\"\n"
+                            (nth 0 triple)
+                            (nth 1 triple)
+                            (nth 2 triple)))))
+      (insert (format "[OK]       %s\n" yaml-path)))))
+
+(defun helm-chart-tool--report-synced (buf added updated yaml-path)
+  "Insert a combined add+update report for YAML-PATH into BUF."
+  (with-current-buffer buf
+    (if (or added updated)
+        (progn
+          (insert (format "[SYNCED]   %s\n" yaml-path))
+          (dolist (pair added)
+            (if (cdr pair)
+                (insert (format "           + %-40s (after %s)\n"
+                                (car pair) (cdr pair)))
+              (insert (format "           + %-40s (appended)\n"
+                              (car pair)))))
+          (dolist (triple updated)
+            (insert (format "           ~ %-40s  \"%s\" -> \"%s\"\n"
+                            (nth 0 triple)
+                            (nth 1 triple)
+                            (nth 2 triple)))))
+      (insert (format "[OK]       %s\n" yaml-path)))))
+
+
+;;; ---- Shared setup -----------------------------------------------------------
+
+(defun helm-chart-tool--resolve-paths ()
+  "Return a plist of all resolved paths and parsed envars.
+Keys: :envars-path :chart-name :helm-chart-dir :umbrella-path :envars :yaml-files."
+  (let* ((envars-path    (helm-chart-tool--envars-path))
+         (chart-name     (helm-chart-tool--chart-name))
+         (helm-chart-dir (helm-chart-tool--helm-chart-dir))
+         (envars         (helm-chart-tool--parse-envars envars-path))
+         (yaml-files     (helm-chart-tool--find-yaml-files helm-chart-dir))
+         (umbrella-path  (expand-file-name
+                          (if (and helm-chart-tool-umbrella-values
+                                   (not (string-empty-p
+                                         helm-chart-tool-umbrella-values)))
+                              helm-chart-tool-umbrella-values
+                            (format "%s/umbrella-chart" helm-chart-dir)))))
+    (unless envars
+      (error "helm-chart-tool: no KEY=VALUE pairs found in %s" envars-path))
+    (unless yaml-files
+      (error "helm-chart-tool: no YAML files found under %s" helm-chart-dir))
+    (list :envars-path    envars-path
+          :chart-name     chart-name
+          :helm-chart-dir helm-chart-dir
+          :umbrella-path  umbrella-path
+          :envars         envars
+          :yaml-files     yaml-files)))
+
+(defun helm-chart-tool--init-report (buf paths operation)
+  "Erase BUF and write the run header for OPERATION using resolved PATHS."
+  (with-current-buffer buf
+    (erase-buffer)
+    (insert (format "helm-chart-tool %s -- %s\n" operation (current-time-string)))
+    (insert (format "Env-vars source : %s\n"
+                    (plist-get paths :envars-path)))
+    (insert (format "Chart name      : %s\n"
+                    (plist-get paths :chart-name)))
+    (insert (format "Helm chart dir  : %s\n"
+                    (plist-get paths :helm-chart-dir)))
+    (insert (format "Umbrella values : %s\n"
+                    (plist-get paths :umbrella-path)))
+    (insert (format "Source vars     : %s\n\n"
+                    (mapcar #'car (plist-get paths :envars))))))
+
+
+;;; ---- Interactive commands ---------------------------------------------------
 
 ;;;###autoload
 (defun helm-chart-tool-add-envars ()
@@ -392,54 +601,34 @@ then patches two targets:
    / <chart-name>/, excluding any templates/ subdirectory.
 
 2. The service block inside `helm-chart-tool-umbrella-values' or if that is empty
-   `helm-chart-dir'/umbrella-charts and that path must exist.
+   <helm-chart-dir>/umbrella-chart (the file must exist).
 
 In both cases missing variables are placed immediately after the last
 existing variable sharing the longest common left-substring prefix, or
 appended at the end of the env: block when no prefix match exists.
 
+Existing values are never modified.  Use `helm-chart-tool-update-envars'
+to update changed values, or `helm-chart-tool-sync-envars' for both.
+
 Results are reported in the *helm-chart-tool* buffer."
   (interactive)
-  (let* ((envars-path     (helm-chart-tool--envars-path))
-         (chart-name      (helm-chart-tool--chart-name))
-         (helm-chart-dir  (helm-chart-tool--helm-chart-dir))
-         (envars          (helm-chart-tool--parse-envars envars-path))
-         (yaml-files      (helm-chart-tool--find-yaml-files helm-chart-dir))
-         (umbrella-path   (expand-file-name
-                           (if (and helm-chart-tool-umbrella-values
-                                    (not (string-empty-p
-                                          helm-chart-tool-umbrella-values)))
-                               helm-chart-tool-umbrella-values
-                             (format "%s/umbrella-chart" helm-chart-dir))))
-         (report-buf      (get-buffer-create "*helm-chart-tool*"))
-         (total-patched   0))
-    (unless envars
-      (error "helm-chart-tool: no KEY=VALUE pairs found in %s" envars-path))
-    (unless yaml-files
-      (error "helm-chart-tool: no YAML files found under %s" helm-chart-dir))
+  (let* ((paths          (helm-chart-tool--resolve-paths))
+         (envars         (plist-get paths :envars))
+         (yaml-files     (plist-get paths :yaml-files))
+         (umbrella-path  (plist-get paths :umbrella-path))
+         (chart-name     (plist-get paths :chart-name))
+         (report-buf     (get-buffer-create "*helm-chart-tool*"))
+         (total-patched  0))
+    (helm-chart-tool--init-report report-buf paths "add-envars")
 
-    (with-current-buffer report-buf
-      (erase-buffer)
-      (insert (format "helm-chart-tool run -- %s\n" (current-time-string)))
-      (insert (format "Env-vars source : %s\n" envars-path))
-      (insert (format "Chart name      : %s\n" chart-name))
-      (insert (format "Helm chart dir  : %s\n" helm-chart-dir))
-      (when umbrella-path
-        (insert (format "Umbrella values : %s\n" umbrella-path)))
-      (insert (format "Source vars     : %s\n\n" (mapcar #'car envars))))
-
-    ;; 1. Patch individual chart yaml files.
-    (with-current-buffer report-buf
-      (insert "-- Chart files --\n"))
+    (with-current-buffer report-buf (insert "-- Chart files --\n"))
     (dolist (yaml-path yaml-files)
       (let ((added (helm-chart-tool--patch-yaml-file yaml-path envars)))
         (when added (cl-incf total-patched))
         (helm-chart-tool--report-added report-buf added yaml-path)))
 
-    ;; 2. Patch the umbrella chart values file.
     (when umbrella-path
-      (with-current-buffer report-buf
-        (insert "\n-- Umbrella chart --\n"))
+      (with-current-buffer report-buf (insert "\n-- Umbrella chart --\n"))
       (let ((added (helm-chart-tool--patch-umbrella-file
                     umbrella-path envars chart-name)))
         (when added (cl-incf total-patched))
@@ -451,6 +640,107 @@ Results are reported in the *helm-chart-tool* buffer."
     (display-buffer report-buf)
     (message "helm-chart-tool: done -- %d file(s) updated.  See *helm-chart-tool* for details."
              total-patched)))
+
+;;;###autoload
+(defun helm-chart-tool-update-envars ()
+  "Update environment variables in Helm chart YAML files to match env.example.
+
+Reads NAME=VALUE pairs from the source env file (controlled by
+`helm-chart-tool-envars-filename' and `helm-chart-tool-envars-directory'),
+then for each env: block in:
+
+1. Every *.yaml / *.yml file under `helm-chart-tool-charts-directory' /
+   <chart-name>/ (templates/ excluded), and
+
+2. The service block inside the umbrella values file,
+
+any variable that already exists but whose value differs from the source
+file is overwritten with the source value.
+
+Variables that are absent from the chart files are NOT added; use
+`helm-chart-tool-add-envars' for that, or `helm-chart-tool-sync-envars'
+for both operations in one pass.
+
+Results are reported in the *helm-chart-tool* buffer."
+  (interactive)
+  (let* ((paths          (helm-chart-tool--resolve-paths))
+         (envars         (plist-get paths :envars))
+         (yaml-files     (plist-get paths :yaml-files))
+         (umbrella-path  (plist-get paths :umbrella-path))
+         (chart-name     (plist-get paths :chart-name))
+         (report-buf     (get-buffer-create "*helm-chart-tool*"))
+         (total-updated  0))
+    (helm-chart-tool--init-report report-buf paths "update-envars")
+
+    (with-current-buffer report-buf (insert "-- Chart files --\n"))
+    (dolist (yaml-path yaml-files)
+      (let ((updated (helm-chart-tool--update-yaml-file yaml-path envars)))
+        (when updated (cl-incf total-updated))
+        (helm-chart-tool--report-updated report-buf updated yaml-path)))
+
+    (when umbrella-path
+      (with-current-buffer report-buf (insert "\n-- Umbrella chart --\n"))
+      (let ((updated (helm-chart-tool--update-umbrella-file
+                      umbrella-path envars chart-name)))
+        (when updated (cl-incf total-updated))
+        (helm-chart-tool--report-updated report-buf updated umbrella-path)))
+
+    (with-current-buffer report-buf
+      (insert (format "\nDone. %d file(s) updated.\n" total-updated)))
+
+    (display-buffer report-buf)
+    (message "helm-chart-tool: done -- %d file(s) updated.  See *helm-chart-tool* for details."
+             total-updated)))
+
+;;;###autoload
+(defun helm-chart-tool-sync-envars ()
+  "Add missing AND update changed environment variables in Helm chart YAML files.
+
+This command combines `helm-chart-tool-add-envars' and
+`helm-chart-tool-update-envars' in a single pass:
+
+  • Variables present in env.example but absent from a chart file are inserted
+    (using prefix-aware placement).
+  • Variables present in both but with differing values are overwritten with
+    the env.example value.
+  • Variables already present with the correct value are left untouched.
+
+Results are reported in the *helm-chart-tool* buffer."
+  (interactive)
+  (let* ((paths          (helm-chart-tool--resolve-paths))
+         (envars         (plist-get paths :envars))
+         (yaml-files     (plist-get paths :yaml-files))
+         (umbrella-path  (plist-get paths :umbrella-path))
+         (chart-name     (plist-get paths :chart-name))
+         (report-buf     (get-buffer-create "*helm-chart-tool*"))
+         (total-changed  0))
+    (helm-chart-tool--init-report report-buf paths "sync-envars")
+
+    (with-current-buffer report-buf (insert "-- Chart files --\n"))
+    (dolist (yaml-path yaml-files)
+      ;; Run add then update on the same file.  Because add-envars writes the
+      ;; file first, update-envars sees the freshly inserted entries and will
+      ;; not attempt to update them (they already have the correct value).
+      (let* ((added   (helm-chart-tool--patch-yaml-file  yaml-path envars))
+             (updated (helm-chart-tool--update-yaml-file yaml-path envars)))
+        (when (or added updated) (cl-incf total-changed))
+        (helm-chart-tool--report-synced report-buf added updated yaml-path)))
+
+    (when umbrella-path
+      (with-current-buffer report-buf (insert "\n-- Umbrella chart --\n"))
+      (let* ((added   (helm-chart-tool--patch-umbrella-file
+                       umbrella-path envars chart-name))
+             (updated (helm-chart-tool--update-umbrella-file
+                       umbrella-path envars chart-name)))
+        (when (or added updated) (cl-incf total-changed))
+        (helm-chart-tool--report-synced report-buf added updated umbrella-path)))
+
+    (with-current-buffer report-buf
+      (insert (format "\nDone. %d file(s) updated.\n" total-changed)))
+
+    (display-buffer report-buf)
+    (message "helm-chart-tool: done -- %d file(s) updated.  See *helm-chart-tool* for details."
+             total-changed)))
 
 (provide 'helm-chart-tool)
 ;;; helm-chart-tool.el ends here
