@@ -61,31 +61,31 @@
 
 (package! swagger
   :recipe (:local-repo "~/.config/elisp"
-           :files ("swagger.el")))
+            :files ("swagger.el")))
 
 (package! insert-random-uuid-into-buffer
   :recipe (:local-repo "~/.config/elisp"
-           :files ("insert-random-uuid-into-buffer.el")))
+            :files ("insert-random-uuid-into-buffer.el")))
 
 (package! jira-todo
   :recipe (:local-repo "~/.config/elisp"
-           :files ("jira-todo.el")))
+            :files ("jira-todo.el")))
 
 (package! slackcount
   :recipe (:local-repo "~/.config/elisp"
-           :files ("slackcount.el")))
+            :files ("slackcount.el")))
 
 (package! teamscount
   :recipe (:local-repo "~/.config/elisp"
-           :files ("teamscount.el")))
+            :files ("teamscount.el")))
 
 (package! git-tools
   :recipe (:local-repo "~/.config/elisp"
-           :files ("git-tools.el")))
+            :files ("git-tools.el")))
 
 (package! retimestamp
   :recipe (:local-repo "~/.config/elisp"
-           :files ("retimestamp.el")))
+            :files ("retimestamp.el")))
 
 (package! ibuffer-projectile)
 
