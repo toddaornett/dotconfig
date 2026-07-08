@@ -13,10 +13,9 @@ cask "dbeaver-community"
 cask "clickhouse"
 cask "karabiner-elements"
 
-brew "gcc", args: ["build-from-source"]
-brew "libgccjit", args: ["build-from-source"]
-brew "emacs-plus"
-# Keg-only runtime libs for emacs-plus (not symlinked; required at launch)
+brew "gcc"
+brew "libgccjit"
+brew "emacs-plus@30", args: ["with-native-comp"]
 brew "jpeg"
 brew "zlib"
 brew "tree-sitter@0.25"
