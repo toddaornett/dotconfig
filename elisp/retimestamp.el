@@ -24,6 +24,8 @@
 ;;; Code:
 (require 'projectile)
 (require 'seq)
+(require 'magit)
+(require 'git-tools)
 
 (defgroup retimestamp nil
   "Refresh timestamped filenames and contents."
@@ -36,6 +38,10 @@
 (defcustom retimestamp-format "%Y%m%d%H%M%S"
   "Format string passed to `format-time-string'."
   :type 'string)
+
+(defcustom retimestamp-auto-commit nil
+  "Rather or not to auto ammend commit changes."
+  :type 'boolean)
 
 (defun retimestamp--replace-in-buffer (old new)
   "Replace OLD in buffer with NEW string."
@@ -66,6 +72,8 @@
     (let ((new-file (retimestamp--new-path file old new)))
       (unless (string-equal file new-file)
         (rename-file file new-file t)
+        (when retimestamp-auto-commit
+          (magit-stage-files (list file new-file)))
         (when buf
           (with-current-buffer buf
             (set-visited-file-name new-file t t))))
@@ -101,6 +109,8 @@
                          (file-name-nondirectory file))))
           (retimestamp--process-file file old new)
           (setq count (1+ count))))
+      (when retimestamp-auto-commit
+        (git-tools-commit-amend-no-edit))
       (message "Retimestamped %d file%s."
         count (if (= count 1) "" "s")))))
 (provide 'retimestamp)

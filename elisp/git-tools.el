@@ -32,55 +32,55 @@
 (defun git-tools-git-config-value (key)
   "Return git config value for KEY in current repo, or nil."
   (when (and (not (file-remote-p default-directory))
-             (locate-dominating-file default-directory ".git"))
+          (locate-dominating-file default-directory ".git"))
     (let ((default-directory
-           (locate-dominating-file default-directory ".git")))
+            (locate-dominating-file default-directory ".git")))
       (condition-case nil
-          (car (process-lines "git" "config" "--get" key))
+        (car (process-lines "git" "config" "--get" key))
         (error nil)))))
 
 (defun git-tools-git-identity-for-root (root)
   "Return (NAME . EMAIL) for git repo ROOT, using cache."
   (or (gethash root git-tools-git-identity-cache)
-      (let ((name  (git-tools-git-config-value "user.name"))
-            (email (git-tools-git-config-value "user.email")))
-        (let ((pair (cons name email)))
-          (puthash root pair git-tools-git-identity-cache)
-          pair))))
+    (let ((name  (git-tools-git-config-value "user.name"))
+           (email (git-tools-git-config-value "user.email")))
+      (let ((pair (cons name email)))
+        (puthash root pair git-tools-git-identity-cache)
+        pair))))
 
 (defun git-tools-set-user-from-git-or-default ()
   "Set user identity from git config, or fall back to original values."
   (let ((root (and (not (file-remote-p default-directory))
-                   (locate-dominating-file default-directory ".git"))))
+                (locate-dominating-file default-directory ".git"))))
     (if root
-        (pcase-let ((`(,name . ,email)
-                     (git-tools-git-identity-for-root root)))
-          (setq user-full-name (or name git-tools-original-user-full-name)
-                user-mail-address (or email git-tools-original-user-mail-address)))
+      (pcase-let ((`(,name . ,email)
+                    (git-tools-git-identity-for-root root)))
+        (setq user-full-name (or name git-tools-original-user-full-name)
+          user-mail-address (or email git-tools-original-user-mail-address)))
       ;; Not in a repo → restore defaults
       (setq user-full-name git-tools-original-user-full-name
-            user-mail-address git-tools-original-user-mail-address))))
+        user-mail-address git-tools-original-user-mail-address))))
 
 ;; Update when opening files
 (add-hook 'find-file-hook #'git-tools-set-user-from-git-or-default)
 
 (when (featurep 'projectile)
   (add-hook 'projectile-after-switch-project-hook
-            #'git-tools-set-user-from-git-or-default))
+    #'git-tools-set-user-from-git-or-default))
 
 (defun git-tools-remote-origin-url ()
   "Return HTTPS URL derived from git remote origin."
   (when-let* ((default-directory (locate-dominating-file default-directory ".git"))
-              (remote (string-trim
-                       (shell-command-to-string
-                        "git config --get remote.origin.url"))))
+               (remote (string-trim
+                         (shell-command-to-string
+                           "git config --get remote.origin.url"))))
     (setq remote
-          (cond
-           ((string-match "\\`git@\\([^:]+\\):\\(.+\\)\\'" remote)
-            (format "https://%s/%s"
-                    (match-string 1 remote)
-                    (match-string 2 remote)))
-           (remote)))
+      (cond
+        ((string-match "\\`git@\\([^:]+\\):\\(.+\\)\\'" remote)
+          (format "https://%s/%s"
+            (match-string 1 remote)
+            (match-string 2 remote)))
+        (remote)))
     (replace-regexp-in-string "\\.git\\'" "" remote)))
 
 (defun git-tools-main-branch-name (&optional dir)
@@ -88,14 +88,14 @@
 Tries several names or falls back to the default branch from git symbolic-ref."
   (let ((default-directory (or dir default-directory)))
     (cond
-     ((magit-branch-p "main") "main")
-     ((magit-branch-p "master") "master")
-     ((magit-branch-p "develop") "develop")
-     ((magit-branch-p "trunk") "trunk")
-     (t (condition-case nil
-            (string-trim
+      ((magit-branch-p "main") "main")
+      ((magit-branch-p "master") "master")
+      ((magit-branch-p "develop") "develop")
+      ((magit-branch-p "trunk") "trunk")
+      (t (condition-case nil
+           (string-trim
              (shell-command-to-string "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'"))
-          (error nil))))))
+           (error nil))))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
@@ -108,53 +108,53 @@ or `!' (yes to all remaining). The results are displayed in the
 staged changes are not affected."
   (interactive "P")
   (let* ((parent-dir (or parent-dir
-                         (expand-file-name
-                          (read-string (concat "Git discard unstaged changes in "
-                                               "all sub-directories under path "
-                                               "(default '~/Projects'): ")
-                                       nil
-                                       nil
-                                       "~/Projects"))))
-         (default-directory (expand-file-name parent-dir))
-         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
-         (discarded-dirs nil)
-         (yes-to-all nil))
+                       (expand-file-name
+                         (read-string (concat "Git discard unstaged changes in "
+                                        "all sub-directories under path "
+                                        "(default '~/Projects'): ")
+                           nil
+                           nil
+                           "~/Projects"))))
+          (default-directory (expand-file-name parent-dir))
+          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+          (buffer (get-buffer-create "*Git Discarded Unstaged Changes*"))
+          (discarded-dirs nil)
+          (yes-to-all nil))
     (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
-                   (not (file-symlink-p full-path))
-                   (file-exists-p (expand-file-name ".git" full-path)))
+                (not (file-symlink-p full-path))
+                (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
-                         (format "cd %s && git status --porcelain" full-path))))
+                          (format "cd %s && git status --porcelain" full-path))))
             (when (string-match-p "^.M" status)
               (let ((proceed
-                     (or force
-                         yes-to-all
-                         (let ((response (read-string
+                      (or force
+                        yes-to-all
+                        (let ((response (read-string
                                           (format
-                                           "Discard unstaged changes in %s? (y/n/!): "
-                                           full-path))))
-                           (cond
+                                            "Discard unstaged changes in %s? (y/n/!): "
+                                            full-path))))
+                          (cond
                             ((string= response "!") (setq yes-to-all t) t)
                             ((string-match-p "^[yY]" response) t)
                             (t nil))))))
                 (when proceed
                   (let ((restore-result (shell-command
-                                         (format "cd %s && git restore ." full-path))))
+                                          (format "cd %s && git restore ." full-path))))
                     (if (= restore-result 0)
-                        (setq discarded-dirs (cons dir discarded-dirs))
+                      (setq discarded-dirs (cons dir discarded-dirs))
                       (message "Failed to discard changes in %s" full-path))))))))))
     (with-current-buffer buffer
       (erase-buffer)
       (if discarded-dirs
-          (progn
-            (insert (format "Discarded unstaged changes in %d git projects under %s:\n\n"
-                            (length discarded-dirs)
-                            parent-dir))
-            (insert (mapconcat #'identity (sort discarded-dirs) "\n")))
+        (progn
+          (insert (format "Discarded unstaged changes in %d git projects under %s:\n\n"
+                    (length discarded-dirs)
+                    parent-dir))
+          (insert (mapconcat #'identity (sort discarded-dirs) "\n")))
         (insert "No git projects with unstaged changes were found."))
       (goto-char (point-min))
       (display-buffer buffer))))
@@ -166,20 +166,20 @@ List subdirectories under PARENT-DIR (default '~/Projects')
 with files untracked by git. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir
-                         (expand-file-name
-                          (read-string (concat "Git show untracked files in all "
-                                               "sub-directories under path "
-                                               "(default '~/Projects'): ")
-                                       nil
-                                       nil
-                                       "~/Projects"))))
-         (default-directory (expand-file-name parent-dir))
-         (dirs (directory-files default-directory
-                                nil
-                                "^[^.]"
-                                t))  ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Untracked Files*"))
-         (changed-dirs nil))
+                       (expand-file-name
+                         (read-string (concat "Git show untracked files in all "
+                                        "sub-directories under path "
+                                        "(default '~/Projects'): ")
+                           nil
+                           nil
+                           "~/Projects"))))
+          (default-directory (expand-file-name parent-dir))
+          (dirs (directory-files default-directory
+                  nil
+                  "^[^.]"
+                  t))  ; Exclude . and ..
+          (buffer (get-buffer-create "*Git Untracked Files*"))
+          (changed-dirs nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
@@ -187,22 +187,22 @@ with files untracked by git. Displays results in a new buffer."
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
-                   (file-exists-p (expand-file-name ".git" full-path)))
+                (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
-                         (format
-                          "cd %s && git status --porcelain --untracked-files=all"
-                          full-path))))
+                          (format
+                            "cd %s && git status --porcelain --untracked-files=all"
+                            full-path))))
             (when (string-match-p "^\\?\\?" status)
               (push dir changed-dirs))))))
     ;; Display results
     (with-current-buffer buffer
       (erase-buffer)
       (if changed-dirs
-          (progn
-            (insert (format "Files untracked by git in %d projects under the %s directory:\n\n"
-                            (length changed-dirs)
-                            parent-dir))
-            (insert (mapconcat #'identity (sort changed-dirs) "\n")))
+        (progn
+          (insert (format "Files untracked by git in %d projects under the %s directory:\n\n"
+                    (length changed-dirs)
+                    parent-dir))
+          (insert (mapconcat #'identity (sort changed-dirs) "\n")))
         (insert "No projects with files untracked by git were found."))
       (goto-char (point-min))
       (display-buffer buffer))))
@@ -214,15 +214,15 @@ List subdirectories under PARENT-DIR (default '~/Projects')
 with unstaged Git changes. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir
-                         (expand-file-name
-                          (read-string (concat "Git show unstaged commits in all "
-                                               "sub-directories under path "
-                                               "(default '~/Projects'): ")
-                                       nil nil "~/Projects"))))
-         (default-directory (expand-file-name parent-dir))
-         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Unstaged Files*"))
-         (changed-dirs nil))
+                       (expand-file-name
+                         (read-string (concat "Git show unstaged commits in all "
+                                        "sub-directories under path "
+                                        "(default '~/Projects'): ")
+                           nil nil "~/Projects"))))
+          (default-directory (expand-file-name parent-dir))
+          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+          (buffer (get-buffer-create "*Git Unstaged Files*"))
+          (changed-dirs nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
@@ -230,20 +230,20 @@ with unstaged Git changes. Displays results in a new buffer."
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
-                   (not (file-symlink-p full-path))
-                   (file-exists-p (expand-file-name ".git" full-path)))
+                (not (file-symlink-p full-path))
+                (file-exists-p (expand-file-name ".git" full-path)))
           (let ((status (shell-command-to-string
-                         (format "cd %s && git status --porcelain" full-path))))
+                          (format "cd %s && git status --porcelain" full-path))))
             (unless (string-empty-p status)
               (push dir changed-dirs))))))
     ;; Display results
     (with-current-buffer buffer
       (erase-buffer)
       (insert (format "Uncommitted git changes in %d projects under the %s directory:\n\n"
-                      (length changed-dirs)
-                      parent-dir))
+                (length changed-dirs)
+                parent-dir))
       (if changed-dirs
-          (insert (mapconcat #'identity (sort changed-dirs) "\n"))
+        (insert (mapconcat #'identity (sort changed-dirs) "\n"))
         (insert "No git projects with uncommitted changes were found."))
       (goto-char (point-min))
       (display-buffer buffer))))
@@ -255,15 +255,15 @@ List subdirectories under PARENT-DIR (default '~/Projects')
 with non-main branches. Displays results in a new buffer."
   (interactive)
   (let* ((parent-dir (or parent-dir
-                         (expand-file-name
-                          (read-string (concat "Git show non-main branches in all "
-                                               "sub-directories under path "
-                                               "(default '~/Projects'): ")
-                                       nil nil "~/Projects"))))
-         (default-directory (file-truename (expand-file-name parent-dir)))
-         (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
-         (buffer (get-buffer-create "*Git Non-main Branches*"))
-         (results nil))
+                       (expand-file-name
+                         (read-string (concat "Git show non-main branches in all "
+                                        "sub-directories under path "
+                                        "(default '~/Projects'): ")
+                           nil nil "~/Projects"))))
+          (default-directory (file-truename (expand-file-name parent-dir)))
+          (dirs (directory-files default-directory nil "^[^.]" t)) ; Exclude . and ..
+          (buffer (get-buffer-create "*Git Non-main Branches*"))
+          (results nil))
     ;; Ensure parent directory exists
     (unless (file-directory-p default-directory)
       (error "Parent directory '%s' does not exist" default-directory))
@@ -271,22 +271,22 @@ with non-main branches. Displays results in a new buffer."
     (dolist (dir dirs)
       (let ((full-path (expand-file-name dir default-directory)))
         (when (and (file-directory-p full-path)
-                   (not (file-symlink-p full-path))
-                   (file-exists-p (expand-file-name ".git" full-path)))
+                (not (file-symlink-p full-path))
+                (file-exists-p (expand-file-name ".git" full-path)))
           (let* ((branch-names-raw (shell-command-to-string
-                                    (format "cd %s && git branch --list" full-path)))
-                 (branch-names (split-string branch-names-raw "\n" t))
-                 (filtered-branches (mapcar
-                                     (lambda (branch)
-                                       (string-trim (string-replace "*" "" branch)))
-                                     (seq-remove
-                                      (lambda (branch)
-                                        (let ((clean-branch (string-trim (string-replace "*" "" branch))))
-                                          (or (string-empty-p clean-branch)
-                                              (string= clean-branch "main")
-                                              (string= clean-branch "master")
-                                              (string= clean-branch "develop"))))
-                                      branch-names))))
+                                     (format "cd %s && git branch --list" full-path)))
+                  (branch-names (split-string branch-names-raw "\n" t))
+                  (filtered-branches (mapcar
+                                       (lambda (branch)
+                                         (string-trim (string-replace "*" "" branch)))
+                                       (seq-remove
+                                         (lambda (branch)
+                                           (let ((clean-branch (string-trim (string-replace "*" "" branch))))
+                                             (or (string-empty-p clean-branch)
+                                               (string= clean-branch "main")
+                                               (string= clean-branch "master")
+                                               (string= clean-branch "develop"))))
+                                         branch-names))))
             (when filtered-branches
               (push (cons dir filtered-branches) results))))))
     ;; Display results
@@ -294,13 +294,13 @@ with non-main branches. Displays results in a new buffer."
       (let ((inhibit-read-only t))
         (erase-buffer)
         (insert (format "Non-main git branches in %d projects under the %s directory:\n\n"
-                        (length results)
-                        parent-dir))
+                  (length results)
+                  parent-dir))
         (if results
-            (dolist (entry (sort results (lambda (a b) (string< (car a) (car b)))))
-              (insert (format "%s:\n" (car entry)))
-              (dolist (branch (cdr entry))
-                (insert (format "  - %s\n" branch))))
+          (dolist (entry (sort results (lambda (a b) (string< (car a) (car b)))))
+            (insert (format "%s:\n" (car entry)))
+            (dolist (branch (cdr entry))
+              (insert (format "  - %s\n" branch))))
           (insert "No git projects with non-main branches found."))
         (goto-char (point-min))
         (display-buffer buffer)))))
@@ -311,36 +311,36 @@ With prefix argument FORCE-PULL, pull even if there are unstaged changes.
 Skips non-Git directories and symbolic links."
   (interactive "DDirectory: ~/Projects \nP")
   (let ((default-directory root-dir)
-        (error-count 0)
-        (skipped-repos nil)
-        (success-repos nil))
+         (error-count 0)
+         (skipped-repos nil)
+         (success-repos nil))
     (dolist (dir (directory-files root-dir t "\\`[^.]"))
       (when (and (file-directory-p dir)
-                 (not (file-symlink-p dir))
-                 (file-exists-p (expand-file-name ".git" dir)))
+              (not (file-symlink-p dir))
+              (file-exists-p (expand-file-name ".git" dir)))
         (let ((default-directory dir))
           (message "Processing: %s" dir)
           (let ((main-branch (git-tools-main-branch-name)))
             (if main-branch
-                (condition-case err
+              (condition-case err
+                (progn
+                  (message "Switching to %s in %s" main-branch dir)
+                  (if (and (not force-pull) (magit-anything-unstaged-p))
                     (progn
-                      (message "Switching to %s in %s" main-branch dir)
-                      (if (and (not force-pull) (magit-anything-unstaged-p))
-                          (progn
-                            (message "Skipping pull in %s: unstaged changes detected" dir)
-                            (push dir skipped-repos))
-                        (unless (string-equal (magit-get-current-branch) main-branch)
-                          (magit-run-git "checkout" main-branch))
-                        (if (magit-get-upstream-branch)
-                            (progn
-                              (magit-run-git "pull")
-                              (message "Successfully pulled %s in %s" main-branch dir)
-                              (push dir success-repos))
-                          (message "Skipping pull in %s: no upstream branch configured" dir)
-                          (push dir skipped-repos))))
-                  (error
-                   (message "Error in %s: %s" dir (error-message-string err))
-                   (setq error-count (1+ error-count))))
+                      (message "Skipping pull in %s: unstaged changes detected" dir)
+                      (push dir skipped-repos))
+                    (unless (string-equal (magit-get-current-branch) main-branch)
+                      (magit-run-git "checkout" main-branch))
+                    (if (magit-get-upstream-branch)
+                      (progn
+                        (magit-run-git "pull")
+                        (message "Successfully pulled %s in %s" main-branch dir)
+                        (push dir success-repos))
+                      (message "Skipping pull in %s: no upstream branch configured" dir)
+                      (push dir skipped-repos))))
+                (error
+                  (message "Error in %s: %s" dir (error-message-string err))
+                  (setq error-count (1+ error-count))))
               (message "No valid main branch found in %s" dir)
               (push dir skipped-repos))))))
     (message "\n=== Pull Summary ===")
@@ -351,7 +351,7 @@ Skips non-Git directories and symbolic links."
     (dolist (repo skipped-repos)
       (message "  - %s" repo))
     (if (> error-count 0)
-        (message "Completed with %d errors" error-count)
+      (message "Completed with %d errors" error-count)
       (message "Completed successfully with no errors"))))
 
 (defun git-tools-update-yaml-file (current-file file variable value)
@@ -385,34 +385,34 @@ Return t if any changes made, nil otherwise."
 (defun git-tools-set-yaml-and-commit (variable value)
   "Update VARIABLE to VALUE in the current YAML file and commit."
   (interactive
-   (let* ((default-variable
-           (or
-            (when (and (eq major-mode 'yaml-mode)
+    (let* ((default-variable
+             (or
+               (when (and (eq major-mode 'yaml-mode)
                        (thing-at-point 'symbol))
-              (let ((symbol (thing-at-point 'symbol t)))
-                (if (string-match-p "^[a-zA-Z0-9_-]+$" symbol)
-                    symbol
-                  nil)))
-            ""))
-          (default-value
-           (when (eq major-mode 'yaml-mode)
-             (save-excursion
-               (forward-line 1)
-               (when (looking-at "[ \t]*value: \\(.*\\)")
-                 (let ((val (string-trim (match-string 1))))
-                   (cond
-                    ((string= val "true") "false")
-                    ((string= val "false") "true")
-                    (t val)))))))
-          (variable (read-string "Set variable: " default-variable))
-          (value (read-string "Set to: " default-value)))
-     (list variable value)))
+                 (let ((symbol (thing-at-point 'symbol t)))
+                   (if (string-match-p "^[a-zA-Z0-9_-]+$" symbol)
+                     symbol
+                     nil)))
+               ""))
+            (default-value
+              (when (eq major-mode 'yaml-mode)
+                (save-excursion
+                  (forward-line 1)
+                  (when (looking-at "[ \t]*value: \\(.*\\)")
+                    (let ((val (string-trim (match-string 1))))
+                      (cond
+                        ((string= val "true") "false")
+                        ((string= val "false") "true")
+                        (t val)))))))
+            (variable (read-string "Set variable: " default-variable))
+            (value (read-string "Set to: " default-value)))
+      (list variable value)))
   (let* ((project-name (projectile-project-name))
-         (project-root (projectile-project-root))
-         (project-files (projectile-project-files project-root))
-         (updates-made nil)
-         (git-main-branch (git-tools-main-branch-name))
-         (target-branch (concat "build/update-env-" (string-replace "_" "-" (downcase  variable)))))
+          (project-root (projectile-project-root))
+          (project-files (projectile-project-files project-root))
+          (updates-made nil)
+          (git-main-branch (git-tools-main-branch-name))
+          (target-branch (concat "build/update-env-" (string-replace "_" "-" (downcase  variable)))))
     (unless project-root
       (error "No project root found. Ensure a project is active"))
     (message "Setting %s to %s in project %s" variable value project-name)
@@ -435,30 +435,30 @@ Return t if any changes made, nil otherwise."
     (dolist (relative-file project-files)
       (let ((file (expand-file-name relative-file project-root)))
         (when (and (file-exists-p file)
-                   (string-equal-ignore-case
-                    (or (file-name-extension file) "")
-                    "yaml"))
+                (string-equal-ignore-case
+                  (or (file-name-extension file) "")
+                  "yaml"))
           (when (git-tools-update-yaml-file (or buffer-file-name "") file variable value)
             (setq updates-made t)))))
 
     ;; update branch and commit
     (if updates-made
-        (let ((process-buffer (magit-process-buffer)))
-          (unless (magit-branch-p target-branch)
-            (magit-run-git "branch" target-branch git-main-branch))
-          (unless (string-equal-ignore-case (magit-get-current-branch) target-branch)
-            (magit-run-git "checkout" target-branch))
-          (let ((commit-message (format "build(config): update %s\n\nset %s to %s" variable variable value)))
-            (condition-case err
-                (progn
-                  (magit-run-git "add" ".")
-                  (magit-run-git "commit" "-m" commit-message)
-                  (message "Committed changes with message 'build: update variable'"))
-              (error
-               (message "Failed to commit: %s" (error-message-string err))
-               (magit-run-git "reset")))
-            (when (and process-buffer (buffer-live-p process-buffer))
-              (kill-buffer process-buffer)))))))
+      (let ((process-buffer (magit-process-buffer)))
+        (unless (magit-branch-p target-branch)
+          (magit-run-git "branch" target-branch git-main-branch))
+        (unless (string-equal-ignore-case (magit-get-current-branch) target-branch)
+          (magit-run-git "checkout" target-branch))
+        (let ((commit-message (format "build(config): update %s\n\nset %s to %s" variable variable value)))
+          (condition-case err
+            (progn
+              (magit-run-git "add" ".")
+              (magit-run-git "commit" "-m" commit-message)
+              (message "Committed changes with message 'build: update variable'"))
+            (error
+              (message "Failed to commit: %s" (error-message-string err))
+              (magit-run-git "reset")))
+          (when (and process-buffer (buffer-live-p process-buffer))
+            (kill-buffer process-buffer)))))))
 
 ;;;###autoload
 (defun git-tools-open-all-conflict-files ()
@@ -466,7 +466,7 @@ Return t if any changes made, nil otherwise."
   (interactive)
   (let ((files (magit-unmerged-files)))
     (if (null files)
-        (message "No conflicting files found.")
+      (message "No conflicting files found.")
       (dolist (file files)
         (find-file (expand-file-name file (magit-toplevel))))
       (message "Opened %d conflicting file(s)." (length files)))))
@@ -477,11 +477,11 @@ Return t if any changes made, nil otherwise."
 Results are sorted alphabetically and displayed in a dedicated buffer."
   (interactive "DGit repository directory: ")
   (let* ((default-directory (expand-file-name directory))
-         (output (shell-command-to-string
-                  "git log --format='%aN <%aE>' | sort -u"))
-         (buf (get-buffer-create "*Git Authors*")))
+          (output (shell-command-to-string
+                    "git log --format='%aN <%aE>' | sort -u"))
+          (buf (get-buffer-create "*Git Authors*")))
     (if (string-empty-p (string-trim output))
-        (message "No authors found or not a git repository: %s" directory)
+      (message "No authors found or not a git repository: %s" directory)
       (with-current-buffer buf
         (read-only-mode -1)
         (erase-buffer)
@@ -497,15 +497,28 @@ Results are sorted alphabetically and displayed in a dedicated buffer."
   "Return a list of unique author strings \"Name <email>\" for DIRECTORY."
   (interactive "DGit repository directory: ")
   (let* ((default-directory (expand-file-name directory))
-         (output (shell-command-to-string
-                  "git log --format='%aN <%aE>' | sort -u")))
+          (output (shell-command-to-string
+                    "git log --format='%aN <%aE>' | sort -u")))
     (if (string-empty-p (string-trim output))
-        (message "No authors found or not a git repository: %s" directory)
+      (message "No authors found or not a git repository: %s" directory)
       (progn
         (erase-buffer)
         (message (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
         (message (make-string 40 ?=) "\n")
         (message output)))))
+
+;;;###autoload
+(defun git-tools-commit-amend-no-edit ()
+  "Git amend commit automatically without editor."
+  (interactive)
+  (let ((proc
+          (magit-run-git-with-editor
+            "commit" "--amend" "--no-edit")))
+    (set-process-sentinel
+      proc
+      (lambda (process _event)
+        (when (eq (process-status process) 'exit)
+          (magit-refresh-all))))))
 
 (provide 'git-tools)
 ;;; git-tools.el ends here
