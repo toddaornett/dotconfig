@@ -5,9 +5,9 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: April 02, 2025
+;; Modified: July 9, 2026
 ;; Version: 0.0.1
-;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex text tools unix vc wp
+;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
 ;; Homepage: https://github.com/toddaornett/dotconfig
 ;;
@@ -20,7 +20,17 @@
 ;;; Code:
 
 (require 'magit)
-(require 'projectile)
+
+;; Keep `user-full-name'/`user-mail-address' in sync with the current
+;; repo's git config (falling back to Emacs' original values outside
+;; a repo).  This matters because a few things read those variables
+;; directly and need per-repo values, not one global identity:
+;;   - the `emacs-lisp-mode' `__package' yasnippet template, which
+;;     stamps `(user-full-name)'/`(user-email)' into Author/Maintainer
+;;     and copyright header lines when scaffolding a new elisp file
+;;   - `insert-random-uuid-into-buffer.el', which reads `(user-full-name)'
+;; See `git-tools-set-user-from-git-or-default', added below to the
+;; relevant hooks.
 
 ;; Save Emacs' original identity
 (defvar git-tools-original-user-full-name user-full-name)
@@ -30,12 +40,44 @@
 (defvar git-tools-git-identity-cache (make-hash-table :test #'equal))
 
 (defun git-tools--project-root ()
-  "Return the root directory of the current git project, or nil if none."
-  (let ((root (string-trim
-               (shell-command-to-string "git rev-parse --show-toplevel 2>/dev/null"))))
-    (if (and (> (length root) 0) (not (string-match-p "\\`fatal" root)))
-        (file-name-as-directory root)
-      nil)))
+  "Return the root directory of the current git project, or nil if none.
+Delegates to `magit-toplevel', which also handles worktrees and
+submodules correctly."
+  (when-let* ((root (magit-toplevel)))
+    (file-name-as-directory root)))
+
+(defun git-tools--project-name (root)
+  "Return the basename of git repo ROOT, to use as a project name."
+  (file-name-nondirectory (directory-file-name root)))
+
+(defun git-tools--project-relative-path (root)
+  "The function gets the ROOT path relative to a natural base.
+
+If ROOT is under the user's home directory, the base is `~', so the
+result includes everything between the home directory and ROOT — e.g.
+\"dev/Phoenix\" for ~/dev/Phoenix, or just \"Phoenix\" for ~/Phoenix,
+or \"\" if ROOT is the home directory itself.
+
+Otherwise, the base is `/', so the result is ROOT's absolute path with
+the leading slash stripped — e.g. \"opt/repos/Phoenix\" for
+/opt/repos/Phoenix."
+  (let* ((root (directory-file-name (expand-file-name root)))
+         (home (directory-file-name (expand-file-name "~"))))
+    (cond
+     ((string= root home) "")
+     ((string-prefix-p (concat home "/") root)
+      (substring root (1+ (length home))))
+     (t (string-remove-prefix "/" root)))))
+
+(defun git-tools--project-files (root)
+  "Return absolute paths of all files tracked by git in repo ROOT.
+Equivalent in spirit to `projectile-project-files', but backed by
+`git ls-files' instead of projectile, so it has no dependency on
+projectile being installed."
+  (let ((default-directory root))
+    (mapcar (lambda (f) (expand-file-name f root))
+            (git-tools--nonempty-lines
+             (shell-command-to-string "git ls-files")))))
 
 (defun git-tools-git-config-value (key)
   "Return git config value for KEY in current repo, or nil."
@@ -72,6 +114,8 @@
 ;; Update when opening files
 (add-hook 'find-file-hook #'git-tools-set-user-from-git-or-default)
 
+;; projectile is optional: only hook in if it happens to be loaded by
+;; the user's config, without requiring it as a hard dependency here.
 (when (featurep 'projectile)
   (add-hook 'projectile-after-switch-project-hook
             #'git-tools-set-user-from-git-or-default))
@@ -415,14 +459,13 @@ Return t if any changes made, nil otherwise."
           (variable (read-string "Set variable: " default-variable))
           (value (read-string "Set to: " default-value)))
      (list variable value)))
-  (let* ((project-name (projectile-project-name))
-         (project-root (projectile-project-root))
-         (project-files (projectile-project-files project-root))
+  (let* ((project-root (or (git-tools--project-root)
+                           (error "No project root found. Ensure a project is active")))
+         (project-name (git-tools--project-name project-root))
+         (project-files (git-tools--project-files project-root))
          (updates-made nil)
          (git-main-branch (git-tools-main-branch-name))
          (target-branch (concat "build/update-env-" (string-replace "_" "-" (downcase  variable)))))
-    (unless project-root
-      (error "No project root found. Ensure a project is active"))
     (message "Setting %s to %s in project %s" variable value project-name)
 
     ;; Check for any working files for git and make branch from main
@@ -440,14 +483,13 @@ Return t if any changes made, nil otherwise."
             (kill-buffer process-buffer)))))
 
     ;; find yaml files in project to process
-    (dolist (relative-file project-files)
-      (let ((file (expand-file-name relative-file project-root)))
-        (when (and (file-exists-p file)
-                   (string-equal-ignore-case
-                    (or (file-name-extension file) "")
-                    "yaml"))
-          (when (git-tools-update-yaml-file (or buffer-file-name "") file variable value)
-            (setq updates-made t)))))
+    (dolist (file project-files)
+      (when (and (file-exists-p file)
+                 (string-equal-ignore-case
+                  (or (file-name-extension file) "")
+                  "yaml"))
+        (when (git-tools-update-yaml-file (or buffer-file-name "") file variable value)
+          (setq updates-made t))))
 
     ;; update branch and commit
     (if updates-made
@@ -529,16 +571,20 @@ Results are sorted alphabetically and displayed in a dedicated buffer."
          (magit-refresh-all))))))
 
 (defun git-tools--default-copy-dir ()
-  "Compute the default destination directory: ~/wip/PROJECT/BRANCH.
-PROJECT is the basename of the git repo's root directory, and BRANCH
-is the current branch."
+  "Compute the default destination directory: ~/wip/RELATIVE-PATH/BRANCH.
+RELATIVE-PATH is the git repo's root expressed relative to the user's
+home directory (or to `/' if the repo is outside the home directory),
+preserving any intermediate directories — see
+`git-tools--project-relative-path'.  BRANCH is the current branch."
   (let* ((root (or (git-tools--project-root)
                    (error "Not inside a git repository")))
          (default-directory root)
-         (project-name (file-name-nondirectory
-                        (directory-file-name root)))
-         (branch (magit-get-current-branch)))
-    (expand-file-name (concat project-name "/" branch) "~/wip")))
+         (relative-path (git-tools--project-relative-path root))
+         (branch (magit-get-current-branch))
+         (subdir (if (string-empty-p relative-path)
+                     branch
+                   (concat relative-path "/" branch))))
+    (expand-file-name subdir "~/wip")))
 
 (defun git-tools--nonempty-lines (str)
   "Split STR into lines, trimmed, dropping empty lines."
@@ -561,21 +607,57 @@ is the current branch."
     (format "git diff-tree --no-commit-id --name-only -r --root %s"
             (shell-quote-argument commit)))))
 
-(defun git-tools--copy-blob (commit file dest)
-  "Write the content of FILE as of COMMIT to DEST.
-Creates parent directories of DEST as needed.  Returns t on success,
-or nil if FILE did not exist in COMMIT's tree (e.g. it was deleted by
-that commit)."
+(defun git-tools--copy-object (spec dest)
+  "Write the content of the git object at SPEC to DEST.
+SPEC is anything `git show' accepts for a single blob, e.g.
+\"HEAD:path/to/file\" for a commit, or \":path/to/file\" for the
+current index (staged content).  Creates parent directories of DEST
+as needed.  Returns t on success, or nil if SPEC does not resolve to
+a blob (e.g. the file was deleted, or is not staged)."
   (with-temp-buffer
     (set-buffer-multibyte nil)
     (let* ((coding-system-for-read 'no-conversion)
            (coding-system-for-write 'no-conversion)
-           (exit-code (call-process "git" nil t nil "show"
-                                    (format "%s:%s" commit file))))
+           (exit-code (call-process "git" nil t nil "show" spec)))
       (when (zerop exit-code)
         (make-directory (file-name-directory dest) t)
         (write-region (point-min) (point-max) dest nil 'quiet nil nil)
         t))))
+
+(defun git-tools--copy-blob (commit file dest)
+  "Write the content of FILE as of COMMIT to DEST.
+See `git-tools--copy-object' for return value and directory handling."
+  (git-tools--copy-object (format "%s:%s" commit file) dest))
+
+(defun git-tools--staged-files ()
+  "Return list of files (relative paths) with staged changed files."
+  (git-tools--nonempty-lines
+   (shell-command-to-string "git diff --cached --name-only")))
+
+(defun git-tools--working-changed-files ()
+  "Return list of files (relative paths) that are modified or untracked.
+\"Modified\" means the working tree differs from the index — i.e.
+unstaged edits to an already-tracked file, whether or not it also has
+separate staged changes.  Untracked files are included too.  Files
+that are only unstaged-deleted are included as well; callers should
+expect `file-exists-p' to fail for those and skip them."
+  (let* ((output (shell-command-to-string
+                  "git status --porcelain --untracked-files=all"))
+         (lines (split-string output "\n" t)))
+    (delete-dups
+     (delq nil
+           (mapcar
+            (lambda (line)
+              (when (>= (length line) 4)
+                (let* ((xy (substring line 0 2))
+                       (worktree-status (aref line 1))
+                       (path (string-trim (substring line 3))))
+                  (when (string-match " -> " path)
+                    (setq path (car (last (split-string path " -> ")))))
+                  (when (or (string= xy "??")
+                            (memq worktree-status '(?M ?A ?D)))
+                    path))))
+            lines)))))
 
 ;;;###autoload
 (defun git-tools-copy-commits (&optional dir commit-count)
@@ -627,6 +709,84 @@ this function from Lisp, e.g.:
           (setq skipped (1+ skipped)))))
     (message "Copied %d file(s) from %d commit(s) to %s%s"
              copied (length commits) dir
+             (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+
+;;;###autoload
+(defun git-tools-copy-staged (&optional dir)
+  "Copy currently staged files to DIR, using their staged (index) content.
+
+Each file is written as it exists in the index right now — i.e. what
+`git commit' would record — not the working-tree version, so any
+additional unstaged edits on top of the staged version are not
+included.  A staged deletion is skipped (there is no content to copy).
+
+If DIR is omitted, use ~/wip concatenated with the project name and
+current branch, same as `git-tools-copy-commits'.
+
+Interactively, a prefix argument (e.g. `\\[universal-argument]
+\\[git-tools-copy-staged]') prompts for the destination directory;
+with no prefix argument, the default directory is used."
+  (interactive
+   (list
+    (when current-prefix-arg
+      (read-directory-name "Copy staged files to directory: "))))
+  (let* ((root (or (git-tools--project-root)
+                   (error "Not inside a git repository")))
+         (default-directory root)
+         (dir (or dir (git-tools--default-copy-dir)))
+         (files (git-tools--staged-files))
+         (copied 0)
+         (skipped 0))
+    (unless files
+      (user-error "No staged files found"))
+    (dolist (file files)
+      (if (git-tools--copy-object (concat ":" file) (expand-file-name file dir))
+          (setq copied (1+ copied))
+        (setq skipped (1+ skipped))))
+    (message "Copied %d staged file(s) to %s%s"
+             copied dir
+             (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+
+;;;###autoload
+(defun git-tools-copy-working-changes (&optional dir)
+  "Copy modified and untracked working-tree files to DIR.
+
+Copies the current on-disk content of any file that has unstaged
+modifications relative to the index, or that is untracked by git, per
+`git status'.  This includes files that also have separate staged
+changes, since the point is what's currently on disk.  A file that is
+unstaged-deleted is skipped, since it no longer exists on disk.
+
+If DIR is omitted, use ~/wip concatenated with the project name and
+current branch, same as `git-tools-copy-commits'.
+
+Interactively, a prefix argument (e.g. `\\[universal-argument]
+\\[git-tools-copy-working-changes]') prompts for the destination
+directory; with no prefix argument, the default directory is used."
+  (interactive
+   (list
+    (when current-prefix-arg
+      (read-directory-name "Copy working changes to directory: "))))
+  (let* ((root (or (git-tools--project-root)
+                   (error "Not inside a git repository")))
+         (default-directory root)
+         (dir (or dir (git-tools--default-copy-dir)))
+         (files (git-tools--working-changed-files))
+         (copied 0)
+         (skipped 0))
+    (unless files
+      (user-error "No modified or untracked files found"))
+    (dolist (file files)
+      (let ((src (expand-file-name file root))
+            (dest (expand-file-name file dir)))
+        (if (file-exists-p src)
+            (progn
+              (make-directory (file-name-directory dest) t)
+              (copy-file src dest t)
+              (setq copied (1+ copied)))
+          (setq skipped (1+ skipped)))))
+    (message "Copied %d modified/untracked file(s) to %s%s"
+             copied dir
              (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
 
 (provide 'git-tools)
