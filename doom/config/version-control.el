@@ -5,7 +5,7 @@
   (setq ediff-window-setup-function 'ediff-setup-windows-plain)
   (setq ediff-split-window-function 'split-window-vertically)
   (setq magit-ediff-dwim-show-on-hunks t)
-  (setq magit-uniqfy-buffer-names t)
+  (setq magit-uniquify-buffer-names t)
   (setq magit-save-repository-buffers 'dontask)
   (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
