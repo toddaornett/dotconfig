@@ -474,6 +474,42 @@ _q_: quit
     (dolist (var exec-path-from-shell-variables)
       (ignore-errors (exec-path-from-shell-copy-env var)))))
 
+(defun tao/dired-copy-full-path ()
+  (interactive)
+  (kill-new (dired-get-filename nil t))
+  (message "Copied %s" (current-kill 0)))
+
+(defun tao/get-relative-base-directory (file-path)
+  "Determine the base directory for FILE-PATH based on custom fallback rules."
+  (cond
+   ((and (fboundp 'git-tools--project-root)
+         (git-tools--project-root)))
+   ((and (boundp 'org-directory)
+         org-directory
+         (string-prefix-p (expand-file-name org-directory)
+                          (expand-file-name file-path)))
+    (expand-file-name org-directory))
+   (t default-directory)))
+
+(defun tao/dired-copy-relative-path ()
+  "Copy the current Dired file path relative to a calculated project/org base."
+  (interactive)
+  (let* ((filename (dired-get-filename)) ; Get absolute path
+         (base (tao/get-relative-base-directory filename))
+         (rel-path (file-relative-name filename base)))
+    (kill-new rel-path)
+    (message "Copied relative path: %s (Base: %s)" rel-path base)))
+
+(defun tao/copy-buffer-relative-path ()
+  "Copy the current buffer file path relative to a calculated project/org base."
+  (interactive)
+  (if-let ((file (buffer-file-name)))
+      (let* ((base (tao/get-relative-base-directory file))
+             (rel-path (file-relative-name file base)))
+        (kill-new rel-path)
+        (message "Copied relative path: %s (Base: %s)" rel-path base))
+    (user-error "Current buffer is not visiting a file.")))
+
 (after! general
   (general-define-key
    :states 'normal
