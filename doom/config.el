@@ -95,8 +95,6 @@
 
 (setq display-line-numbers-type t)
 
-(setq org-directory "~/Notes/")
-
 (setq gc-cons-threshold (* 50 1000 1000))
 (after! gcmh
   (setq gcmh-high-cons-threshold 67108864))
@@ -440,6 +438,7 @@ _q_: quit
     (insert text)))
 
 (after! evil
+  (evil-set-initial-state 'tetris-mode 'emacs)
   (add-hook 'evil-insert-state-entry-hook #'company-mode))
 
 (after! project
@@ -568,7 +567,7 @@ _q_: quit
              (not (or (bound-and-true-p lsp-mode)
                       (bound-and-true-p eglot--managed-mode)
                       (member major-mode '(rust-mode rust-ts-mode
-                                      yaml-mode yaml-ts-mode)))))
+                                           yaml-mode yaml-ts-mode)))))
     (apheleia-mode-maybe)))
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
