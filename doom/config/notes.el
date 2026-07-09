@@ -311,7 +311,7 @@ both the displayed name and the abbreviation used for matching."
       (user-error "Cannot search bookmarks: `%s` does not exist!" org-index-file)))
 
   (map! :leader
-        (:prefix-map ("o" . "open")
+        (:prefix ("o" . "open")
          :desc "Org Bookmarks Menu" "w" #'tao/search-org-bookmarks)))
 
 (use-package! org-superstar
