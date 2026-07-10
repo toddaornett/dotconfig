@@ -54,7 +54,7 @@
   ;;grammar           ; Disable to reduce overhead
 
   :tools
-  (tree-sitter +lsp)
+  ;; (tree-sitter +lsp) ; using native treesit.el instead
   projectile          ; Essential for Rust projects
   direnv              ; Keep for environment management
   editorconfig        ; Keep for consistent coding styles
