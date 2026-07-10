@@ -15,17 +15,17 @@
 (defun tao/install-nerd-font ()
   "Install Fira Code Nerd Font using system package manager."
   (cond
-   ((executable-find "brew")
-    (start-process "brew-font" "*font-install*"
-                   "brew" "install" "--cask" "font-fira-code-nerd-font"))
-   ((executable-find "apt")
-    (start-process "apt-font" "*font-install*"
-                   "sudo" "apt" "install" "-y" "fonts-firacode"))
-   ((executable-find "pacman")
-    (start-process "pacman-font" "*font-install*"
-                   "sudo" "pacman" "-S" "--noconfirm" "ttf-fira-code"))
-   (t
-    (message "⚠️ No supported package manager found for Nerd Font install"))))
+    ((executable-find "brew")
+      (start-process "brew-font" "*font-install*"
+        "brew" "install" "--cask" "font-fira-code-nerd-font"))
+    ((executable-find "apt")
+      (start-process "apt-font" "*font-install*"
+        "sudo" "apt" "install" "-y" "fonts-firacode"))
+    ((executable-find "pacman")
+      (start-process "pacman-font" "*font-install*"
+        "sudo" "pacman" "-S" "--noconfirm" "ttf-fira-code"))
+    (t
+      (message "⚠️ No supported package manager found for Nerd Font install"))))
 
 (defun tao/font-installed-p (font-name)
   "Return t if FONT-NAME is installed."
@@ -42,8 +42,8 @@
       (unless (tao/font-installed-p "FiraCode Nerd Font")
         (message "🎨 Nerd icons use Fira Code Nerd Font; install it if icons look wrong."))
       (when (and (require 'nerd-icons nil t)
-                 (fboundp 'nerd-icons-install-fonts)
-                 (not (tao/font-installed-p "Symbols Nerd Font")))
+              (fboundp 'nerd-icons-install-fonts)
+              (not (tao/font-installed-p "Symbols Nerd Font")))
         (nerd-icons-install-fonts t)))))
 
 (add-hook 'doom-after-init-hook #'tao/ensure-doom-fonts)
@@ -58,12 +58,12 @@
   (require 'nerd-icons nil t))
 
 (setq doom-font (font-spec :family "FiraCode Nerd Font" :size 16 :weight 'medium)
-      doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
-      doom-big-font (font-spec :family "Fira Sans" :size 24))
+  doom-variable-pitch-font (font-spec :family "Fira Sans" :size 16)
+  doom-big-font (font-spec :family "Fira Sans" :size 24))
 
 (after! doom-themes
   (setq doom-themes-enable-bold t
-        doom-themes-enable-italic t))
+    doom-themes-enable-italic t))
 
 (custom-set-faces!
   '(font-lock-comment-face :slant italic)
@@ -73,12 +73,12 @@
 (after! nerd-icons
   (when (facep 'nerd-icons-default-face)
     (set-face-attribute 'nerd-icons-default-face nil
-                        :family "FiraCode Nerd Font"
-                        :height 1.2
-                        :slant 'normal
-                        :weight 'regular
-                        :width 'normal
-                        :inherit nil)))
+      :family "FiraCode Nerd Font"
+      :height 1.2
+      :slant 'normal
+      :weight 'regular
+      :width 'normal
+      :inherit nil)))
 
 (setq doom-theme 'doom-palenight)
 
@@ -100,7 +100,7 @@
   (setq gcmh-high-cons-threshold 67108864))
 
 (setq delete-by-moving-to-trash t
-      trash-directory "~/.Trash")
+  trash-directory "~/.Trash")
 
 (defun tao/dired-open-all-files-in-directory ()
   "Open all regular files in the current Dired directory into buffers.
@@ -111,10 +111,10 @@ Only works when called from a Dired buffer."
   (let ((files (directory-files (dired-current-directory) t "^[^.]" t)))
     (dolist (file files)
       (when (and (file-regular-p file)
-                 (not (file-symlink-p file)))
+              (not (file-symlink-p file)))
         (find-file-noselect file)))))
 (map! :map dired-mode-map
-      :n "o" #'tao/dired-open-all-files-in-directory)
+  :n "o" #'tao/dired-open-all-files-in-directory)
 
 (after! company
   (define-key company-mode-map (kbd "C-<tab>") 'company-complete)
@@ -137,25 +137,23 @@ Only works when called from a Dired buffer."
   (define-key company-active-map (kbd "<tab>") nil))
 
 (after! rustic
-  (setq rustic-lsp-client 'eglot)
-  (setq rustic-format-on-save t)
-  (add-hook 'rustic-mode-hook #'eglot-ensure)
+  (setq rustic-format-on-save nil)
   (add-hook 'rustic-mode-hook
-            (lambda ()
-              (yas-minor-mode 1)
-              (setq-local company-backends '((company-capf company-yasnippet))))))
+    (lambda ()
+      (yas-minor-mode 1)
+      (setq-local company-backends '((company-capf company-yasnippet))))))
 
 (after! eglot
   (setq eglot-sync-connect 0)
   (setq eglot-autoshutdown t)
   (setq eglot-events-buffer-config '(:size 1000000 :format full))
   (add-to-list 'eglot-server-programs
-               '(rustic-mode . ("rust-analyzer"
-                                :initializationOptions
-                                (:procMacro (:enable t)
-                                 :diagnostics (:enable nil)
-                                 :cargo (:watch (:enable nil))
-                                 :completion (:autoimport (:enable t)))))))
+    '(rustic-mode . ("rust-analyzer"
+                      :initializationOptions
+                      (:procMacro (:enable t)
+                        :diagnostics (:enable nil)
+                        :cargo (:watch (:enable nil))
+                        :completion (:autoimport (:enable t)))))))
 
 (after! yasnippet
   (yas-global-mode 1)
@@ -163,62 +161,62 @@ Only works when called from a Dired buffer."
   (defun tao/snippet-keywords-from-description (desc)
     "Derive org-package keyword tags from DESC string."
     (let* ((keyword-map
-            '(("org"        . "outlines")
-              ("task"       . "outlines")
-              ("outline"    . "outlines")
-              ("slack"      . "convenience")
-              ("status"     . "convenience")
-              ("message"    . "convenience")
-              ("report"     . "convenience")
-              ("git"        . "tools")
-              ("github"     . "tools")
-              ("process"    . "tools")
-              ("shell"      . "tools")
-              ("script"     . "tools")
-              ("generate"   . "convenience")
-              ("parse"      . "lisp")
-              ("macro"      . "lisp")
-              ("elisp"      . "lisp")
-              ("emacs"      . "convenience")))
-           (desc-lower (downcase (or desc "")))
-           (matched
-            (delete-dups
-             (delq nil
-                   (mapcar (lambda (pair)
-                             (when (string-match-p (car pair) desc-lower)
-                               (cdr pair)))
-                           keyword-map)))))
+             '(("org"        . "outlines")
+                ("task"       . "outlines")
+                ("outline"    . "outlines")
+                ("slack"      . "convenience")
+                ("status"     . "convenience")
+                ("message"    . "convenience")
+                ("report"     . "convenience")
+                ("git"        . "tools")
+                ("github"     . "tools")
+                ("process"    . "tools")
+                ("shell"      . "tools")
+                ("script"     . "tools")
+                ("generate"   . "convenience")
+                ("parse"      . "lisp")
+                ("macro"      . "lisp")
+                ("elisp"      . "lisp")
+                ("emacs"      . "convenience")))
+            (desc-lower (downcase (or desc "")))
+            (matched
+              (delete-dups
+                (delq nil
+                  (mapcar (lambda (pair)
+                            (when (string-match-p (car pair) desc-lower)
+                              (cdr pair)))
+                    keyword-map)))))
       (if matched
-          (mapconcat #'identity matched " ")
+        (mapconcat #'identity matched " ")
         "tools")))
   (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
   (add-hook 'yas-minor-mode-hook
-            (lambda ()
-              (local-set-key (kbd "TAB") 'yas-expand)
-              (local-set-key (kbd "<tab>") 'yas-expand))))
+    (lambda ()
+      (local-set-key (kbd "TAB") 'yas-expand)
+      (local-set-key (kbd "<tab>") 'yas-expand))))
 
 (after! vue
   (add-hook 'vue-mode-hook #'lsp!))
 
 (defvar tao/treesit-grammars
   '((css        . ("https://github.com/tree-sitter/tree-sitter-css" "v0.25.0"))
-    (bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
-    (html       . ("https://github.com/tree-sitter/tree-sitter-html" "v0.23.2"))
-    (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "v0.25.0" "src"))
-    (json       . ("https://github.com/tree-sitter/tree-sitter-json" "v0.24.8"))
-    (python     . ("https://github.com/tree-sitter/tree-sitter-python" "v0.25.0"))
-    (go         . ("https://github.com/tree-sitter/tree-sitter-go" "v0.25.0"))
-    (markdown   . ("https://github.com/ikatyang/tree-sitter-markdown"))
-    (make       . ("https://github.com/alemuller/tree-sitter-make"))
-    (elisp      . ("https://github.com/Wilfred/tree-sitter-elisp"))
-    (cmake      . ("https://github.com/uyha/tree-sitter-cmake"))
-    (c          . ("https://github.com/tree-sitter/tree-sitter-c"))
-    (cpp        . ("https://github.com/tree-sitter/tree-sitter-cpp"))
-    (toml       . ("https://github.com/tree-sitter/tree-sitter-toml"))
-    (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src"))
-    (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src"))
-    (yaml       . ("https://github.com/ikatyang/tree-sitter-yaml" "v0.5.0"))
-    (prisma     . ("https://github.com/victorhqc/tree-sitter-prisma")))
+     (bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
+     (html       . ("https://github.com/tree-sitter/tree-sitter-html" "v0.23.2"))
+     (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "v0.25.0" "src"))
+     (json       . ("https://github.com/tree-sitter/tree-sitter-json" "v0.24.8"))
+     (python     . ("https://github.com/tree-sitter/tree-sitter-python" "v0.25.0"))
+     (go         . ("https://github.com/tree-sitter/tree-sitter-go" "v0.25.0"))
+     (markdown   . ("https://github.com/ikatyang/tree-sitter-markdown"))
+     (make       . ("https://github.com/alemuller/tree-sitter-make"))
+     (elisp      . ("https://github.com/Wilfred/tree-sitter-elisp"))
+     (cmake      . ("https://github.com/uyha/tree-sitter-cmake"))
+     (c          . ("https://github.com/tree-sitter/tree-sitter-c"))
+     (cpp        . ("https://github.com/tree-sitter/tree-sitter-cpp"))
+     (toml       . ("https://github.com/tree-sitter/tree-sitter-toml"))
+     (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src"))
+     (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src"))
+     (yaml       . ("https://github.com/ikatyang/tree-sitter-yaml" "v0.5.0"))
+     (prisma     . ("https://github.com/victorhqc/tree-sitter-prisma")))
   "Tree-sitter grammars to install. Bump a version string to trigger reinstall.")
 
 (defvar tao/treesit-grammars-hash-file
@@ -232,11 +230,11 @@ Only works when called from a Dired buffer."
 (defun tao/treesit-grammars-changed-p ()
   "Return t if the grammar list has changed since last install."
   (let ((current-hash (tao/treesit-grammars-hash))
-        (stored-hash
-         (when (file-exists-p tao/treesit-grammars-hash-file)
-           (with-temp-buffer
-             (insert-file-contents tao/treesit-grammars-hash-file)
-             (string-trim (buffer-string))))))
+         (stored-hash
+           (when (file-exists-p tao/treesit-grammars-hash-file)
+             (with-temp-buffer
+               (insert-file-contents tao/treesit-grammars-hash-file)
+               (string-trim (buffer-string))))))
     (not (string= current-hash stored-hash))))
 
 (defun tao/treesit-save-grammars-hash ()
@@ -252,11 +250,11 @@ Grammars are (re)installed when:
 Call interactively to force reinstall of all grammars."
   (interactive)
   (let ((changed (or (called-interactively-p 'any)
-                     (tao/treesit-grammars-changed-p))))
+                   (tao/treesit-grammars-changed-p))))
     (dolist (grammar tao/treesit-grammars)
       (add-to-list 'treesit-language-source-alist grammar)
       (when (or changed
-                (not (treesit-language-available-p (car grammar))))
+              (not (treesit-language-available-p (car grammar))))
         (message "treesit: installing grammar for %s" (car grammar))
         (treesit-install-language-grammar (car grammar))))
     (when changed
@@ -265,19 +263,19 @@ Call interactively to force reinstall of all grammars."
 
 (after! treesit
   (dolist (mapping
-           '((python-mode     . python-ts-mode)
-             (css-mode        . css-ts-mode)
-             (typescript-mode . typescript-ts-mode)
-             (js-mode         . typescript-ts-mode)
-             (js2-mode        . typescript-ts-mode)
-             (c-mode          . c-ts-mode)
-             (c++-mode        . c++-ts-mode)
-             (c-or-c++-mode   . c-or-c++-ts-mode)
-             (bash-mode       . bash-ts-mode)
-             (json-mode       . json-ts-mode)
-             (js-json-mode    . json-ts-mode)
-             (sh-mode         . bash-ts-mode)
-             (sh-base-mode    . bash-ts-mode)))
+            '((python-mode     . python-ts-mode)
+               (css-mode        . css-ts-mode)
+               (typescript-mode . typescript-ts-mode)
+               (js-mode         . typescript-ts-mode)
+               (js2-mode        . typescript-ts-mode)
+               (c-mode          . c-ts-mode)
+               (c++-mode        . c++-ts-mode)
+               (c-or-c++-mode   . c-or-c++-ts-mode)
+               (bash-mode       . bash-ts-mode)
+               (json-mode       . json-ts-mode)
+               (js-json-mode    . json-ts-mode)
+               (sh-mode         . bash-ts-mode)
+               (sh-base-mode    . bash-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
   (tao/setup-install-grammars))
 
@@ -287,19 +285,19 @@ Call interactively to force reinstall of all grammars."
 (use-package! expreg
   :init
   (add-to-list 'load-path
-               (expand-file-name ".local/straight/repos/expreg" user-emacs-directory))
+    (expand-file-name ".local/straight/repos/expreg" user-emacs-directory))
   :commands (expreg-expand expreg-contract))
 
 (defun tao/expand-region ()
   (interactive)
   (if (treesit-parser-list)
-      (expreg-expand)
+    (expreg-expand)
     (er/expand-region 1)))
 
 (defun tao/contract-region ()
   (interactive)
   (if (treesit-parser-list)
-      (expreg-contract)
+    (expreg-contract)
     (er/contract-region 1)))
 
 (after! hydra
@@ -321,18 +319,18 @@ _q_: quit
     (tao/hydra-expand-region/body))
 
   (map! :n "C-c e" #'tao/expand-region
-        :n "C-c E" #'tao/contract-region
-        :leader
-        :n "+" #'tao/expand-region-hydra
-        :n "-" #'tao/hydra-expand-region/body))
+    :n "C-c E" #'tao/contract-region
+    :leader
+    :n "+" #'tao/expand-region-hydra
+    :n "-" #'tao/hydra-expand-region/body))
 
 (use-package! lsp-mode
   :diminish "LSP"
   :hook ((lsp-mode . lsp-diagnostics-mode)
-         (lsp-mode . lsp-enable-which-key-integration)
-         ((tsx-ts-mode
-           typescript-ts-mode
-           js-ts-mode) . lsp-deferred))
+          (lsp-mode . lsp-enable-which-key-integration)
+          ((tsx-ts-mode
+             typescript-ts-mode
+             js-ts-mode) . lsp-deferred))
   :custom
   (lsp-keymap-prefix "C-c l")
   (lsp-completion-provider :none)
@@ -384,20 +382,20 @@ _q_: quit
 (use-package! lsp-ui
   :commands
   (lsp-ui-doc-show
-   lsp-ui-doc-glance)
+    lsp-ui-doc-glance)
   :bind (:map lsp-mode-map
-              ("C-c C-d" . 'lsp-ui-doc-glance))
+          ("C-c C-d" . 'lsp-ui-doc-glance))
   :after (lsp-mode evil)
   :config (setq lsp-ui-doc-enable t
-                evil-lookup-func #'lsp-ui-doc-glance
-                lsp-ui-doc-show-with-cursor nil
-                lsp-ui-doc-include-signature t
-                lsp-ui-doc-position 'at-point))
+            evil-lookup-func #'lsp-ui-doc-glance
+            lsp-ui-doc-show-with-cursor nil
+            lsp-ui-doc-include-signature t
+            lsp-ui-doc-position 'at-point))
 
 (use-package! typescript-ts-mode
   :hook
   ((typescript-ts-mode . lsp)
-   (tsx-ts-mode . lsp)))
+    (tsx-ts-mode . lsp)))
 
 (cl-defmethod project-root ((project (head eglot-project)))
   (cdr project))
@@ -408,7 +406,7 @@ _q_: quit
       (cons 'eglot-project found)))
   (add-hook 'project-find-functions 'tao/project-try-tsconfig-json nil nil)
   (add-to-list 'eglot-server-programs
-               '((typescript-mode) "typescript-language-server" "--stdio")))
+    '((typescript-mode) "typescript-language-server" "--stdio")))
 
 (defun insert-backslash ()
   "Insert backslash"
@@ -446,11 +444,11 @@ _q_: quit
 
 (after! projectile
   (let* ((projects-path "~/Projects")
-         (open-projects-path (getenv "OPENPROJECTS_PATH"))
-         (paths (delq nil (list projects-path
-                                (unless (string= projects-path open-projects-path)
-                                  open-projects-path)
-                                (when (file-directory-p "~/dev") "~/dev")))))
+          (open-projects-path (getenv "OPENPROJECTS_PATH"))
+          (paths (delq nil (list projects-path
+                             (unless (string= projects-path open-projects-path)
+                               open-projects-path)
+                             (when (file-directory-p "~/dev") "~/dev")))))
     (dolist (path paths)
       (let ((entry (cons path 2)))
         (unless (assoc path projectile-project-search-path)
@@ -462,13 +460,13 @@ _q_: quit
   (when (memq window-system '(mac ns x))
     (setq exec-path-from-shell-arguments '("-l"))
     (setq exec-path-from-shell-variables '("PATH"
-                                           "MISE_SHELL"
-                                           "DEFAULT_GIT_COMMIT_MESSAGE"
-                                           "GITHUB_PULL_REQUEST_REVIEWERS"
-                                           "JIRA_USER"
-                                           "JIRA_TOKEN"
-                                           "JIRA_ISSUE_BASE_URL"
-                                           "JIRA_ISSUE_KEY_PREFIX"))
+                                            "MISE_SHELL"
+                                            "DEFAULT_GIT_COMMIT_MESSAGE"
+                                            "GITHUB_PULL_REQUEST_REVIEWERS"
+                                            "JIRA_USER"
+                                            "JIRA_TOKEN"
+                                            "JIRA_ISSUE_BASE_URL"
+                                            "JIRA_ISSUE_KEY_PREFIX"))
     (exec-path-from-shell-initialize)
     (dolist (var exec-path-from-shell-variables)
       (ignore-errors (exec-path-from-shell-copy-env var)))))
@@ -481,21 +479,21 @@ _q_: quit
 (defun tao/get-relative-base-directory (file-path)
   "Determine the base directory for FILE-PATH based on custom fallback rules."
   (cond
-   ((and (fboundp 'git-tools--project-root)
-         (git-tools--project-root)))
-   ((and (boundp 'org-directory)
-         org-directory
-         (string-prefix-p (expand-file-name org-directory)
-                          (expand-file-name file-path)))
-    (expand-file-name org-directory))
-   (t default-directory)))
+    ((and (fboundp 'git-tools--project-root)
+       (git-tools--project-root)))
+    ((and (boundp 'org-directory)
+       org-directory
+       (string-prefix-p (expand-file-name org-directory)
+         (expand-file-name file-path)))
+      (expand-file-name org-directory))
+    (t default-directory)))
 
 (defun tao/dired-copy-relative-path ()
   "Copy the current Dired file path relative to a calculated project/org base."
   (interactive)
   (let* ((filename (dired-get-filename)) ; Get absolute path
-         (base (tao/get-relative-base-directory filename))
-         (rel-path (file-relative-name filename base)))
+          (base (tao/get-relative-base-directory filename))
+          (rel-path (file-relative-name filename base)))
     (kill-new rel-path)
     (message "Copied relative path: %s (Base: %s)" rel-path base)))
 
@@ -503,40 +501,40 @@ _q_: quit
   "Copy the current buffer file path relative to a calculated project/org base."
   (interactive)
   (if-let ((file (buffer-file-name)))
-      (let* ((base (tao/get-relative-base-directory file))
-             (rel-path (file-relative-name file base)))
-        (kill-new rel-path)
-        (message "Copied relative path: %s (Base: %s)" rel-path base))
+    (let* ((base (tao/get-relative-base-directory file))
+            (rel-path (file-relative-name file base)))
+      (kill-new rel-path)
+      (message "Copied relative path: %s (Base: %s)" rel-path base))
     (user-error "Current buffer is not visiting a file.")))
 
 (after! general
   (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "<escape>" '(buffer-menu :which-key "buffer menu"))
+    :states 'normal
+    :keymaps 'override
+    :prefix doom-leader-key
+    "<escape>" '(buffer-menu :which-key "buffer menu"))
   (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   :which-key "string inflection"
-   "z" '(:which-key "string inflection")
-   "z a" '(string-inflection-all-cycle :which-key "all cases")
-   "z c" '(string-inflection-camelcase :which-key "camelCase")
-   "z k" '(string-inflection-kebab-case :which-key "kebab-case")
-   "z l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
-   "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
-   "z s" '(string-inflection-underscore :which-key "snake_case")
-   "z u" '(string-inflection-upcase :which-key "UPCASE"))
+    :states 'normal
+    :keymaps 'override
+    :prefix doom-leader-key
+    :which-key "string inflection"
+    "z" '(:which-key "string inflection")
+    "z a" '(string-inflection-all-cycle :which-key "all cases")
+    "z c" '(string-inflection-camelcase :which-key "camelCase")
+    "z k" '(string-inflection-kebab-case :which-key "kebab-case")
+    "z l" '(string-inflection-lower-camelcase :which-key "lowerCamelCase")
+    "z p" '(string-inflection-upper-camelcase :which-key "UpperCamelCase")
+    "z s" '(string-inflection-underscore :which-key "snake_case")
+    "z u" '(string-inflection-upcase :which-key "UPCASE"))
   (general-define-key
-   :states 'normal
-   :keymaps 'override
-   :prefix doom-leader-key
-   "m i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
+    :states 'normal
+    :keymaps 'override
+    :prefix doom-leader-key
+    "m i u" '(markdown-tools-insert-human-url :which-key "insert human URL"))
   (general-define-key
-   :keymaps 'magit-status-mode-map
-   :states 'normal
-   "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
+    :keymaps 'magit-status-mode-map
+    :states 'normal
+    "z l" '(+magit-toggle-local-branches-section :which-key "toggle local branches")))
 
 (after! which-key
   (setq which-key-use-C-h-commands t)
@@ -545,30 +543,11 @@ _q_: quit
   (setq which-key-side-window-max-height 0.5))
 
 (after! apheleia
-  (setf (alist-get 'emacs-lisp-mode apheleia-formatters)
-        '("emacs" "--eval" "(progn
-                              (require 'emacs-lisp)
-                              (indent-region (point-min) (point-max))
-                              (untabify (point-min) (point-max))
-                              (buffer-string))"))
-  (setf (alist-get 'typescript-ts-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'tsx-ts-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'js-mode apheleia-mode-alist)
-        'prettier)
-  (setf (alist-get 'black apheleia-formatters)
-        '("black" "-"))
-  (setf (alist-get 'python-mode apheleia-mode-alist)
-        'black))
-
-(defun tao/conditionally-enable-apheleia ()
-  (when (and (derived-mode-p 'prog-mode)
-             (not (or (bound-and-true-p lsp-mode)
-                      (bound-and-true-p eglot--managed-mode)
-                      (member major-mode '(rust-mode rust-ts-mode
-                                           yaml-mode yaml-ts-mode)))))
-    (apheleia-mode-maybe)))
+  (setf (alist-get 'emacs-lisp-mode apheleia-mode-alist) 'lisp-indent)
+  (setf (alist-get 'black apheleia-formatters) '("black" "-"))
+  (setf (alist-get 'python-mode apheleia-mode-alist) 'black)
+  (setf (alist-get 'go-mode apheleia-mode-alist) 'gofumpt)
+  (setf (alist-get 'go-ts-mode apheleia-mode-alist) 'gofumpt))
 
 (add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
 
@@ -598,21 +577,21 @@ _q_: quit
   (setq auto-insert-query nil)
   (auto-insert-mode 1)
   (setq auto-insert-alist
-        (assoc-delete-all '(org-mode . "Org file skeleton") auto-insert-alist))
+    (assoc-delete-all '(org-mode . "Org file skeleton") auto-insert-alist))
   (defun tao/org-file-title ()
     "Convert buffer filename to a clean title-cased string."
     (let* ((base (file-name-base (buffer-file-name)))
-           (spaced (replace-regexp-in-string "[[:punct:]]+" " " base))
-           (trimmed (string-trim spaced))
-           (words (split-string trimmed " " t)))
+            (spaced (replace-regexp-in-string "[[:punct:]]+" " " base))
+            (trimmed (string-trim spaced))
+            (words (split-string trimmed " " t)))
       (mapconcat #'capitalize words " ")))
   (define-auto-insert
     '(org-mode . "Org file skeleton")
     '(""
-      "#+TITLE: " (tao/org-file-title) "\n"
-      "#+CREATED: " (format-time-string "[%Y-%m-%d %a %H:%M]") "\n"
-      "#+STARTUP: overview\n\n"
-      (concat "* " (tao/org-file-title) "\n** Introduction\n"))))
+       "#+TITLE: " (tao/org-file-title) "\n"
+       "#+CREATED: " (format-time-string "[%Y-%m-%d %a %H:%M]") "\n"
+       "#+STARTUP: overview\n\n"
+       (concat "* " (tao/org-file-title) "\n** Introduction\n"))))
 
 (use-package! port-number)
 
@@ -645,7 +624,7 @@ _q_: quit
   :if (teamscount-available-p)
   :config
   (setq teamscount-alert-sound "/System/Library/Sounds/Funk.aiff"
-        teamscount-icon-fg-color "#7B83EB")
+    teamscount-icon-fg-color "#7B83EB")
   (teamscount-mode 1))
 
 ;;; Flycheck
@@ -653,11 +632,11 @@ _q_: quit
 ;; emacs-lisp byte-compiler cannot evaluate. Use `doom sync` for real syntax checks.
 (defun tao/flycheck-disable-in-doom-dir ()
   (when (and buffer-file-name
-             (file-in-directory-p (expand-file-name doom-user-dir)
-                                  (expand-file-name buffer-file-name)))
+          (file-in-directory-p (expand-file-name doom-user-dir)
+            (expand-file-name buffer-file-name)))
     (setq-local flycheck-disabled-checkers
-                (append flycheck-disabled-checkers
-                        '(emacs-lisp emacs-lisp-checkdoc)))))
+      (append flycheck-disabled-checkers
+        '(emacs-lisp emacs-lisp-checkdoc)))))
 
 (add-hook 'emacs-lisp-mode-hook #'tao/flycheck-disable-in-doom-dir -90)
 
