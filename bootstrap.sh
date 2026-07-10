@@ -349,7 +349,7 @@ if [ ! -f "$SYMBOLA_PATH" ]; then
     # Fallback: official dn-works.com zip
     TMP_ZIP="$(mktemp -d)/symbola.zip"
     if curl -fsSL "https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.zip" -o "$TMP_ZIP" &&
-       unzip -qo "$TMP_ZIP" -d "$(dirname "$TMP_ZIP")"; then
+      unzip -qo "$TMP_ZIP" -d "$(dirname "$TMP_ZIP")"; then
       find "$(dirname "$TMP_ZIP")" -iname "Symbola.ttf" -exec cp {} "$SYMBOLA_PATH" \;
     fi
   fi
@@ -597,6 +597,16 @@ if ! command -v mise >/dev/null 2>&1; then
   if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
     echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
   fi
+fi
+
+#################################
+# Install goimports
+#################################
+if ! command -v goimports >/dev/null 2>&1; then
+  echo "🐹 Installing goimports ..."
+  go install golang.org/x/tools/cmd/goimports@latest
+else
+  echo "🐹 goimports is already installed"
 fi
 
 #################################
