@@ -1,4 +1,4 @@
-;;; $DOOMDIR/config/notes.el --- org mode configuration lexical-binding: t -*-
+;;; ;;; $DOOMDIR/config/notes.el --- org mode configuration -*- lexical-binding: t; -*-
 (setq org-directory "~/Notes/")
 
 (defvar org-index-file (concat org-directory "index.org")
@@ -151,7 +151,12 @@ Runs via `org-after-todo-state-change-hook'."
 
   (defun tao/register-org-bookmarks (org-file)
     "Parse ORG-FILE and generate native Emacs interactive commands for every web link."
-    (interactive)
+    (interactive
+      (list (if (and (boundp 'org-index-file)
+                  org-index-file
+                  (file-exists-p org-index-file))
+              org-index-file
+              (read-file-name "Org bookmarks file: " org-directory nil t))))
     (when (file-exists-p org-file)
       ;; Clear out bookmarks from any previous registration pass first, so
       ;; stale/phantom commands don't linger in the obarray. Leftover
@@ -161,7 +166,7 @@ Runs via `org-after-todo-state-change-hook'."
       ;; can prevent a real common prefix from ever being detected).
       (mapatoms (lambda (atom)
                   (when (and (fboundp atom)
-                             (string-prefix-p "tao/web-" (symbol-name atom)))
+                          (string-prefix-p "tao/web-" (symbol-name atom)))
                     (fmakunbound atom))))
       (with-temp-buffer
         (insert-file-contents org-file)
@@ -169,40 +174,34 @@ Runs via `org-after-todo-state-change-hook'."
         (org-element-map (org-element-parse-buffer) 'link
           (lambda (link)
             (let ((type (org-element-property :type link))
-                  (path (org-element-property :path link))
-                  (desc (car (org-element-contents link))))
+                   (path (org-element-property :path link))
+                   (desc (car (org-element-contents link))))
               (when (and (member type '("http" "https")) (stringp desc))
                 (let* ((url (concat type ":" path))
-                       (parent-titles '())
-                       (parent (org-element-property :parent link)))
-                  ;; If this link *is* the title of its immediate ancestor
-                  ;; headline (e.g. "** [[url][desc]]"), skip that headline
-                  ;; when walking up. Otherwise its title -- which is just
-                  ;; this same link -- gets re-added as a "parent"
-                  ;; breadcrumb, duplicating the link's own description
-                  ;; (e.g. "index-https-slashdot-org-slashdot-org-slashdot-org").
+                        (parent-titles '())
+                        (parent (org-element-property :parent link)))
                   (when (and parent
-                             (eq (org-element-type parent) 'headline)
-                             (let ((title (org-element-property :title parent)))
-                               (or (eq title link)
-                                   (and (listp title) (memq link title)))))
+                          (eq (org-element-type parent) 'headline)
+                          (let ((title (org-element-property :title parent)))
+                            (or (eq title link)
+                              (and (listp title) (memq link title)))))
                     (setq parent (org-element-property :parent parent)))
                   (while parent
                     (when (eq (org-element-type parent) 'headline)
                       (let ((title-prop (org-element-property :title parent)))
                         (cond
-                         ((stringp title-prop)
-                          (push (substring-no-properties title-prop) parent-titles))
-                         (title-prop
-                          (push (substring-no-properties (org-element-interpret-data title-prop)) parent-titles)))))
+                          ((stringp title-prop)
+                            (push (substring-no-properties title-prop) parent-titles))
+                          (title-prop
+                            (push (substring-no-properties (org-element-interpret-data title-prop)) parent-titles)))))
                     (setq parent (org-element-property :parent parent)))
 
                   (let* ((full-desc-list (append parent-titles (list (substring-no-properties desc))))
-                         (combined-desc (mapconcat 'identity full-desc-list "-"))
-                         (clean-desc (downcase (replace-regexp-in-string "[^a-zA-Z0-9]" "-" combined-desc)))
-                         (normalized-desc (replace-regexp-in-string "-+" "-" clean-desc))
-                         (cmd-name (string-trim normalized-desc "-"))
-                         (cmd-symbol (intern (concat "tao/web-" cmd-name))))
+                          (combined-desc (mapconcat 'identity full-desc-list "-"))
+                          (clean-desc (downcase (replace-regexp-in-string "[^a-zA-Z0-9]" "-" combined-desc)))
+                          (normalized-desc (replace-regexp-in-string "-+" "-" clean-desc))
+                          (cmd-name (string-trim normalized-desc "-"))
+                          (cmd-symbol (intern (concat "tao/web-" cmd-name))))
 
                     (defalias cmd-symbol
                       (eval `(lambda ()
@@ -210,109 +209,100 @@ Runs via `org-after-todo-state-change-hook'."
                                (browse-url ,url)))
                       (format "Open %s in the default browser." url)))))))))))
 
-  (when (and (boundp 'org-index-file)
-             org-index-file
-             (file-exists-p org-index-file))
-    (tao/register-org-bookmarks org-index-file))
-
-  ;; --- Helpers for grouping/sorting bookmarks by shared leading words ---
-
   (defun tao/--common-prefix-length (word-lists)
     "Return how many leading words are shared by every list in WORD-LISTS.
 Returns 0 if there are fewer than two lists, since a \"common\" prefix
 is only meaningful when comparing multiple entries."
     (if (or (null word-lists) (null (cdr word-lists)))
-        0
+      0
       (let ((min-len (apply #'min (mapcar #'length word-lists)))
-            (idx 0)
-            (matching t))
+             (idx 0)
+             (matching t))
         (while (and matching (< idx min-len))
           (let ((word (nth idx (car word-lists))))
             (if (cl-every (lambda (words) (string= (nth idx words) word))
-                          (cdr word-lists))
-                (setq idx (1+ idx))
+                  (cdr word-lists))
+              (setq idx (1+ idx))
               (setq matching nil))))
         idx)))
 
-  (defun tao/--word-list-lessp (a b)
-    "Compare word lists A and B word-by-word.
-This groups entries that share the longest run of leading words next
-to each other, only falling back to plain alphabetical order once the
-shared words run out."
-    (cond
-     ((and (null a) (null b)) nil)
-     ((null a) t)
-     ((null b) nil)
-     ((string= (car a) (car b)) (tao/--word-list-lessp (cdr a) (cdr b)))
-     (t (string-lessp (car a) (car b)))))
+  (defun tao/--no-sort-collection (candidates)
+    "Wrap CANDIDATES in a completion table that tells the UI (e.g. Vertico)
+not to re-sort them, so the caller's own ordering is preserved."
+    (lambda (string pred action)
+      (if (eq action 'metadata)
+        '(metadata (display-sort-function . identity)
+           (cycle-sort-function . identity))
+        (complete-with-action action candidates string pred))))
 
   ;; Create an interactive search menu with aligned, colored abbreviation column flags
   (defun tao/search-org-bookmarks ()
     "Interactively select and launch any registered web bookmark.
-Bookmarks are grouped and sorted by their longest shared leading words.
-Any leading words common to every single bookmark are stripped from
-both the displayed name and the abbreviation used for matching."
+Bookmarks are sorted alphabetically by their full name (after
+stripping any leading words common to every single bookmark)."
     (interactive)
     (if (and (boundp 'org-index-file)
-             org-index-file
-             (file-exists-p org-index-file))
-        (let* ((commands '())
-               (_ (mapatoms (lambda (atom)
-                              (when (and (fboundp atom)
-                                         (string-prefix-p "tao/web-" (symbol-name atom)))
-                                (push (symbol-name atom) commands)))))
-               (raw-choices (mapcar (lambda (cmd) (substring cmd 8)) commands))
-               (word-lists (mapcar (lambda (choice) (split-string choice "-")) raw-choices))
-               (common-prefix-len (tao/--common-prefix-length word-lists))
-               (stripped-word-lists (mapcar (lambda (words) (nthcdr common-prefix-len words))
-                                            word-lists))
-               (entries (cl-mapcar #'cons raw-choices stripped-word-lists))
-               ;; Group and sort by longest matching leading words
-               (sorted-entries (sort entries
-                                     (lambda (a b) (tao/--word-list-lessp (cdr a) (cdr b)))))
-               (processed-items '())
-               (max-abbrev-len 0)
-               (abbrev-alist '())
-               (menu-choices '()))
+          org-index-file
+          (file-exists-p org-index-file))
+      (let* ((commands '())
+              (_ (mapatoms (lambda (atom)
+                             (when (and (fboundp atom)
+                                     (string-prefix-p "tao/web-" (symbol-name atom)))
+                               (push (symbol-name atom) commands)))))
+              (raw-choices (mapcar (lambda (cmd) (substring cmd 8)) commands))
+              (word-lists (mapcar (lambda (choice) (split-string choice "-")) raw-choices))
+              (common-prefix-len (tao/--common-prefix-length word-lists))
+              (stripped-word-lists (mapcar (lambda (words) (nthcdr common-prefix-len words))
+                                     word-lists))
+              (entries (cl-mapcar #'cons raw-choices stripped-word-lists))
+              ;; Sort ascending alphabetically by the stripped, dash-joined name
+              (sorted-entries (sort entries
+                                (lambda (a b)
+                                  (string-lessp (mapconcat 'identity (cdr a) "-")
+                                    (mapconcat 'identity (cdr b) "-")))))
+              (processed-items '())
+              (max-abbrev-len 0)
+              (abbrev-alist '())
+              (menu-choices '()))
 
-          ;; Step 1: Pre-calculate all abbreviations (on the stripped words) and
-          ;; measure maximum required length
-          (dolist (entry sorted-entries)
-            (let* ((full-choice (car entry))
-                   (words (cdr entry))
-                   (abbrev (mapconcat (lambda (word) (substring word 0 1)) words "")))
-              (setq max-abbrev-len (max max-abbrev-len (length abbrev)))
-              (push (list full-choice words abbrev) processed-items)))
-          (setq processed-items (nreverse processed-items))
+        ;; Step 1: Pre-calculate all abbreviations (on the stripped words) and
+        ;; measure maximum required length
+        (dolist (entry sorted-entries)
+          (let* ((full-choice (car entry))
+                  (words (cdr entry))
+                  (abbrev (mapconcat (lambda (word) (substring word 0 1)) words "")))
+            (setq max-abbrev-len (max max-abbrev-len (length abbrev)))
+            (push (list full-choice words abbrev) processed-items)))
+        (setq processed-items (nreverse processed-items))
 
-          ;; Step 2: Render aligned strings (using the stripped words as the
-          ;; display name) and apply theme symbol styling. Order is preserved
-          ;; from the grouped/sorted pass above.
-          (dolist (item processed-items)
-            (let* ((full-choice (nth 0 item))
-                   (words (nth 1 item))
-                   (abbrev (nth 2 item))
-                   ;; Fall back to the full name if stripping left nothing
-                   ;; (i.e. the whole name equalled the common prefix)
-                   (display-name (if words (mapconcat 'identity words "-") full-choice))
-                   (fmt-string (format "%%-%ds   %%s" max-abbrev-len))
-                   (aligned-str (format fmt-string abbrev display-name))
-                   (styled-str (copy-sequence aligned-str)))
-              (put-text-property 0 max-abbrev-len 'face 'font-lock-variable-name-face styled-str)
-              (push (cons styled-str full-choice) abbrev-alist)
-              (push styled-str menu-choices)))
-          (setq menu-choices (nreverse menu-choices))
+        ;; Step 2: Render aligned strings (using the stripped words as the
+        ;; display name) and apply theme symbol styling. Order is preserved
+        ;; from the sorted pass above.
+        (dolist (item processed-items)
+          (let* ((full-choice (nth 0 item))
+                  (words (nth 1 item))
+                  (abbrev (nth 2 item))
+                  (display-name (if words (mapconcat 'identity words "-") full-choice))
+                  (fmt-string (format "%%-%ds   %%s" max-abbrev-len))
+                  (aligned-str (format fmt-string abbrev display-name))
+                  (styled-str (copy-sequence aligned-str)))
+            (put-text-property 0 max-abbrev-len 'face 'font-lock-variable-name-face styled-str)
+            (push (cons styled-str full-choice) abbrev-alist)
+            (push styled-str menu-choices)))
+        (setq menu-choices (nreverse menu-choices))
 
-          ;; Step 3: Run interactive minibuffer selection matching
-          (let ((selection (completing-read "Launch Bookmark (Abbrev/Name): " menu-choices nil t)))
-            (when selection
-              (let ((final-cmd (cdr (assoc selection abbrev-alist))))
-                (funcall (intern (concat "tao/web-" final-cmd)))))))
+        ;; Step 3: Run interactive minibuffer selection matching.
+        ;; Wrapped in `tao/--no-sort-collection' so Vertico/Icomplete don't
+        ;; re-sort by history/frequency and undo the ordering above.
+        (let ((selection (completing-read "Launch Bookmark (Abbrev/Name): "
+                           (tao/--no-sort-collection menu-choices)
+                           nil t)))
+          (when selection
+            (let ((final-cmd (cdr (assoc selection abbrev-alist))))
+              (funcall (intern (concat "tao/web-" final-cmd)))))))
       (user-error "Cannot search bookmarks: `%s` does not exist!" org-index-file)))
 
-  (map! :leader
-        (:prefix ("o" . "open")
-         :desc "Org Bookmarks Menu" "w" #'tao/search-org-bookmarks)))
+  (tao/register-org-bookmarks org-index-file))
 
 (use-package! org-superstar
   :defer t
