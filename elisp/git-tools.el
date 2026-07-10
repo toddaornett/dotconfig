@@ -654,112 +654,122 @@ sort alphabetically by name instead."
       (progn
         (kill-buffer buf)
         (message "No authors found or not a git repository: %s" directory))
+      (with-current-buffer buf
+        (insert (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
+        (insert (format "(sorted by %s)\n"
+                  (if alphabetical "name" "lines changed, descending")))
+        (insert (make-string 40 ?=) "\n")
+        (dolist (entry entries)
+          (insert (format "%-50s %6d lines\n" (car entry) (cdr entry))))
+        (goto-char (point-min))
+        (read-only-mode 1)
+        (pop-to-buffer buf)))))
 
 ;;;###autoload
-      (defun git-tools-commit-amend-no-edit ()
-        "Git amend commit automatically without editor."
-        (interactive)
-        (let ((proc
-                (magit-run-git-with-editor
-                  "commit" "--amend" "--no-edit")))
-          (set-process-sentinel
-            proc
-            (lambda (process _event)
-              (when (eq (process-status process) 'exit)
-                (magit-refresh-all))))))
+(defun git-tools-commit-amend-no-edit ()
+  "Git amend commit automatically without editor."
+  (interactive)
+  (let ((proc
+          (magit-run-git-with-editor
+            "commit" "--amend" "--no-edit")))
+    (set-process-sentinel
+      proc
+      (lambda (process _event)
+        (when (eq (process-status process) 'exit)
+          (magit-refresh-all))))))
 
-      (defun git-tools--default-copy-dir ()
-        "Compute the default destination directory: ~/wip/RELATIVE-PATH/BRANCH.
+(defun git-tools--default-copy-dir ()
+  "Compute the default destination directory: ~/wip/RELATIVE-PATH/BRANCH.
 RELATIVE-PATH is the git repo's root expressed relative to the user's
 home directory (or to `/' if the repo is outside the home directory),
 preserving any intermediate directories — see
 `git-tools--project-relative-path'.  BRANCH is the current branch."
-        (let* ((root (or (git-tools--project-root)
-                       (error "Not inside a git repository")))
-                (default-directory root)
-                (relative-path (git-tools--project-relative-path root))
-                (branch (magit-get-current-branch))
-                (subdir (if (string-empty-p relative-path)
-                          branch
-                          (concat relative-path "/" branch))))
-          (expand-file-name subdir "~/wip")))
+  (let* ((root (or (git-tools--project-root)
+                 (error "Not inside a git repository")))
+          (default-directory root)
+          (relative-path (git-tools--project-relative-path root))
+          (branch (magit-get-current-branch))
+          (subdir (if (string-empty-p relative-path)
+                    branch
+                    (concat relative-path "/" branch))))
+    (expand-file-name subdir "~/wip")))
 
-      (defun git-tools--nonempty-lines (str)
-        "Split STR into lines, trimmed, dropping empty lines."
-        (delq nil
-          (mapcar (lambda (line)
-                    (setq line (string-trim line))
-                    (unless (string-empty-p line) line))
-            (split-string str "\n"))))
+(defun git-tools--nonempty-lines (str)
+  "Split STR into lines, trimmed, dropping empty lines."
+  (delq nil
+    (mapcar (lambda (line)
+              (setq line (string-trim line))
+              (unless (string-empty-p line) line))
+      (split-string str "\n"))))
 
-      (defun git-tools--commit-list (commit-count)
-        "Return the last COMMIT-COUNT commit hashes on HEAD, oldest first."
-        (git-tools--nonempty-lines
-          (shell-command-to-string
-            (format "git log --reverse --format=%%H -%d" commit-count))))
+(defun git-tools--commit-list (commit-count)
+  "Return the last COMMIT-COUNT commit hashes on HEAD, oldest first."
+  (git-tools--nonempty-lines
+    (shell-command-to-string
+      (format "git log --reverse --format=%%H -%d" commit-count))))
 
-      (defun git-tools--commit-files (commit)
-        "Return list of files (relative paths) touched by COMMIT."
-        (git-tools--nonempty-lines
-          (shell-command-to-string
-            (format "git diff-tree --no-commit-id --name-only -r --root %s"
-              (shell-quote-argument commit)))))
+(defun git-tools--commit-files (commit)
+  "Return list of files (relative paths) touched by COMMIT."
+  (git-tools--nonempty-lines
+    (shell-command-to-string
+      (format "git diff-tree --no-commit-id --name-only -r --root %s"
+        (shell-quote-argument commit)))))
 
-      (defun git-tools--copy-object (spec dest)
-        "Write the content of the git object at SPEC to DEST.
+(defun git-tools--copy-object (spec dest)
+  "Write the content of the git object at SPEC to DEST.
 SPEC is anything `git show' accepts for a single blob, e.g.
 \"HEAD:path/to/file\" for a commit, or \":path/to/file\" for the
 current index (staged content).  Creates parent directories of DEST
 as needed.  Returns t on success, or nil if SPEC does not resolve to
 a blob (e.g. the file was deleted, or is not staged)."
-        (with-temp-buffer
-          (set-buffer-multibyte nil)
-          (let* ((coding-system-for-read 'no-conversion)
-                  (coding-system-for-write 'no-conversion)
-                  (exit-code (call-process "git" nil t nil "show" spec)))
-            (when (zerop exit-code)
-              (make-directory (file-name-directory dest) t)
-              (write-region (point-min) (point-max) dest nil 'quiet nil nil)
-              t))))
+  (with-temp-buffer
+    (set-buffer-multibyte nil)
+    (let* ((coding-system-for-read 'no-conversion)
+            (coding-system-for-write 'no-conversion)
+            (exit-code (call-process "git" nil t nil "show" spec)))
+      (when (zerop exit-code)
+        (make-directory (file-name-directory dest) t)
+        (write-region (point-min) (point-max) dest nil 'quiet nil nil)
+        t))))
 
-      (defun git-tools--copy-blob (commit file dest)
-        "Write the content of FILE as of COMMIT to DEST.
+(defun git-tools--copy-blob (commit file dest)
+  "Write the content of FILE as of COMMIT to DEST.
 See `git-tools--copy-object' for return value and directory handling."
-        (git-tools--copy-object (format "%s:%s" commit file) dest))
+  (git-tools--copy-object (format "%s:%s" commit file) dest))
 
-      (defun git-tools--staged-files ()
-        "Return list of files (relative paths) with staged changed files."
-        (git-tools--nonempty-lines
-          (shell-command-to-string "git diff --cached --name-only")))
+(defun git-tools--staged-files ()
+  "Return list of files (relative paths) with staged changed files."
+  (git-tools--nonempty-lines
+    (shell-command-to-string "git diff --cached --name-only")))
 
-      (defun git-tools--working-changed-files ()
-        "Return list of files (relative paths) that are modified or untracked.
+(defun git-tools--working-changed-files ()
+  "Return list of files (relative paths) that are modified or untracked.
 \"Modified\" means the working tree differs from the index — i.e.
 unstaged edits to an already-tracked file, whether or not it also has
 separate staged changes.  Untracked files are included too.  Files
 that are only unstaged-deleted are included as well; callers should
 expect `file-exists-p' to fail for those and skip them."
-        (let* ((output (shell-command-to-string
-                         "git status --porcelain --untracked-files=all"))
-                (lines (split-string output "\n" t)))
-          (delete-dups
-            (delq nil
-              (mapcar
-                (lambda (line)
-                  (when (>= (length line) 4)
-                    (let* ((xy (substring line 0 2))
-                            (worktree-status (aref line 1))
-                            (path (string-trim (substring line 3))))
-                      (when (string-match " -> " path)
-                        (setq path (car (last (split-string path " -> ")))))
-                      (when (or (string= xy "??")
-                              (memq worktree-status '(?M ?A ?D)))
-                        path))))
-                lines)))))
+  (let* ((output (shell-command-to-string
+                   "git status --porcelain --untracked-files=all"))
+          (lines (split-string output "\n" t)))
+    (delete-dups
+      (delq nil
+        (mapcar
+          (lambda (line)
+            (when (>= (length line) 4)
+              (let* ((xy (substring line 0 2))
+                      (worktree-status (aref line 1))
+                      (path (string-trim (substring line 3))))
+                (when (string-match " -> " path)
+                  (setq path (car (last (split-string path " -> ")))))
+                (when (or (string= xy "??")
+                        (memq worktree-status '(?M ?A ?D)))
+                  path))))
+          lines)))))
 
 ;;;###autoload
-      (defun git-tools-copy-commits (&optional dir commit-count)
-        "Copy files from the latest commit or COMMIT-COUNT commits to DIR.
+(defun git-tools-copy-commits (&optional dir commit-count)
+  "Copy files from the latest commit or COMMIT-COUNT commits to DIR.
 
 Commits are walked oldest to newest, and each touched file is written
 as it existed in that commit, overwriting anything already copied to
@@ -784,34 +794,34 @@ Interactively:
 To specify both a custom directory and a custom commit count, call
 this function from Lisp, e.g.:
   (git-tools-copy-commits \"/tmp/out\" 3)"
-        (interactive
-          (list
-            (when (and current-prefix-arg (consp current-prefix-arg))
-              (read-directory-name "Copy commits to directory: "))
-            (when (and current-prefix-arg (not (consp current-prefix-arg)))
-              (prefix-numeric-value current-prefix-arg))))
-        (let* ((commit-count (or commit-count 1))
-                (root (or (git-tools--project-root)
-                        (error "Not inside a git repository")))
-                (default-directory root)
-                (dir (or dir (git-tools--default-copy-dir)))
-                (commits (git-tools--commit-list commit-count))
-                (copied 0)
-                (skipped 0))
-          (unless commits
-            (user-error "No commits found"))
-          (dolist (commit commits)
-            (dolist (file (git-tools--commit-files commit))
-              (if (git-tools--copy-blob commit file (expand-file-name file dir))
-                (setq copied (1+ copied))
-                (setq skipped (1+ skipped)))))
-          (message "Copied %d file(s) from %d commit(s) to %s%s"
-            copied (length commits) dir
-            (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+  (interactive
+    (list
+      (when (and current-prefix-arg (consp current-prefix-arg))
+        (read-directory-name "Copy commits to directory: "))
+      (when (and current-prefix-arg (not (consp current-prefix-arg)))
+        (prefix-numeric-value current-prefix-arg))))
+  (let* ((commit-count (or commit-count 1))
+          (root (or (git-tools--project-root)
+                  (error "Not inside a git repository")))
+          (default-directory root)
+          (dir (or dir (git-tools--default-copy-dir)))
+          (commits (git-tools--commit-list commit-count))
+          (copied 0)
+          (skipped 0))
+    (unless commits
+      (user-error "No commits found"))
+    (dolist (commit commits)
+      (dolist (file (git-tools--commit-files commit))
+        (if (git-tools--copy-blob commit file (expand-file-name file dir))
+          (setq copied (1+ copied))
+          (setq skipped (1+ skipped)))))
+    (message "Copied %d file(s) from %d commit(s) to %s%s"
+      copied (length commits) dir
+      (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
 
 ;;;###autoload
-      (defun git-tools-copy-staged (&optional dir)
-        "Copy currently staged files to DIR, using their staged (index) content.
+(defun git-tools-copy-staged (&optional dir)
+  "Copy currently staged files to DIR, using their staged (index) content.
 
 Each file is written as it exists in the index right now — i.e. what
 `git commit' would record — not the working-tree version, so any
@@ -824,30 +834,30 @@ current branch, same as `git-tools-copy-commits'.
 Interactively, a prefix argument (e.g. `\\[universal-argument]
 \\[git-tools-copy-staged]') prompts for the destination directory;
 with no prefix argument, the default directory is used."
-        (interactive
-          (list
-            (when current-prefix-arg
-              (read-directory-name "Copy staged files to directory: "))))
-        (let* ((root (or (git-tools--project-root)
-                       (error "Not inside a git repository")))
-                (default-directory root)
-                (dir (or dir (git-tools--default-copy-dir)))
-                (files (git-tools--staged-files))
-                (copied 0)
-                (skipped 0))
-          (unless files
-            (user-error "No staged files found"))
-          (dolist (file files)
-            (if (git-tools--copy-object (concat ":" file) (expand-file-name file dir))
-              (setq copied (1+ copied))
-              (setq skipped (1+ skipped))))
-          (message "Copied %d staged file(s) to %s%s"
-            copied dir
-            (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+  (interactive
+    (list
+      (when current-prefix-arg
+        (read-directory-name "Copy staged files to directory: "))))
+  (let* ((root (or (git-tools--project-root)
+                 (error "Not inside a git repository")))
+          (default-directory root)
+          (dir (or dir (git-tools--default-copy-dir)))
+          (files (git-tools--staged-files))
+          (copied 0)
+          (skipped 0))
+    (unless files
+      (user-error "No staged files found"))
+    (dolist (file files)
+      (if (git-tools--copy-object (concat ":" file) (expand-file-name file dir))
+        (setq copied (1+ copied))
+        (setq skipped (1+ skipped))))
+    (message "Copied %d staged file(s) to %s%s"
+      copied dir
+      (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
 
 ;;;###autoload
-      (defun git-tools-copy-working-changes (&optional dir)
-        "Copy modified and untracked working-tree files to DIR.
+(defun git-tools-copy-working-changes (&optional dir)
+  "Copy modified and untracked working-tree files to DIR.
 
 Copies the current on-disk content of any file that has unstaged
 modifications relative to the index, or that is untracked by git, per
@@ -861,31 +871,31 @@ current branch, same as `git-tools-copy-commits'.
 Interactively, a prefix argument (e.g. `\\[universal-argument]
 \\[git-tools-copy-working-changes]') prompts for the destination
 directory; with no prefix argument, the default directory is used."
-        (interactive
-          (list
-            (when current-prefix-arg
-              (read-directory-name "Copy working changes to directory: "))))
-        (let* ((root (or (git-tools--project-root)
-                       (error "Not inside a git repository")))
-                (default-directory root)
-                (dir (or dir (git-tools--default-copy-dir)))
-                (files (git-tools--working-changed-files))
-                (copied 0)
-                (skipped 0))
-          (unless files
-            (user-error "No modified or untracked files found"))
-          (dolist (file files)
-            (let ((src (expand-file-name file root))
-                   (dest (expand-file-name file dir)))
-              (if (file-exists-p src)
-                (progn
-                  (make-directory (file-name-directory dest) t)
-                  (copy-file src dest t)
-                  (setq copied (1+ copied)))
-                (setq skipped (1+ skipped)))))
-          (message "Copied %d modified/untracked file(s) to %s%s"
-            copied dir
-            (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+  (interactive
+    (list
+      (when current-prefix-arg
+        (read-directory-name "Copy working changes to directory: "))))
+  (let* ((root (or (git-tools--project-root)
+                 (error "Not inside a git repository")))
+          (default-directory root)
+          (dir (or dir (git-tools--default-copy-dir)))
+          (files (git-tools--working-changed-files))
+          (copied 0)
+          (skipped 0))
+    (unless files
+      (user-error "No modified or untracked files found"))
+    (dolist (file files)
+      (let ((src (expand-file-name file root))
+             (dest (expand-file-name file dir)))
+        (if (file-exists-p src)
+          (progn
+            (make-directory (file-name-directory dest) t)
+            (copy-file src dest t)
+            (setq copied (1+ copied)))
+          (setq skipped (1+ skipped)))))
+    (message "Copied %d modified/untracked file(s) to %s%s"
+      copied dir
+      (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
 
-      (provide 'git-tools)
+(provide 'git-tools)
 ;;; git-tools.el ends here
