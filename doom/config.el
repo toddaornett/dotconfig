@@ -7,6 +7,8 @@
 
 (load "~/.emacs_private.el" t)
 
+(add-hook! prog-mode #'turn-on-font-lock)
+
 (when (display-graphic-p)
   (dolist (font '("Noto Emoji" "Noto Sans Symbols 2"))
     (when (member font (font-family-list))
@@ -549,7 +551,7 @@ _q_: quit
   (setf (alist-get 'go-mode apheleia-mode-alist) 'gofumpt)
   (setf (alist-get 'go-ts-mode apheleia-mode-alist) 'gofumpt))
 
-(add-hook 'prog-mode-hook #'tao/conditionally-enable-apheleia)
+(add-hook! 'prog-mode #'tao/conditionally-enable-apheleia)
 
 (load! "config/actions")
 (load! "config/version-control")

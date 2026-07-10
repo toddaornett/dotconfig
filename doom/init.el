@@ -73,8 +73,8 @@
   :lang
   emacs-lisp          ; Keep for Elisp development
   json                ; Lightweight, keep
-  (javascript +lsp +tree-sitter)
-  (typescript +lsp +tree-sitter)
+  ;;(javascript +lsp +tree-sitter)
+  ;;(typescript +lsp +tree-sitter)
   (web +lsp)
   markdown            ; Lightweight, keep
   (org +pomodoro)     ; Keep for note-taking
