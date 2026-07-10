@@ -37,8 +37,9 @@
   (interactive)
   (if (derived-mode-p 'dired-mode)
       (tao/dired-copy-full-path)
-    (buffer-file-name)))
+    (tao/copy-buffer-full-path)))
 
 (map! :leader
-      :desc "Copy full path"     "f p" #'tao/copy-full-path-dwim
-      :desc "Copy relative path" "f P" #'tao/copy-relative-path-dwim)
+      (:prefix-map ("f y" . "yank path")
+       :desc "Copy full path"     "y" #'tao/copy-full-path-dwim
+       :desc "Copy relative path" "r" #'tao/copy-relative-path-dwim))
