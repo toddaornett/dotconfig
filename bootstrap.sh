@@ -198,6 +198,16 @@ else
   echo "✅ emacs-plus@30 is already successfully linked."
 fi
 
+#################################
+# Install ClickHouse
+#################################
+if ! command -v clickhouse >/dev/null 2>&1; then
+  echo "🗄️ Installing ClickHouse..."
+  curl https://clickhouse.com/cli | sh
+  clickhousectl local use stable
+else
+  echo "🗄️ clickhouse command is available"
+fi
 # silently deal with any quarantine of clickhouse binary if it exists
 CLICKHOUSE_BIN="$(command -v clickhouse 2>/dev/null || true)"
 if [ -n "$CLICKHOUSE_BIN" ]; then
@@ -316,21 +326,44 @@ SYMBOLA_PATH="$FONT_DIR/Symbola.ttf"
 
 mkdir -p "$FONT_DIR"
 
-if [ ! -f "$SYMBOLA_PATH" ]; then
-  echo "⬇️  Downloading Symbola.ttf..."
-  # Try primary source first, fall back to mirror
-  curl -fsSL "https://github.com/ChiefMikeK/ttf-symbola/raw/master/Symbola-13.ttf" \
-    -o "$SYMBOLA_PATH" 2>/dev/null ||
-    curl -fsSL "https://raw.githubusercontent.com/ChiefMikeK/ttf-symbola/master/Symbola-13.ttf" \
-      -o "$SYMBOLA_PATH" 2>/dev/null ||
-    curl -fsSL "https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.ttf" \
-      -o "$SYMBOLA_PATH" 2>/dev/null || true
+is_valid_font_file() {
+  local f="$1"
+  [ -s "$f" ] || return 1
+  file "$f" 2>/dev/null | grep -qiE 'truetype|opentype|font data|sfnt'
+}
 
-  if [ -f "$SYMBOLA_PATH" ] && [ -s "$SYMBOLA_PATH" ]; then
-    echo "✅ Symbola font installed (logout may be required to activate)"
+download_symbola() {
+  local url="$1"
+  echo "⬇️  Trying $url ..."
+  curl -fsSL "$url" -o "$SYMBOLA_PATH.tmp" 2>/dev/null &&
+    mv "$SYMBOLA_PATH.tmp" "$SYMBOLA_PATH"
+}
+
+if [ ! -f "$SYMBOLA_PATH" ]; then
+  # Primary: a real raw file path on GitHub — NOT the bare domain
+  download_symbola "https://raw.githubusercontent.com/zhm/symbola/master/fonts/Symbola.ttf"
+
+  if ! is_valid_font_file "$SYMBOLA_PATH"; then
+    echo "⚠️  Primary source failed or returned an invalid file — trying fallback..."
+    rm -f "$SYMBOLA_PATH" "$SYMBOLA_PATH.tmp"
+    # Fallback: official dn-works.com zip
+    TMP_ZIP="$(mktemp -d)/symbola.zip"
+    if curl -fsSL "https://dn-works.com/wp-content/uploads/2020/UFAS-Fonts/Symbola.zip" -o "$TMP_ZIP" &&
+       unzip -qo "$TMP_ZIP" -d "$(dirname "$TMP_ZIP")"; then
+      find "$(dirname "$TMP_ZIP")" -iname "Symbola.ttf" -exec cp {} "$SYMBOLA_PATH" \;
+    fi
+  fi
+
+  if is_valid_font_file "$SYMBOLA_PATH"; then
+    echo "✅ Symbola font downloaded successfully"
+    echo "🔄 Rebuilding macOS font cache..."
+    sudo atsutil databases -remove >/dev/null 2>&1
+    atsutil server -shutdown >/dev/null 2>&1
+    atsutil server -ping >/dev/null 2>&1
+    echo "✅ Symbola font activated"
   else
-    echo "⚠️  Symbola download failed — install manually from https://dn-works.com/ufas/"
-    rm -f "$SYMBOLA_PATH"
+    echo "❌ All downloads failed — please manually download from https://dn-works.com"
+    rm -f "$SYMBOLA_PATH" "$SYMBOLA_PATH.tmp"
   fi
 else
   echo "✅ Symbola font already installed"
