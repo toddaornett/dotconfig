@@ -148,12 +148,28 @@
 ;; =========================================================================
 ;; 5. UTILITY & CONNECTION CONFIGURATION
 ;; =========================================================================
-
 (defun tao/erc-quit-and-cleanup ()
+  "Disconnect from all IRC networks, close channels, and kill the member sidebar."
   (interactive)
-  (when (fboundp 'erc-cmd-GQUIT) (erc-cmd-GQUIT ""))
-  (dolist (b (and (fboundp 'erc-buffer-list) (erc-buffer-list)))
-    (when (buffer-live-p b) (kill-buffer b))))
+  ;; 1. Cancel the background idle timer so it stops running loops
+  (when tao/erc-member-timer
+    (cancel-timer tao/erc-member-timer)
+    (setq tao/erc-member-timer nil))
+
+  ;; 2. Disconnect cleanly from all servers (handles all channels automatically)
+  (when (fboundp 'erc-quit-server)
+    (ignore-errors
+      (erc-quit-server "Goodbye!"))) ; You can customize your quit message string here
+
+  ;; 3. Kill all ERC network and channel buffers
+  (dolist (b (erc-buffer-list))
+    (when (buffer-live-p b)
+      (kill-buffer b)))
+
+  ;; 4. Explicitly kill your custom member list buffer to free up window space
+  (let ((sidebar-buf (get-buffer tao/erc-members-buffer)))
+    (when sidebar-buf
+      (kill-buffer sidebar-buf))))
 
 (defun +irc/connect ()
   (interactive)
