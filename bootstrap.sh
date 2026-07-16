@@ -610,6 +610,13 @@ else
 fi
 
 #################################
+# Rust configuration
+#################################
+if ! grep -Fqs "CARGO_NET_GIT_FETCH_WITH_CLI" "$ZSHRC" 2>/dev/null; then
+  echo 'export CARGO_NET_GIT_FETCH_WITH_CLI=true' >>"$ZSHRC"
+fi
+
+#################################
 # Install Krew if missing
 #################################
 if ! command -v kubectl-krew >/dev/null 2>&1; then
