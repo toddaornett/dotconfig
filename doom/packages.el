@@ -83,6 +83,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("git-tools.el")))
 
+(package! rust-clean
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("rust-clean.el")))
+
 (package! retimestamp
   :recipe (:local-repo "~/.config/elisp"
             :files ("retimestamp.el")))
