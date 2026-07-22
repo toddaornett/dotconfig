@@ -26,17 +26,17 @@ Switches to the region's buffer if called from a different one."
   (interactive)
   (let ((current-buf (current-buffer)))
     (cond
-     ((not (buffer-live-p tao-last-region-buffer))
-      (message "No previously selected region is available."))
+      ((not (buffer-live-p tao-last-region-buffer))
+        (message "No previously selected region is available."))
 
-     ((not (eq current-buf tao-last-region-buffer))
-      (with-current-buffer tao-last-region-buffer
-        (if (and tao-last-region-start
-                 tao-last-region-end
-                 (marker-position tao-last-region-start)
-                 (marker-position tao-last-region-end)
-                 (/= (marker-position tao-last-region-start)
-                     (marker-position tao-last-region-end)))
+      ((not (eq current-buf tao-last-region-buffer))
+        (with-current-buffer tao-last-region-buffer
+          (if (and tao-last-region-start
+                tao-last-region-end
+                (marker-position tao-last-region-start)
+                (marker-position tao-last-region-end)
+                (/= (marker-position tao-last-region-start)
+                  (marker-position tao-last-region-end)))
             (let ((old-buffer-name (buffer-name current-buf)))
               (switch-to-buffer tao-last-region-buffer)
               (deactivate-mark)
@@ -45,23 +45,23 @@ Switches to the region's buffer if called from a different one."
               (goto-char (marker-position tao-last-region-start))
               (activate-mark)
               (message "Switched from %s." old-buffer-name))
-          (message "Previously selected region buffer %s was deleted."
-                   (buffer-name tao-last-region-buffer)))))
+            (message "Previously selected region buffer %s was deleted."
+              (buffer-name tao-last-region-buffer)))))
 
-     (t
-      (if (and tao-last-region-start
-               tao-last-region-end
-               (marker-position tao-last-region-start)
-               (marker-position tao-last-region-end)
-               (/= (marker-position tao-last-region-start)
-                   (marker-position tao-last-region-end)))
+      (t
+        (if (and tao-last-region-start
+              tao-last-region-end
+              (marker-position tao-last-region-start)
+              (marker-position tao-last-region-end)
+              (/= (marker-position tao-last-region-start)
+                (marker-position tao-last-region-end)))
           (progn
             (deactivate-mark)
             (goto-char (marker-position tao-last-region-end))
             (set-mark (point))
             (goto-char (marker-position tao-last-region-start))
             (activate-mark))
-        (message "Previously selected region was deleted or is unavailable."))))))
+          (message "Previously selected region was deleted or is unavailable."))))))
 
 ;; redefine exit behavior
 (defun tao/save-and-kill-emacs-silently ()
@@ -71,21 +71,36 @@ Switches to the region's buffer if called from a different one."
     (with-current-buffer buf
       (when (buffer-modified-p)
         (let ((name (buffer-name))
-              (file (buffer-file-name)))
+               (file (buffer-file-name)))
           (cond
-           (file
-            (ignore-errors
-              (save-buffer)))
-           ((and (not file)
-                 (not (string-prefix-p " " name))
-                 (not (string-prefix-p "*" name)))
-            (setq-local buffer-offer-save t)))))))
+            (file
+              (ignore-errors
+                (save-buffer)))
+            ((and (not file)
+               (not (string-prefix-p " " name))
+               (not (string-prefix-p "*" name)))
+              (setq-local buffer-offer-save t)))))))
   (ignore-errors
     (save-some-buffers t))
   (cl-letf (((symbol-function 'process-list) (lambda () nil))
-            ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
-            ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
-            (kill-emacs-query-functions nil)
-            (confirm-kill-emacs nil))
+             ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+             ((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+             (kill-emacs-query-functions nil)
+             (confirm-kill-emacs nil))
     (kill-emacs)))
 (global-set-key (kbd "C-x C-c") 'tao/save-and-kill-emacs-silently)
+
+(defun tao/kill-other-buffer-and-window ()
+  "Kill the buffer in the other window and delete that window.
+
+Note that this is similar to 'C-x 4 0' that is built-in for
+M-x kill-buffer-and-window."
+  (interactive)
+  (let ((other-win (next-window)))
+    (when (eq other-win (selected-window))
+      (user-error "No other window"))
+    (kill-buffer (window-buffer other-win))
+    (when (window-live-p other-win)
+      (delete-window other-win))))
+
+(global-set-key (kbd "C-x 4 k") #'tao/kill-other-buffer-and-window)
