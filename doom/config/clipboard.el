@@ -55,25 +55,25 @@ put on the pasteboard:
 Returns the first non-blank (after trimming) result, or nil if every
 path comes up empty."
   (cl-some
-   (lambda (fetch)
-     (let ((s (ignore-errors (funcall fetch))))
-       (and (stringp s)
-            (not (string-blank-p s))
-            s)))
-   (list
-    (lambda () (gui-get-selection 'CLIPBOARD 'STRING))
-    (lambda () (gui-get-selection 'CLIPBOARD 'TEXT))
-    (lambda () (current-kill 0 t)))))
+    (lambda (fetch)
+      (let ((s (ignore-errors (funcall fetch))))
+        (and (stringp s)
+          (not (string-blank-p s))
+          s)))
+    (list
+      (lambda () (gui-get-selection 'CLIPBOARD 'STRING))
+      (lambda () (gui-get-selection 'CLIPBOARD 'TEXT))
+      (lambda () (current-kill 0 t)))))
 
 (defun tao/url-p (str)
   "Non-nil if STR, trimmed, looks like a single bare URL."
   (and str
-       (string-match-p
-        (rx bos (* space)
-            (or "http://" "https://" "ftp://" "www.")
-            (+ (not space))
-            (* space) eos)
-        str)))
+    (string-match-p
+      (rx bos (* space)
+        (or "http://" "https://" "ftp://" "www.")
+        (+ (not space))
+        (* space) eos)
+      str)))
 
 (defun tao/url->description (url)
   "Text after the last `/' in URL, ignoring a trailing slash if present."
@@ -83,32 +83,41 @@ path comes up empty."
   "Return URL formatted as a link appropriate to the current major mode."
   (let ((desc (tao/url->description url)))
     (cond
-     ((derived-mode-p 'org-mode)      (format "[[%s][%s]]" url desc))
-     ((derived-mode-p 'markdown-mode) (format "[%s](%s)" desc url))
-     (t url))))
+      ((derived-mode-p 'org-mode)      (format "[[%s][%s]]" url desc))
+      ((derived-mode-p 'markdown-mode) (format "[%s](%s)" desc url))
+      (t url))))
 
-(defun tao/paste-literal ()
-  "Fall back to whatever the normal paste mechanism is."
-  (cond
-   ((bound-and-true-p evil-local-mode) (call-interactively #'evil-paste-after))
-   (t (call-interactively #'yank))))
+(defun tao/paste-literal (&optional count)
+  "Fall back to whatever the normal paste mechanism is.
+Inserts the pasted text COUNT times (default 1, minimum 1)."
+  (let ((n (max 1 (or count 1))))
+    (if (bound-and-true-p evil-local-mode)
+      (evil-paste-after n)
+      (dotimes (_ n) (yank)))))
 
-(defun tao/paste-from-clipboard ()
+(defun tao/paste-from-clipboard (&optional force-literal)
   "Paste the system clipboard, auto-linkifying bare URLs in org/markdown.
-
 Inspects up to `tao/paste-url-inspect-length' characters of the
 clipboard. If the entire (trimmed) clipboard content is within that
 length and looks like a bare URL, and the buffer is `org-mode' or
 `markdown-mode', insert a formatted link ([[URL][DESC]] or
 [DESC](URL), DESC being the text after the URL's last `/'). In every
 other case — longer content, non-URL content, or a buffer that's
-neither org nor markdown — paste literally via the usual mechanism."
-  (interactive)
+neither org nor markdown — paste literally via the usual mechanism.
+
+With any prefix argument, always paste literally (skipping the
+URL-detection logic). A plain prefix with no digits (`C-u', i.e. a
+numeric value of 4) or any positive numeric prefix (`SPC u 5 s-v')
+repeats the literal paste that many times. A prefix of zero or a
+negative value (`SPC u 0 s-v', `SPC u -1 s-v') pastes literally
+exactly once."
+  (interactive "P")
   (let* ((clip (tao/clipboard-string))
-         (trimmed (and clip (string-trim (substring clip 0 (min (length clip) tao/paste-url-inspect-length))))))
-    (if (and clip
-             (<= (length clip) tao/paste-url-inspect-length)
-             (tao/url-p trimmed)
-             (derived-mode-p 'org-mode 'markdown-mode))
-        (insert (tao/format-url-for-mode trimmed))
-      (tao/paste-literal))))
+          (trimmed (and clip (string-trim (substring clip 0 (min (length clip) tao/paste-url-inspect-length))))))
+    (if (and (not force-literal)
+          clip
+          (<= (length clip) tao/paste-url-inspect-length)
+          (tao/url-p trimmed)
+          (derived-mode-p 'org-mode 'markdown-mode))
+      (insert (tao/format-url-for-mode trimmed))
+      (tao/paste-literal (prefix-numeric-value force-literal)))))
