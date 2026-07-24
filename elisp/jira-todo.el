@@ -24,6 +24,7 @@
 (require 'json)
 (require 'subr-x)
 (require 'org)
+(require 'git-tools)
 
 (defgroup jira-todo nil
   "Generate `org-mode' TODOs from JIRA tickets."
@@ -69,9 +70,9 @@
 (defun jira-todo--rest-url (issue-number)
   "Return the JIRA REST API URL for ISSUE-NUMBER."
   (format "%s/rest/api/3/issue/%s-%s"
-          jira-todo-base-url
-          jira-todo-issue-key-prefix
-          issue-number))
+    jira-todo-base-url
+    jira-todo-issue-key-prefix
+    issue-number))
 
 (defun jira-todo--browse-url (key)
   "Return the JIRA browse URL for KEY."
@@ -80,38 +81,38 @@
 (defun jira-todo--auth-header ()
   "Return the Basic Auth header value."
   (concat "Basic "
-          (base64-encode-string
-           (concat jira-todo-username ":" jira-todo-token)
-           t)))
+    (base64-encode-string
+      (concat jira-todo-username ":" jira-todo-token)
+      t)))
 
 (defun jira-todo--smart-open-line-above ()
   "Insert an empty line above the current line and indent it.
 If in an `org-mode' buffer within a TODO, move point to a new line
 immediately above the first sibling TODO under the parent heading."
   (if (derived-mode-p 'org-mode)
-      (let ((target nil)
-            (current-level (save-excursion
-                             (org-back-to-heading t)
-                             (org-current-level))))
-        (save-excursion
-          ;; Go up to parent heading
-          (org-back-to-heading t)
-          (when (org-up-heading-safe)
-            (let ((parent-end (save-excursion (org-end-of-subtree t t))))
-              (while (and (not target)
-                          (re-search-forward org-heading-regexp parent-end t))
-                (when (and (= (org-current-level) current-level)
-                           (org-entry-is-todo-p))
-                  (setq target (line-beginning-position)))))))
-        (if target
-            (progn
-              (goto-char target)
-              (open-line 1))
-          ;; Fallback: original behavior
-          (move-beginning-of-line nil)
-          (newline-and-indent)
-          (forward-line -1)
-          (indent-according-to-mode)))
+    (let ((target nil)
+           (current-level (save-excursion
+                            (org-back-to-heading t)
+                            (org-current-level))))
+      (save-excursion
+        ;; Go up to parent heading
+        (org-back-to-heading t)
+        (when (org-up-heading-safe)
+          (let ((parent-end (save-excursion (org-end-of-subtree t t))))
+            (while (and (not target)
+                     (re-search-forward org-heading-regexp parent-end t))
+              (when (and (= (org-current-level) current-level)
+                      (org-entry-is-todo-p))
+                (setq target (line-beginning-position)))))))
+      (if target
+        (progn
+          (goto-char target)
+          (open-line 1))
+        ;; Fallback: original behavior
+        (move-beginning-of-line nil)
+        (newline-and-indent)
+        (forward-line -1)
+        (indent-according-to-mode)))
     ;; Not in org-mode: original behavior
     (move-beginning-of-line nil)
     (newline-and-indent)
@@ -121,65 +122,96 @@ immediately above the first sibling TODO under the parent heading."
 (defun jira-todo--format-slack-message (summary)
   "Format message with SUMMARY for Slack."
   (concat
-   (format "Slack:\n")
-   (format "--begin--\n")
-   (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
-   (format "%s\n" summary)
-   (format "TBD\n")
-   (format "--end--\n")))
+    (format "Slack:\n")
+    (format "--begin--\n")
+    (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
+    (format "%s\n" summary)
+    (format "TBD\n")
+    (format "--end--\n")))
 
 (defun jira-todo--format-teams-message (summary)
   "Format message with SUMMARY for Microsoft Teams."
   (concat
-   (format "Teams:\n")
-   (format "--begin--\n")
-   (format "PTAL %s\n" jira-todo-pr-reviewers)
-   (format "TBD\n")
-   (format "%s\n" summary)
-   (format "--end--\n")))
+    (format "Teams:\n")
+    (format "--begin--\n")
+    (format "PTAL PR \n")
+    (format "%s\n" summary)
+    (format "cc: %s\n" jira-todo-pr-reviewers)
+    (format "--end--\n")))
 
 (defun jira-todo--format-output (data)
   "Format `org-mode' TODO and message from parsed JIRA DATA."
   (let* ((key             (format "%s" (alist-get 'key data)))
-         (fields          (alist-get 'fields data))
-         (summary         (format "%s" (alist-get 'summary fields)))
-         (url             (jira-todo--key-to-browse-url key))
-         (clean-summary   (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
-         (branch-words    (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
-         (branch-compact  (replace-regexp-in-string "-+" "-" branch-words))
-         (branch-trimmed  (replace-regexp-in-string "-+$" "" branch-compact))
-         (branch-summ     (downcase branch-trimmed))
-         (branch          (format "%s_%s" key branch-summ)))
+          (fields          (alist-get 'fields data))
+          (summary         (format "%s" (alist-get 'summary fields)))
+          (url             (jira-todo--key-to-browse-url key))
+          (clean-summary   (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
+          (branch-words    (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
+          (branch-compact  (replace-regexp-in-string "-+" "-" branch-words))
+          (branch-trimmed  (replace-regexp-in-string "-+$" "" branch-compact))
+          (branch-summ     (downcase branch-trimmed))
+          (branch          (format "%s_%s" key branch-summ)))
     (concat
-     (format "*** TODO CR: %s %s\n" key clean-summary)
-     (format "JIRA: [[%s][%s]]\n" url key)
-     (format "Branch: %s\n" branch)
-     (format "Title: %s: %s\n" key clean-summary)
-     (format "PR: TBD\n")
-     (format "PR Text:\n")
-     (format "--begin--\n")
-     (format "## JIRA\n")
-     (format "[%s](%s)\n" key url)
-     (format "## Description\n")
-     (format "%s\n" clean-summary)
-     (format "--end--\n")
-     (pcase jira-todo-pr-messaging-provider
-       ("slack" (jira-todo--format-slack-message clean-summary))
-       ("teams" (jira-todo--format-teams-message clean-summary))
-       (_ ""))
-     (format ":LOGBOOK:\n")
-     (format ":END:"))))
+      (format "*** TODO CR: %s %s\n" key clean-summary)
+      (format "JIRA: [[%s][%s]]\n" url key)
+      (format "Branch: %s\n" branch)
+      (format "Prompt:\n")
+      (format "--begin--\n")
+      (format "In my current branch %s" branch)
+      (format " please implement the JIRA at %s\n" url)
+      (format "--end--\n")
+      (format "Title: %s: %s\n" key clean-summary)
+      (format "PR: TBD\n")
+      (format "PR Text:\n")
+      (format "--begin--\n")
+      (format "## JIRA\n")
+      (format "[%s](%s)\n" key url)
+      (format "## Description\n")
+      (format "%s\n" clean-summary)
+      (format "--end--\n")
+      (pcase jira-todo-pr-messaging-provider
+        ("slack" (jira-todo--format-slack-message clean-summary))
+        ("teams" (jira-todo--format-teams-message clean-summary))
+        (_ ""))
+      (format ":LOGBOOK:\n")
+      (format ":END:"))))
+
+(defun jira-todo--parse-labeled-fields (text)
+  "Parse TEXT for lines of the form \"Label: value\".
+Return an alist of (LABEL . VALUE), both trimmed strings.  LABEL is
+everything before the first colon on the line; VALUE is everything
+after the first \": \" that follows it.  If a label appears more than
+once, the first occurrence wins."
+  (let ((fields nil)
+         (case-fold-search nil))
+    (with-temp-buffer
+      (insert text)
+      (goto-char (point-min))
+      (while (re-search-forward "^[ \t]*\\([^:\n]+\\): \\(.+\\)$" nil t)
+        (let ((label (string-trim (match-string 1)))
+               (value (string-trim (match-string 2))))
+          (unless (assoc label fields)
+            (push (cons label value) fields)))))
+    (nreverse fields)))
 
 (defun jira-todo--insert-output (data)
   "Insert formatted `org-mode' TODO for JIRA DATA at point in the current buffer."
   (let ((output (jira-todo--format-output data))
-        (buf (current-buffer)))
+         (buf (current-buffer))
+         (dir default-directory))
     (with-current-buffer buf
       (jira-todo--smart-open-line-above)
       (let ((start (point)))
         (insert output)
         (goto-char start)
-        (org-back-to-heading t)))))
+        (org-back-to-heading t)))
+    (let* ((fields (jira-todo--parse-labeled-fields output))
+            (branch (cdr (assoc "Branch" fields)))
+            (title (cdr (assoc "Title" fields))))
+      (if (or (null branch) (string-empty-p branch))
+        (message "You must manually create branch, could not identify name.")
+        (git-tools-branch-create-from-main branch dir)
+        (git-tools-empty-commit-message title dir)))))
 
 (defun jira-todo--parse-input (input)
   "Parse INPUT into a JIRA key.
@@ -192,17 +224,17 @@ INPUT can be in any of the following forms:
 Returns the JIRA key as a string, e.g. JIRA-11111.
 Signals an error if INPUT cannot be parsed."
   (cond
-   ;; Full URL: https://atlassian.net/browse/JIRA-11111
-   ((string-match "/browse/\\([A-Z]+-[0-9]+\\)" input)
-    (match-string 1 input))
-   ;; Full key: JIRA-11111
-   ((string-match "^\\([A-Z]+-[0-9]+\\)$" input)
-    (match-string 1 input))
-   ;; Just a number: 11111
-   ((string-match "^[0-9]+$" input)
-    (format "%s-%s" jira-todo-issue-key-prefix input))
-   (t
-    (error "Could not parse JIRA issue from input: %s" input))))
+    ;; Full URL: https://atlassian.net/browse/JIRA-11111
+    ((string-match "/browse/\\([A-Z]+-[0-9]+\\)" input)
+      (match-string 1 input))
+    ;; Full key: JIRA-11111
+    ((string-match "^\\([A-Z]+-[0-9]+\\)$" input)
+      (match-string 1 input))
+    ;; Just a number: 11111
+    ((string-match "^[0-9]+$" input)
+      (format "%s-%s" jira-todo-issue-key-prefix input))
+    (t
+      (error "Could not parse JIRA issue from input: %s" input))))
 
 (defun jira-todo--key-to-rest-url (key)
   "Return the JIRA REST API URL for KEY (e.g. JIRA-11111)."
@@ -219,20 +251,20 @@ INPUT can be a full URL, a key like JIRA-11111, or just an issue number.
 If INPUT is not provided, prompt interactively."
   (interactive)
   (let* ((input (or input
-                    (and (not (called-interactively-p 'any)) nil)
-                    (read-string "JIRA issue (URL, key, or number): ")))
-         (key (jira-todo--parse-input input))
-         (rest-url (jira-todo--key-to-rest-url key)))
+                  (and (not (called-interactively-p 'any)) nil)
+                  (read-string "JIRA issue (URL, key, or number): ")))
+          (key (jira-todo--parse-input input))
+          (rest-url (jira-todo--key-to-rest-url key)))
     (request rest-url
       :headers `(("Accept"        . "application/json")
-                 ("Authorization" . ,(jira-todo--auth-header)))
+                  ("Authorization" . ,(jira-todo--auth-header)))
       :parser #'json-read
       :success (cl-function
-                (lambda (&key data &allow-other-keys)
-                  (jira-todo--insert-output data)))
+                 (lambda (&key data &allow-other-keys)
+                   (jira-todo--insert-output data)))
       :error (cl-function
-              (lambda (&key error-thrown &allow-other-keys)
-                (message "Error fetching JIRA ticket: %S" error-thrown))))))
+               (lambda (&key error-thrown &allow-other-keys)
+                 (message "Error fetching JIRA ticket: %S" error-thrown))))))
 
 (provide 'jira-todo)
 ;;; jira-todo.el ends here

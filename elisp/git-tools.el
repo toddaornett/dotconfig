@@ -135,6 +135,40 @@ projectile being installed."
         (remote)))
     (replace-regexp-in-string "\\.git\\'" "" remote)))
 
+(defvar git-tools-project-directory nil
+  "Cached fallback git project directory.
+Used by `git-tools-branch-create-from-main' when its DIR
+argument (or `default-directory') is not inside a git
+repository.  Set interactively the first time a prompt is
+needed, and reused for the remainder of the Emacs session.")
+
+(defun git-tools--git-repo-p (dir)
+  "Return non-nil if DIR is inside a git repository."
+  (let ((default-directory (file-name-as-directory dir)))
+    (magit-toplevel)))
+
+(defun git-tools--ensure-project-directory (dir)
+  "Return a git repository directory derived from DIR.
+DIR defaults to `default-directory' when nil.  If the
+resulting directory is not inside a git repository, fall back
+to `git-tools-project-directory' if that is still valid, or
+else prompt for a directory via `read-directory-name' and
+cache the answer in `git-tools-project-directory' for later
+calls in this session."
+  (let ((candidate (or dir default-directory)))
+    (cond
+      ((git-tools--git-repo-p candidate) candidate)
+      ((and git-tools-project-directory
+         (git-tools--git-repo-p git-tools-project-directory))
+        git-tools-project-directory)
+      (t
+        (let ((chosen (read-directory-name
+                        "Select git project directory: " nil nil t)))
+          (unless (git-tools--git-repo-p chosen)
+            (user-error "%s is not a git repository" chosen))
+          (setq git-tools-project-directory chosen)
+          chosen)))))
+
 (defun git-tools-main-branch-name (&optional dir)
   "Return the main branch name for the repository in DIR (or current directory).
 Tries several names or falls back to the default branch from git symbolic-ref."
@@ -148,6 +182,55 @@ Tries several names or falls back to the default branch from git symbolic-ref."
            (string-trim
              (shell-command-to-string "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'"))
            (error nil))))))
+
+;;;###autoload
+(defun git-tools-branch-create-from-main (branch &optional dir)
+  "Create BRANCH with starting point at main for repo in DIR.
+DIR defaults to `default-directory' when nil.  If the
+resulting directory is not a git repository, prompt for one
+via `git-tools--ensure-project-directory' (see that function
+for caching behavior).
+
+Signal a `user-error' if the repository has uncommitted or
+unstaged changes.  Otherwise, update the local main branch
+from \"origin\", create BRANCH from it, and check out BRANCH."
+  (interactive "sBranch name: ")
+  (let* ((default-directory (git-tools--ensure-project-directory dir))
+          (main-branch (git-tools-main-branch-name default-directory)))
+    (unless main-branch
+      (user-error "Could not determine main branch for repo in %s"
+        default-directory))
+    (when (magit-anything-modified-p)
+      (user-error
+        "Repository is not clean; commit or stash changes first"))
+    (if (equal (magit-get-current-branch) main-branch)
+      (magit-run-git "pull" "origin" main-branch)
+      (magit-run-git "fetch" "origin"
+        (format "%s:%s" main-branch main-branch)))
+    (magit-run-git "checkout" "-b" branch main-branch)
+    (message "Created and checked out `%s' from `%s'"
+      branch main-branch)))
+
+;;;###autoload
+(defun git-tools-empty-commit-message (&optional message dir)
+  "Create an empty commit with MESSAGE for repo in DIR.
+MESSAGE defaults to \"chore: trigger CI\" when nil or empty.
+DIR defaults to `default-directory' when nil.  If the
+resulting directory is not a git repository, prompt for one
+via `git-tools--ensure-project-directory' (see that function
+for caching behavior).
+
+This does not require or check for a clean working tree, since
+an empty commit records no tree changes regardless of what else
+is going on in the repo."
+  (interactive
+    (list (read-string "Commit message: " nil nil "chore: trigger CI")))
+  (let ((default-directory (git-tools--ensure-project-directory dir))
+         (message (if (and message (not (string-empty-p (string-trim message))))
+                    message
+                    "chore: trigger CI")))
+    (magit-run-git "commit" "--allow-empty" "-m" message)
+    (message "Created empty commit: %s" message)))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
