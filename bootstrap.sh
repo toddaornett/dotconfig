@@ -586,6 +586,7 @@ if [[ "$answer" =~ ^[Yy]$ ]]; then
   install_pipx_tool black
   install_pipx_tool isort
   install_pipx_tool flake8
+  install_pipx_tool grip
 fi
 
 #################################
