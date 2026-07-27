@@ -77,7 +77,7 @@
   ;;(javascript +lsp +tree-sitter)
   ;;(typescript +lsp +tree-sitter)
   (web +lsp)
-  markdown            ; Lightweight, keep
+  (markdown +grip)    ; Lightweight, keep, add grip for GH equiv
   (org +pomodoro)     ; Keep for note-taking
   (rust +eglot)       ; Use eglot only, remove +lsp and +cargo
   sh                  ; Lightweight, keep
