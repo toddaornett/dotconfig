@@ -657,7 +657,12 @@ If the point is not on a file, copies the full path of the current directory."
       (append flycheck-disabled-checkers
         '(emacs-lisp emacs-lisp-checkdoc)))))
 
-(add-hook 'emacs-lisp-mode-hook #'tao/flycheck-disable-in-doom-dir -90)
+(add-hook! emacs-lisp-mode
+  #'tao/flycheck-disable-in-doom-dir -90)
+
+(add-hook! markdown-mode
+  #'markdown-toggle-markup-hiding
+  #'valign-mode)
 
 (setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)

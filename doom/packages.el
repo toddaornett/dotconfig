@@ -118,3 +118,5 @@
 
 (package! ellama)
 (package! minuet)
+
+(package! valign)
