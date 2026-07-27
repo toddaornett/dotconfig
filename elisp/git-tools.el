@@ -169,19 +169,52 @@ calls in this session."
           (setq git-tools-project-directory chosen)
           chosen)))))
 
+;;;###autoload
+(defun git-tools-current-branch-name (&optional dir)
+  "Return the current branch name for the repository in DIR (or current directory).
+Return nil if DIR is not inside a git repository, if git is not
+available, or if the repository is in a detached HEAD state.
+When called interactively, also display the result in the echo area."
+  (interactive)
+  (let* ((default-directory (or dir default-directory))
+          (git (executable-find "git"))
+          (branch (when git
+                    (with-temp-buffer
+                      (if (zerop (call-process git nil t nil
+                                   "rev-parse" "--abbrev-ref" "HEAD"))
+                        (let ((b (string-trim (buffer-string))))
+                          (if (or (string-empty-p b)
+                                (string= b "HEAD"))
+                            nil
+                            b))
+                        nil)))))
+    (when (called-interactively-p 'interactive)
+      (message (if branch
+                 (format "Current branch: %s" branch)
+                 "Not on a branch (detached HEAD or not a git repo)")))
+    branch))
+
+;;;###autoload
 (defun git-tools-main-branch-name (&optional dir)
   "Return the main branch name for the repository in DIR (or current directory).
-Tries several names or falls back to the default branch from git symbolic-ref."
-  (let ((default-directory (or dir default-directory)))
-    (cond
-      ((magit-branch-p "main") "main")
-      ((magit-branch-p "master") "master")
-      ((magit-branch-p "develop") "develop")
-      ((magit-branch-p "trunk") "trunk")
-      (t (condition-case nil
-           (string-trim
-             (shell-command-to-string "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'"))
-           (error nil))))))
+Tries several names or falls back to the default branch from git symbolic-ref.
+When called interactively, also display the result in the echo area."
+  (interactive)
+  (let* ((default-directory (or dir default-directory))
+          (branch (cond
+                    ((magit-branch-p "main") "main")
+                    ((magit-branch-p "master") "master")
+                    ((magit-branch-p "develop") "develop")
+                    ((magit-branch-p "trunk") "trunk")
+                    (t (condition-case nil
+                         (string-trim
+                           (shell-command-to-string "git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'"))
+                         (error nil))))))
+    (when (called-interactively-p 'interactive)
+      (message (if branch
+                 (format "Main branch: %s" branch)
+                 "No main branch found")))
+    branch))
 
 ;;;###autoload
 (defun git-tools-branch-create-from-main (branch &optional dir)
