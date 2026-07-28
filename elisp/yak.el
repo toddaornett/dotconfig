@@ -28,13 +28,19 @@
          (kill-new output)
          (message (format "yak-implement: current branch %s" branch-name))))
 
-(defun yak-review-pull-request ()
-  (interactive)
+(defun yak-review-pull-request (arg)
+  (interactive "P")
   (let* ((branch-name (git-tools-current-branch-name))
-         (output (concat
-                   (format "Please review the current branch %s." branch-name))))
-         (kill-new output)
-         (message (format "yak-review-pull-request: current branch %s" branch-name))))
+         (count (if (null arg) 0 (prefix-numeric-value arg)))
+         (prefix (if (> count 0)
+                     (format "Please review the latest %d commits in the current branch" count)
+                   "Please review the latest commit in the current branch"))
+         (output (format "%s %s." prefix branch-name))
+         (suffix (concat ", providing a concise approval or changes requested verdict only for breaking issues. "
+                          "Also provide a short list of a few comments for improvement if applicable."))
+         (output (format "%s %s%s" prefix branch-name suffix)))
+    (kill-new output)
+    (message "yak-review-pull-request: current branch %s" branch-name)))
 
 (defun yak-review-respond-to-comment (text)
   (interactive "MText: ")
