@@ -39,6 +39,8 @@
 ;; Cache: (ROOT . (NAME . EMAIL))
 (defvar git-tools-git-identity-cache (make-hash-table :test #'equal))
 
+(defvar git-tools-review-home nil)
+
 (defun git-tools--project-root ()
   "Return the root directory of the current git project, or nil if none.
 Delegates to `magit-toplevel', which also handles worktrees and
@@ -793,6 +795,90 @@ sort alphabetically by name instead."
       (lambda (process _event)
         (when (eq (process-status process) 'exit)
           (magit-refresh-all))))))
+
+;;;###autoload
+(defun git-tools-review-start ()
+  "Start reviewing a GitHub pull request in a dedicated repo directory.
+
+Use `git-tools-review-home' as the repo directory if it is set to a
+non-empty string; otherwise fall back to `git-tools--project-root'
+(based on the current buffer, like the rest of git-tools).
+
+In that repo:
+1. Clean the working tree (`git reset --hard' + `git clean -fd',
+   discarding local changes and untracked files).
+2. Check out the main branch, per `git-tools-main-branch-name'.
+3. Pull the latest changes from origin.
+4. Determine which pull request to review from the URL currently on
+   the system clipboard, if it looks like a GitHub PR URL (e.g.
+   https://github.com/OWNER/REPO/pull/123).  If the clipboard is
+   empty or doesn't hold such a URL, prompt for one interactively.
+   Fetch that PR from origin and check it out into a local branch
+   named `review/pr-NUMBER'."
+  (interactive)
+  (let* ((default-directory
+           (file-name-as-directory
+             (or (and (stringp git-tools-review-home)
+                    (not (string-empty-p git-tools-review-home))
+                    (expand-file-name git-tools-review-home))
+               (git-tools--project-root)
+               (user-error "Could not determine a git repository directory"))))
+          (main-branch (or (git-tools-main-branch-name)
+                         (user-error "Could not determine main branch for %s"
+                           default-directory)))
+          (pr-number (git-tools--pr-number-from-clipboard-or-prompt)))
+    (unless (file-directory-p default-directory)
+      (user-error "Directory does not exist: %s" default-directory))
+    (message "git-tools-review: preparing %s" default-directory)
+    ;; 1. Clean the working tree.
+    (magit-run-git "reset" "--hard" "HEAD")
+    (magit-run-git "clean" "-fd")
+    ;; 2. Switch to the main/master branch.
+    (unless (string= (magit-get-current-branch) main-branch)
+      (magit-run-git "checkout" main-branch))
+    ;; 3. Pull the latest from origin.
+    (if (magit-get-upstream-branch)
+      (magit-run-git "pull" "origin" main-branch)
+      (magit-run-git "fetch" "origin" (format "%s:%s" main-branch main-branch)))
+    ;; 4. Fetch and check out the PR.
+    (let ((review-branch (format "review/pr-%s" pr-number)))
+      (magit-run-git "fetch" "origin"
+        (format "pull/%s/head:%s" pr-number review-branch))
+      (magit-run-git "checkout" review-branch)
+      (message "git-tools-review: checked out PR #%s as `%s' in %s"
+        pr-number review-branch default-directory))))
+
+(defun git-tools--clipboard-string ()
+  "Return the current system clipboard contents as a string, or nil."
+  (or (ignore-errors (gui-get-selection 'CLIPBOARD 'STRING))
+    (ignore-errors (current-kill 0 t))))
+
+(defun git-tools--github-pr-number (url)
+  "Return the PR number as a string if URL looks like a GitHub PR URL.
+Return nil otherwise (including when URL is nil or empty)."
+  (when (and (stringp url)
+          (not (string-empty-p (string-trim url)))
+          (string-match
+            "\\`https?://github\\.com/[^/]+/[^/]+/pull/\\([0-9]+\\)/?\\'"
+            (string-trim url)))
+    (match-string 1 (string-trim url))))
+
+(defun git-tools--pr-number-from-clipboard-or-prompt ()
+  "Return a GitHub PR number, taken from the clipboard if possible.
+If the clipboard holds a string that looks like a GitHub pull
+request URL, extract and return its PR number.  Otherwise (empty
+clipboard, or a URL that doesn't match), prompt interactively,
+re-prompting until a valid GitHub PR URL is entered."
+  (or (git-tools--github-pr-number (git-tools--clipboard-string))
+    (let (number)
+      (while (not number)
+        (setq number
+          (git-tools--github-pr-number
+            (read-string "GitHub pull request URL: ")))
+        (unless number
+          (message "That doesn't look like a GitHub pull request URL; try again.")
+          (sit-for 1)))
+      number)))
 
 (defun git-tools--default-copy-dir ()
   "Compute the default destination directory: ~/wip/RELATIVE-PATH/BRANCH.
