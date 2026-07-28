@@ -164,6 +164,7 @@ if command -v defaults >/dev/null 2>&1; then
   defaults write com.apple.WindowManager GloballyEnabled -bool false || true
   defaults write -g NSWindowShouldDragOnGesture -bool true || true
   defaults write -g NSAutomaticWindowAnimationsEnabled -bool false || true
+  defaults write org.hammerspoon.Hammerspoon MJConfigFile "~/.config/todd/hammerspoon/init.lua" || true
 fi
 
 #################################
