@@ -11,6 +11,7 @@ cask "nikitabobko/tap/aerospace"
 cask "zed"
 cask "dbeaver-community"
 cask "karabiner-elements"
+cask "hammerspoon"
 
 brew "gcc"
 brew "libgccjit"
