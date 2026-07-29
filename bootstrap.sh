@@ -509,6 +509,15 @@ else
 fi
 
 #################################
+# Configure support for pdf tools
+#################################
+EPDFINFO_BUILD_DIR="${DOOM_DIR}/.local/straight/build-${EMACS_VER}/pdf-tools/epdfinfo"
+if [ ! -f "$EPDFINFO_BUILD_DIR" ] 2>/dev/null; then
+  echo "🔄 run pdf-tools-install ..."
+  emacs --batch --eval "(progn (require 'pdf-tools) (pdf-tools-install --no-query))"
+fi
+
+#################################
 # Install chemacs2
 #################################
 CHEMACS2_PROFILES_FILE="$HOME/.emacs-profiles.el"
