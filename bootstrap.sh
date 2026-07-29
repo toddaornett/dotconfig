@@ -231,15 +231,40 @@ git config --global core.excludesfile "$GITIGNORE_FILEPATH"
 if [ ! -f "$GITIGNORE_FILEPATH" ]; then
   echo "  create $GITIGNORE_FILEPATH"
   cat >>"$GITIGNORE_FILEPATH" <<'EOF'
-# macOS
-.DS_Store
+# ==========================================
+# Operating System Temporary / Junk Files
+# ==========================================
 
-# Emacs
+# macOS Specific
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows Specific
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux Specific
+*~
+.directory
+.Trash-*
+.fuse_hidden*
+
+# ==========================================
+# Optional: Common IDE / Editor Junk
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
 *~
 #*#
 .elc
-
-# Vim
 *.swp
 
 # Local env files
