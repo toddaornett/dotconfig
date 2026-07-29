@@ -51,5 +51,14 @@
          (kill-new output)
          (message (format "yak-review-respond-to-comment: current branch %s" branch-name))))
 
+(defun yak-update-for-comment (text)
+  (interactive "MText: ")
+  (let* ((branch-name (git-tools-current-branch-name))
+         (output (concat
+                   (format "Concerning the current branch %s, please " branch-name)
+                   (format "make an update to the implementation based on this review comment: %s." text))))
+         (kill-new output)
+         (message (format "yak-update-for-comment: current branch %s" branch-name))))
+
 (provide 'yak)
 ;;; yak.el ends here
