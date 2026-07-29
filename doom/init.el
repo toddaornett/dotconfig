@@ -67,6 +67,7 @@
   (ripgrep +extra)    ; Keep for fast search
   lsp                 ; Keep for LSP support
   (exec-path-from-shell)
+  pdf                 ; nice rendering of pdf
 
   :os
   (:if IS-MAC macos)  ; Keep for macOS compatibility
