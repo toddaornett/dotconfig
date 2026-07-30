@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: July 9, 2026
+;; Modified: July 30, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -814,7 +814,8 @@ In that repo:
    https://github.com/OWNER/REPO/pull/123).  If the clipboard is
    empty or doesn't hold such a URL, prompt for one interactively.
    Fetch that PR from origin and check it out into a local branch
-   named `review/pr-NUMBER'."
+   named `review/pr-NUMBER'.
+5. Add prompt to the kill ring."
   (interactive)
   (let* ((default-directory
            (file-name-as-directory
@@ -841,10 +842,15 @@ In that repo:
       (magit-run-git "pull" "origin" main-branch)
       (magit-run-git "fetch" "origin" (format "%s:%s" main-branch main-branch)))
     ;; 4. Fetch and check out the PR.
-    (let ((review-branch (format "review/pr-%s" pr-number)))
+    (let* ((review-branch (format "review/pr-%s" pr-number))
+            (output (concat (format "In the directory %s, " default-directory)
+                            (format "please review the latest commits in the current branch %s " review-branch)
+                            (format "to be merged into %s. " (git-tools-main-branch-name default-directory))
+                            (format "Also provide a short list of a few comments for improvement if applicable."))))
       (magit-run-git "fetch" "origin"
         (format "pull/%s/head:%s" pr-number review-branch))
       (magit-run-git "checkout" review-branch)
+      (kill-new output)
       (message "git-tools-review: checked out PR #%s as `%s' in %s"
         pr-number review-branch default-directory))))
 
