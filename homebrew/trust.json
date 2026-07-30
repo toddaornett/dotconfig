@@ -7,6 +7,7 @@
     "nikitabobko/tap/aerospace"
   ],
   "trustedformulae": [
+    "can1357/tap/omp",
     "redpanda-data/tap/redpanda"
   ]
 }
