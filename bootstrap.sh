@@ -653,6 +653,21 @@ if ! grep -Fqs "CARGO_NET_GIT_FETCH_WITH_CLI" "$ZSHRC" 2>/dev/null; then
 fi
 
 #################################
+# omp configuration
+#################################
+OMP_CONFIG="$HOME/.omp/agent/config.yml"
+if [ ! -f "$OMP_CONFIG" ]; then
+  echo "📁 Creating oh-my-pi config directory ..."
+  mkdir -p "$(dirname "$OMP_CONFIG")"
+  echo "📄 Creating oh-my-pi config file ..."
+  touch "$OMP_CONFIG"
+fi
+if ! grep -q '^export BROWSER=' "$OMP_CONFIG"; then
+  echo "🌐 Adding BROWSER environment variable for oh-my-pi ..."
+  echo 'export BROWSER="com.google.Chrome"' >>"$OMP_CONFIG"
+fi
+
+#################################
 # Install Krew if missing
 #################################
 if ! command -v kubectl-krew >/dev/null 2>&1; then
