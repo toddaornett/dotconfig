@@ -29,4 +29,19 @@ config.keys = {
   },
 }
 
+-- Start from Wezterm's built-in key tables so we keep all default
+-- copy-mode bindings (h/j/k/l, v, y, etc.) and just add our own on top.
+local default_tables = wezterm.gui.default_key_tables()
+local copy_mode = default_tables.copy_mode or {}
+
+table.insert(copy_mode, {
+  key = 'G',
+  mods = 'NONE',
+  action = wezterm.action.CopyMode 'MoveToScrollbackBottom',
+})
+
+config.key_tables = {
+  copy_mode = copy_mode,
+}
+
 return config
