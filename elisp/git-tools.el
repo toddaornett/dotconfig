@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: July 30, 2026
+;; Modified: July 31, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -795,6 +795,20 @@ sort alphabetically by name instead."
       (lambda (process _event)
         (when (eq (process-status process) 'exit)
           (magit-refresh-all))))))
+
+;;;###autoload
+(defun git-tools-review-directory ()
+  "Return the effective git working directory for review."
+  (interactive)
+  (let ((dir (file-name-as-directory
+              (or (and (stringp git-tools-review-home)
+                       (not (string-empty-p git-tools-review-home))
+                       (expand-file-name git-tools-review-home))
+                  (git-tools--project-root)
+                  default-directory))))
+    (when (called-interactively-p 'interactive)
+      (message "Git review directory: %s" dir))
+    dir))
 
 ;;;###autoload
 (defun git-tools-review-start ()
