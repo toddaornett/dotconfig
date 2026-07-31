@@ -1,4 +1,4 @@
-;;; ;;; $DOOMDIR/config/notes.el --- org mode configuration -*- lexical-binding: t; -*-
+;;; $DOOMDIR/config/notes.el --- org mode configuration -*- lexical-binding: t; -*-
 (setq org-directory "~/Notes/")
 
 (defvar org-index-file (concat org-directory "index.org")
