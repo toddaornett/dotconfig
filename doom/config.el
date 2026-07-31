@@ -576,6 +576,7 @@ If the point is not on a file, copies the full path of the current directory."
 (load! "config/clipboard")
 (load! "config/notes")
 (load! "config/hooks")
+(load! "config/modes")
 
 (use-package! ws-butler
   :config
