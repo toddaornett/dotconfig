@@ -153,6 +153,21 @@ ensure_gcc_emutls() {
   fi
 }
 
+# Homebrew only ever creates symlinks directly under opt/ (into Cellar). A real
+# directory there — e.g. a leftover manual shim like opt/jpeg/lib — is never
+# managed by brew and makes upgrades die with
+# "Error: Directory not empty @ dir_s_rmdir - <prefix>/opt/<formula>".
+prune_stale_brew_opt_dirs() {
+  local opt_root="$BREW_PREFIX/opt"
+  [ -d "$opt_root" ] || return 0
+
+  local path
+  while IFS= read -r -d '' path; do
+    echo "⚠️  Removing stale directory $path (opt entries must be symlinks; real dirs break brew upgrades)"
+    rm -rf "$path"
+  done < <(find "$opt_root" -mindepth 1 -maxdepth 1 -type d -print0)
+}
+
 echo "🧠 Bootstrapping system..."
 
 #################################
@@ -185,6 +200,9 @@ brew tap d12frosted/emacs-plus 2>/dev/null || true
 
 echo "🔄 Updating Homebrew..."
 brew update
+
+echo "🧹 Pruning stale Homebrew opt directories..."
+prune_stale_brew_opt_dirs
 
 echo "📦 Installing Homebrew packages..."
 # Allow emacs-plus link conflict — we force-link it immediately after
