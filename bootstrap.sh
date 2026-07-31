@@ -530,15 +530,15 @@ fi
 # Configure support for pdf tools
 #################################
 EPDFINFO_BIN="${DOOM_DIR}/.local/straight/build-${EMACS_VER}/pdf-tools/epdfinfo"
+PDF_TOOLS_AUTOBUILD="${DOOM_DIR}/.local/straight/repos/pdf-tools/server/autobuild"
 if [ ! -f "$EPDFINFO_BIN" ]; then
-  echo "🔄 run pdf-tools-install ..."
-  PDF_TOOLS_INSTALL_SCRIPT="$(mktemp -t pdf-tools-install).el"
-  cat >"$PDF_TOOLS_INSTALL_SCRIPT" <<'EOF'
-(require 'pdf-tools)
-(pdf-tools-install --no-query)
-EOF
-  "$DOOM_BIN/doom" run --batch --load "$PDF_TOOLS_INSTALL_SCRIPT"
-  rm -f "$PDF_TOOLS_INSTALL_SCRIPT"
+  echo "🛠️ Building epdfinfo server (pdf-tools autobuild)..."
+  sh "$PDF_TOOLS_AUTOBUILD" -i "$(dirname "$EPDFINFO_BIN")" -D
+  if [ -f "$EPDFINFO_BIN" ]; then
+    echo "✅ epdfinfo built successfully"
+  else
+    echo "❌ epdfinfo build failed — see output above"
+  fi
 else
   echo "✅ epdfinfo already built"
 fi
@@ -666,7 +666,19 @@ fi
 #################################
 if ! command -v goimports >/dev/null 2>&1; then
   echo "🐹 Installing goimports ..."
-  go install golang.org/x/tools/cmd/goimports@latest
+  if ! command -v go >/dev/null 2>&1; then
+    echo "🐹 Go toolchain not found — installing globally via mise..."
+    mise use -g go@latest
+  fi
+  # mise's shell hook can't activate tools mid-script, so fall back to
+  # `mise exec` when go isn't on PATH in this shell context. Note mise sets
+  # GOBIN to the toolchain's bin dir, so goimports lands on PATH automatically
+  # in shells where the go tool is active — no ~/go/bin PATH hacks needed.
+  if command -v go >/dev/null 2>&1; then
+    go install golang.org/x/tools/cmd/goimports@latest
+  else
+    mise exec go@latest -- go install golang.org/x/tools/cmd/goimports@latest
+  fi
 else
   echo "🐹 goimports is already installed"
 fi
