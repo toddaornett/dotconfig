@@ -35,6 +35,38 @@ done
 
 source "$ZSHENV"
 
+resolve_macos_compiler() {
+  local role="$1"
+  local current=""
+
+  if [ "$role" = "CC" ]; then
+    current="${CC:-}"
+  else
+    current="${CXX:-}"
+  fi
+
+  if [ -n "$current" ] && [ -x "$current" ]; then
+    printf '%s\n' "$current"
+    return 0
+  fi
+
+  local gcc_ver
+  gcc_ver="$(brew list --versions gcc 2>/dev/null | awk '{print $2}' | cut -d. -f1)"
+  if [ -n "$gcc_ver" ]; then
+    local brew_bin="${BREW_PREFIX}/bin/$([ "$role" = "CC" ] && echo "gcc-${gcc_ver}" || echo "g++-${gcc_ver}")"
+    if [ -x "$brew_bin" ]; then
+      printf '%s\n' "$brew_bin"
+      return 0
+    fi
+  fi
+
+  if [ "$role" = "CC" ]; then
+    xcrun --find cc 2>/dev/null || echo clang
+  else
+    xcrun --find c++ 2>/dev/null || echo clang++
+  fi
+}
+
 export_macos_build_env() {
   [[ "$(uname -s)" != Darwin ]] && return 0
 
@@ -44,8 +76,8 @@ export_macos_build_env() {
     export SDKROOT="$sdk"
   fi
 
-  export CC="${CC:-$(xcrun --find cc 2>/dev/null || echo clang)}"
-  export CXX="${CXX:-$(xcrun --find c++ 2>/dev/null || echo clang++)}"
+  export CC="$(resolve_macos_compiler CC)"
+  export CXX="$(resolve_macos_compiler CXX)"
   export CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I${BREW_PREFIX:-$(brew --prefix)}/include"
   export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L${BREW_PREFIX:-$(brew --prefix)}/lib"
   export PKG_CONFIG_PATH="${BREW_PREFIX:-$(brew --prefix)}/opt/boost/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
@@ -108,6 +140,49 @@ fi
 EOF
   echo "  Added macOS build env vars to $ZSHRC"
   note_shell_init_for_builds
+}
+
+# Keep ~/.zshenv CC/CXX and gcc lib paths aligned with the installed Homebrew gcc.
+ensure_gcc_build_env_in_zshenv() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  local gcc_ver
+  gcc_ver="$(brew list --versions gcc 2>/dev/null | awk '{print $2}' | cut -d. -f1)"
+  if [ -z "$gcc_ver" ]; then
+    return 0
+  fi
+
+  local gcc_bin="${BREW_PREFIX}/bin/gcc-${gcc_ver}"
+  local gxx_bin="${BREW_PREFIX}/bin/g++-${gcc_ver}"
+  local gcc_lib="${BREW_PREFIX}/lib/gcc/${gcc_ver}"
+  if [ ! -x "$gcc_bin" ]; then
+    return 0
+  fi
+
+  local old_cc="${CC:-}"
+  if [ -f "$ZSHENV" ] && grep -q '^export CC=' "$ZSHENV" 2>/dev/null; then
+    sed -i '' \
+      -e "s|^export CC=.*|export CC=${gcc_bin}|" \
+      -e "s|^export CXX=.*|export CXX=${gxx_bin}|" \
+      -e "s|${BREW_PREFIX}/lib/gcc/[0-9][0-9]*|${gcc_lib}|g" \
+      "$ZSHENV"
+  fi
+
+  export CC="$gcc_bin"
+  export CXX="$gxx_bin"
+  if [ -n "${LIBRARY_PATH:-}" ]; then
+    export LIBRARY_PATH="$(echo "$LIBRARY_PATH" | sed "s|${BREW_PREFIX}/lib/gcc/[0-9][0-9]*|${gcc_lib}|g")"
+  else
+    export LIBRARY_PATH="$gcc_lib"
+  fi
+  if [ -n "${LD_LIBRARY_PATH:-}" ]; then
+    export LD_LIBRARY_PATH="$(echo "$LD_LIBRARY_PATH" | sed "s|${BREW_PREFIX}/lib/gcc/[0-9][0-9]*|${gcc_lib}|g")"
+  fi
+
+  if [ -n "$old_cc" ] && [ "$old_cc" != "$gcc_bin" ] && [ ! -x "$old_cc" ]; then
+    echo "⚠️  Stale CC ($old_cc) — updated to $gcc_bin"
+  fi
+  echo "✅ GCC build env synced to gcc-${gcc_ver}"
 }
 
 # Ensure gcc and libgccjit are built from source so libemutls_w.a is present.
@@ -238,6 +313,7 @@ fi
 # (Homebrew bottles omit it; source build required for native comp)
 #################################
 ensure_gcc_emutls
+ensure_gcc_build_env_in_zshenv
 
 #################################
 # Set globals for git
@@ -533,11 +609,18 @@ EPDFINFO_BIN="${DOOM_DIR}/.local/straight/build-${EMACS_VER}/pdf-tools/epdfinfo"
 PDF_TOOLS_AUTOBUILD="${DOOM_DIR}/.local/straight/repos/pdf-tools/server/autobuild"
 if [ ! -f "$EPDFINFO_BIN" ]; then
   echo "🛠️ Building epdfinfo server (pdf-tools autobuild)..."
-  sh "$PDF_TOOLS_AUTOBUILD" -i "$(dirname "$EPDFINFO_BIN")" -D
-  if [ -f "$EPDFINFO_BIN" ]; then
+  epdfinfo_build_ok=0
+  if verify_macos_compiler; then
+    (
+      export_macos_build_env
+      sh "$PDF_TOOLS_AUTOBUILD" -i "$(dirname "$EPDFINFO_BIN")" -D
+    ) && epdfinfo_build_ok=1
+  fi
+  if [ "$epdfinfo_build_ok" -eq 1 ] && [ -f "$EPDFINFO_BIN" ]; then
     echo "✅ epdfinfo built successfully"
   else
     echo "❌ epdfinfo build failed — see output above"
+    note_shell_init_for_builds
   fi
 else
   echo "✅ epdfinfo already built"
