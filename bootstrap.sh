@@ -320,6 +320,7 @@ ensure_gcc_build_env_in_zshenv
 #################################
 echo "🔀 Configure git ..."
 git config --global status.submoduleSummary true
+git config --global push.autoSetupRemote true
 GITIGNORE_FILEPATH="$HOME/.gitignore_global"
 git config --global core.excludesfile "$GITIGNORE_FILEPATH"
 if [ ! -f "$GITIGNORE_FILEPATH" ]; then

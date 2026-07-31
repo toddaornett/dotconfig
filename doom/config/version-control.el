@@ -10,6 +10,47 @@
   (setq magit-display-buffer-function #'magit-display-buffer-same-window-except-diff-v1)
   (setq forge-topic-list-limit '((pullreq . 50) (issue . 0)))
 
+  (defun +magit-push-target-for-branch (branch)
+    "Return REMOTE/BRANCH as the default push target for local BRANCH."
+    (let* ((branch (or branch (magit-get-current-branch)))
+           (remote (or (and branch (magit-get-push-remote branch))
+                       (and branch (magit-get-remote branch))
+                       (magit-primary-remote)
+                       (car (magit-list-remotes)))))
+      (when (and branch remote)
+        (concat remote "/" branch))))
+
+  (defun +magit-read-remote-branch--same-name-default (orig prompt &rest args)
+    "When pushing, default to a same-named branch on the push remote."
+    (let ((remote (nth 0 args))
+          (default (nth 1 args))
+          (local-branch (nth 2 args))
+          (require-match (nth 3 args)))
+      (when (and local-branch (not default))
+        (setq default (+magit-push-target-for-branch local-branch)))
+      (funcall orig prompt remote default local-branch require-match)))
+
+  (advice-add #'magit-read-remote-branch :around
+              #'+magit-read-remote-branch--same-name-default)
+
+  (defun +magit-push-current-to-upstream--same-name-default (orig &rest args)
+  "When setting upstream while pushing, default to same-named remote branch."
+  (let ((magit-completing-read-orig (symbol-function 'magit-completing-read)))
+    (cl-letf (((symbol-function 'magit-completing-read)
+               (lambda (prompt choices &rest cr-args)
+                 (let ((def (nth 4 cr-args)))
+                   (when (and (string-match-p "\\`Set upstream of " prompt)
+                              (not def)
+                              (magit-get-current-branch))
+                     (setf (nth 4 cr-args)
+                           (+magit-push-target-for-branch
+                            (magit-get-current-branch))))
+                   (apply magit-completing-read-orig prompt choices cr-args)))))
+      (apply orig args))))
+
+  (advice-add #'magit-push-current-to-upstream :around
+              #'+magit-push-current-to-upstream--same-name-default)
+
   (add-hook 'magit-mode-hook
             (lambda ()
               (display-line-numbers-mode -1)))
