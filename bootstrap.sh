@@ -511,10 +511,18 @@ fi
 #################################
 # Configure support for pdf tools
 #################################
-EPDFINFO_BUILD_DIR="${DOOM_DIR}/.local/straight/build-${EMACS_VER}/pdf-tools/epdfinfo"
-if [ ! -f "$EPDFINFO_BUILD_DIR" ] 2>/dev/null; then
+EPDFINFO_BIN="${DOOM_DIR}/.local/straight/build-${EMACS_VER}/pdf-tools/epdfinfo"
+if [ ! -f "$EPDFINFO_BIN" ]; then
   echo "🔄 run pdf-tools-install ..."
-  emacs --batch --eval "(progn (require 'pdf-tools) (pdf-tools-install --no-query))"
+  PDF_TOOLS_INSTALL_SCRIPT="$(mktemp -t pdf-tools-install).el"
+  cat >"$PDF_TOOLS_INSTALL_SCRIPT" <<'EOF'
+(require 'pdf-tools)
+(pdf-tools-install --no-query)
+EOF
+  "$DOOM_BIN/doom" run --batch --load "$PDF_TOOLS_INSTALL_SCRIPT"
+  rm -f "$PDF_TOOLS_INSTALL_SCRIPT"
+else
+  echo "✅ epdfinfo already built"
 fi
 
 #################################
