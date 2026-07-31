@@ -169,7 +169,7 @@ if [ ! -d $HOME/.nvm ]
 then
   mkdir $HOME/.nvm
 fi
-if ! command -v nvm &> /dev/null; then
+if [ ! -s "$HOMEBREW/opt/nvm/nvm.sh" ]; then
   brew install nvm
 fi
 export NVM_DIR="$HOME/.nvm"
