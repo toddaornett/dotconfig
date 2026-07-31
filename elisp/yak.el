@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 28, 2026
-;; Modified: July 28, 2026
+;; Modified: July 31, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools agent llm convenience
 ;; Package-Requires: ((emacs "29.1"))
@@ -32,9 +32,10 @@
   (interactive "P")
   (let* ((branch-name (git-tools-current-branch-name))
          (count (if (null arg) 0 (prefix-numeric-value arg)))
-         (prefix (if (> count 0)
-                     (format "Please review the latest %d commits in the current branch" count)
-                   "Please review the latest commit in the current branch"))
+          (prefix (concat (format "In %s, please review the latest " (git-tools-review-directory))
+                    (if (> count 0)
+                     (format "%d commits for the current branch" count)
+                   "commit for the current branch")))
          (output (format "%s %s." prefix branch-name))
          (suffix (concat ", providing a concise approval or changes requested verdict only for breaking issues. "
                           "Also provide a short list of a few comments for improvement if applicable."))
@@ -46,7 +47,8 @@
   (interactive "MText: ")
   (let* ((branch-name (git-tools-current-branch-name))
          (output (concat
-                   (format "Concerning the current branch %s, please " branch-name)
+                   (format "In %s, " (git-tools-review-directory))
+                   (format "concerning the current branch %s, please " branch-name)
                    (format "paste a reasonable concise response to this review comment %s." text))))
          (kill-new output)
          (message (format "yak-review-respond-to-comment: current branch %s" branch-name))))
@@ -55,10 +57,21 @@
   (interactive "MText: ")
   (let* ((branch-name (git-tools-current-branch-name))
          (output (concat
-                   (format "Concerning the current branch %s, please " branch-name)
+                   (format "In %s, " (git-tools-review-directory))
+                   (format "concerning the current branch %s, please " branch-name)
                    (format "make an update to the implementation based on this review comment: %s." text))))
          (kill-new output)
          (message (format "yak-update-for-comment: current branch %s" branch-name))))
+
+(defun yak-japanese-coe-request ()
+  (interactive)
+  (let ((output (concat
+                  (format "I am renewing my Work Visa with immigration and")
+                  (format "need to obtain my Certificate of Employment ")
+                  (format "(在職証明書). Please send the certificate ")
+                  (format "(or advise on how to obtain it."))))
+         (kill-new output)
+         (message output)))
 
 (provide 'yak)
 ;;; yak.el ends here
