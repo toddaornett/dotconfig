@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: July 31, 2026
+;; Modified: August 3, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -1018,11 +1018,11 @@ this function from Lisp, e.g.:
   (git-tools-copy-commits \"/tmp/out\" 3)"
   (interactive
     (list
-      (when (and current-prefix-arg (consp current-prefix-arg))
+      (when (consp current-prefix-arg)
         (read-directory-name "Copy commits to directory: "))
-      (when (and current-prefix-arg (not (consp current-prefix-arg)))
+      (unless (consp current-prefix-arg)
         (prefix-numeric-value current-prefix-arg))))
-  (let* ((commit-count (or commit-count 1))
+  (let* ((commit-count (max 1 (or commit-count 1)))
           (root (or (git-tools--project-root)
                   (error "Not inside a git repository")))
           (default-directory root)
