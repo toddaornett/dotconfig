@@ -3,9 +3,10 @@
 ;; Copyright (C) 2026 Todd Ornett
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
-;;
+;
+;
 ;; Created: April 22, 2026
-;; Modified: April 22, 2026
+;; Modified: August 7, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -208,6 +209,8 @@ once, the first occurrence wins."
     (let* ((fields (jira-todo--parse-labeled-fields output))
             (branch (cdr (assoc "Branch" fields)))
             (title (cdr (assoc "Title" fields))))
+      (when (fboundp 'evil-force-normal-state)
+        (evil-force-normal-state))
       (if (or (null branch) (string-empty-p branch))
         (message "You must manually create branch, could not identify name.")
         (git-tools-branch-create-from-main branch dir)
