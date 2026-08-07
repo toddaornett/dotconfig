@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: August 3, 2026
+;; Modified: August 7, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -859,7 +859,9 @@ In that repo:
     (let* ((review-branch (format "review/pr-%s" pr-number))
             (output (concat (format "In the directory %s, " default-directory)
                             (format "please review the latest commits in the current branch %s " review-branch)
-                            (format "to be merged into %s. " (git-tools-main-branch-name default-directory))
+                            (format "to be merged into %s " (git-tools-main-branch-name default-directory))
+                            (format "and start with a simple Approve 'Yes' or 'No' and ")
+                            (format "if not approved, provide concise list of critical problems. ")
                             (format "Also provide a short list of a few comments for improvement if applicable."))))
       (magit-run-git "fetch" "origin"
         (format "pull/%s/head:%s" pr-number review-branch))
