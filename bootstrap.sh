@@ -814,6 +814,10 @@ fi
 #################################
 echo "🐳 Configuring Docker..."
 
+if ! grep -qxF 'DOCKER_CONTEXT' "$ZSHRC"; then
+  echo 'export DOCKER_CONTEXT=colima' >>"$ZSHRC"
+fi
+
 if [ ! -f ~/.docker/config.json ]; then
   mkdir -p ~/.docker
   echo "{}" >~/.docker/config.json
