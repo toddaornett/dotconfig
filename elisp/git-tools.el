@@ -73,9 +73,8 @@ the leading slash stripped — e.g. \"opt/repos/Phoenix\" for
 
 (defun git-tools--project-files (root)
   "Return absolute paths of all files tracked by git in repo ROOT.
-Equivalent in spirit to `projectile-project-files', but backed by
-`git ls-files' instead of projectile, so it has no dependency on
-projectile being installed."
+Backed by `git ls-files' so it works without projectile or a
+`project.el' backend that indexes the tree."
   (let ((default-directory root))
     (mapcar (lambda (f) (expand-file-name f root))
       (git-tools--nonempty-lines
@@ -116,11 +115,12 @@ projectile being installed."
 ;; Update when opening files
 (add-hook 'find-file-hook #'git-tools-set-user-from-git-or-default)
 
-;; projectile is optional: only hook in if it happens to be loaded by
-;; the user's config, without requiring it as a hard dependency here.
-(when (featurep 'projectile)
-  (add-hook 'projectile-after-switch-project-hook
-    #'git-tools-set-user-from-git-or-default))
+;; Refresh identity after switching projects with built-in `project.el'.
+(defun git-tools--after-project-switch (&rest _)
+  "Refresh git user identity after `project-switch-project'."
+  (git-tools-set-user-from-git-or-default))
+
+(advice-add 'project-switch-project :after #'git-tools--after-project-switch)
 
 (defun git-tools-remote-origin-url ()
   "Return HTTPS URL derived from git remote origin."
