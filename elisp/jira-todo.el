@@ -6,7 +6,7 @@
 ;
 ;
 ;; Created: April 22, 2026
-;; Modified: August 7, 2026
+;; Modified: August 12, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -65,6 +65,12 @@
   (or (getenv "MESSAGING_PROVIDER") "slack")
   "Determine the format of message format.
 `slack' or `teams' (Microsoft Teams)"
+  :type 'string
+  :group 'jira-todo)
+
+(defcustom jira-todo-git-directory
+  (or (getenv "JIRA_TODO_GIT_DIRECTORY") "~/Projects")
+  "Directory for creating git branch from todo."
   :type 'string
   :group 'jira-todo)
 
@@ -157,8 +163,8 @@ immediately above the first sibling TODO under the parent heading."
       (format "JIRA: [[%s][%s]]\n" url key)
       (format "Branch: %s\n" branch)
       (format "Prompt:\n")
-      (format "--begin--\n")
-      (format "In my current branch %s" branch)
+      (format "--begin--\n")Under the ~/dev/
+      (format "Under the %s directory in my current branch %s" jira-todo-git-directory branch)
       (format " please implement the JIRA at %s\n" url)
       (format "--end--\n")
       (format "Title: %s: %s\n" key clean-summary)
@@ -198,8 +204,7 @@ once, the first occurrence wins."
 (defun jira-todo--insert-output (data)
   "Insert formatted `org-mode' TODO for JIRA DATA at point in the current buffer."
   (let ((output (jira-todo--format-output data))
-         (buf (current-buffer))
-         (dir default-directory))
+         (buf (current-buffer)))
     (with-current-buffer buf
       (jira-todo--smart-open-line-above)
       (let ((start (point)))
@@ -213,8 +218,8 @@ once, the first occurrence wins."
         (evil-force-normal-state))
       (if (or (null branch) (string-empty-p branch))
         (message "You must manually create branch, could not identify name.")
-        (git-tools-branch-create-from-main branch dir)
-        (git-tools-empty-commit-message title dir)))))
+        (git-tools-branch-create-from-main branch jira-todo-git-directory)
+        (git-tools-empty-commit-message title jira-todo-git-directory)))))
 
 (defun jira-todo--parse-input (input)
   "Parse INPUT into a JIRA key.
@@ -247,13 +252,20 @@ Signals an error if INPUT cannot be parsed."
   "Return the JIRA browse URL for KEY."
   (format "%s/browse/%s" jira-todo-base-url key))
 
+(defun jira-todo--clipboard-jira-url ()
+  "Returns the clipboard if it is URL and contains JIRA prefix, otherwise nil."
+  (let ((url (current-kill 0 t)))
+    (if (string-search jira-todo-issue-key-prefix url)
+      url
+      nil)))
+
 ;;;###autoload
 (defun jira-todo-fetch (&optional input)
   "Fetch a JIRA ticket and generate an `org-mode' TODO and Slack message.
 INPUT can be a full URL, a key like JIRA-11111, or just an issue number.
 If INPUT is not provided, prompt interactively."
   (interactive)
-  (let* ((input (or input
+  (let* ((input (or (jira-todo--clipboard-jira-url) input
                   (and (not (called-interactively-p 'any)) nil)
                   (read-string "JIRA issue (URL, key, or number): ")))
           (key (jira-todo--parse-input input))
