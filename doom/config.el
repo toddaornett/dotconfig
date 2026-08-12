@@ -442,20 +442,121 @@ _q_: quit
   (add-hook 'evil-insert-state-entry-hook #'company-mode))
 
 (after! project
-  (add-to-list 'project-vc-extra-root-markers ".git"))
+  (add-to-list 'project-vc-extra-root-markers ".git")
+  ;; Prefer Magit when switching projects with project.el.
+  (setq project-switch-commands
+    '((project-find-file "Find file" ?f)
+       (project-find-regexp "Find regexp" ?g)
+       (project-find-dir "Find directory" ?d)
+       (project-dired "Dired" ?D)
+       (magit-project-status "Magit" ?m)
+       (project-eshell "Eshell" ?e)
+       (project-kill-buffers "Kill buffers" ?k)))
 
-(after! projectile
-  (let* ((projects-path "~/Projects")
-          (open-projects-path (getenv "OPENPROJECTS_PATH"))
-          (paths (delq nil (list projects-path
-                             (unless (string= projects-path open-projects-path)
-                               open-projects-path)
-                             (when (file-directory-p "~/dev") "~/dev")))))
-    (dolist (path paths)
-      (let ((entry (cons path 2)))
-        (unless (assoc path projectile-project-search-path)
-          (add-to-list 'projectile-project-search-path entry)))))
-  (add-to-list 'projectile-project-search-path (cons "~/.config" 1)))
+  (defun tao/project-remember-under (dir depth)
+    "Remember projects under DIR down to DEPTH (like projectile search-path).
+
+DEPTH 1 means only immediate children of DIR (same as
+`project-remember-projects-under' without RECURSIVE).  Higher depths
+walk that many directory levels, without descending into already
+recognized project roots — so a large monorepo under ~/dev is not
+fully traversed.
+
+Return the number of *newly* remembered projects."
+    (setq dir (file-name-as-directory (expand-file-name dir)))
+    (unless (file-directory-p dir)
+      (user-error "Not a directory: %s" dir))
+    (project--ensure-read-project-list)
+    (let ((known (make-hash-table :test #'equal))
+           (count 0))
+      (dolist (root (project-known-project-roots))
+        (puthash (file-name-as-directory (expand-file-name root)) t known))
+      (cl-labels
+        ((visit (directory remaining)
+           (dolist (child (directory-files directory t))
+             (let ((name (file-name-nondirectory child)))
+               (when (and (file-directory-p child)
+                       (not (string-prefix-p "." name)))
+                 (if-let* ((project (project--find-in-directory child))
+                            (root (file-name-as-directory
+                                    (expand-file-name (project-root project))))
+                            ((not (gethash root known))))
+                   (progn
+                     (project-remember-project project t)
+                     (puthash root t known)
+                     (setq count (1+ count)))
+                   ;; Only descend further when this child is not already
+                   ;; inside a known project (avoids walking Phoenix/node_modules).
+                   (when (and (> remaining 1)
+                           (not (project-current nil child)))
+                     (visit child (1- remaining)))))))))
+        (visit dir depth))
+      (when (> count 0)
+        (project--write-project-list))
+      count))
+
+  (defun tao/project-discover-search-paths ()
+    "Index known projects under the usual search roots.
+project.el stand-in for projectile-project-search-path.  Prints one
+aggregated count (each `project-remember-projects-under' call would
+otherwise overwrite the echo area with only its own slice)."
+    (interactive)
+    (let* ((projects-path (expand-file-name "~/Projects"))
+            (open-projects-path (getenv "OPENPROJECTS_PATH"))
+            (open-projects-path
+              (and open-projects-path
+                (expand-file-name open-projects-path)))
+            ;; (path . depth) — matches the old projectile search-path depths
+            (entries
+              (delq nil
+                (list (cons projects-path 2)
+                  (when (and open-projects-path
+                          (not (string= projects-path open-projects-path)))
+                    (cons open-projects-path 2))
+                  (when (file-directory-p "~/dev")
+                    (cons (expand-file-name "~/dev") 2))
+                  (cons (expand-file-name "~/.config") 1))))
+            (total 0))
+      (dolist (entry entries)
+        (pcase-let ((`(,path . ,depth) entry))
+          (when (file-directory-p path)
+            (setq total (+ total (tao/project-remember-under path depth))))))
+      (message "Discovered %d new project%s under search paths"
+        total (if (= total 1) "" "s"))
+      total))
+
+  ;; Discover after idle so startup stays light.
+  (run-with-idle-timer 2 nil #'tao/project-discover-search-paths))
+
+;; Doom's vertico module still defaults consult-dir to projectile; prefer
+;; built-in project.el known projects instead.
+(after! consult-dir
+  (setq consult-dir-project-list-function #'consult-dir-project-dirs))
+
+;; Group ibuffer by project.el roots (replaces ibuffer-projectile).
+(use-package! ibuffer-project
+  :after ibuffer
+  :config
+  (setq ibuffer-project-use-cache t)
+  (defun tao/ibuffer-set-filter-groups-by-project ()
+    "Group ibuffer buffers by `project.el' root."
+    (setq ibuffer-filter-groups (ibuffer-project-generate-filter-groups))
+    (unless (eq ibuffer-sorting-mode 'project-file-relative)
+      (ibuffer-do-sort-by-project-file-relative)))
+  (add-hook 'ibuffer-hook #'tao/ibuffer-set-filter-groups-by-project))
+
+;; Prefer built-in project.el for the common project leader bindings.
+;; Doom still loads projectile via :doom compat, but interactive project
+;; management should go through project.el.
+(map! :leader
+  :desc "Find file in project" "SPC" #'project-find-file
+  :desc "Switch project"       "p p" #'project-switch-project
+  :desc "Find file in project" "p f" #'project-find-file
+  :desc "Find regexp in project" "p g" #'project-find-regexp
+  :desc "Find dir in project"  "p d" #'project-find-dir
+  :desc "Browse project root"  "p D" #'project-dired
+  :desc "Magit project status" "p m" #'magit-project-status
+  :desc "Kill project buffers" "p k" #'project-kill-buffers)
 
 (use-package! exec-path-from-shell
   :init

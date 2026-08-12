@@ -56,7 +56,9 @@
   :tools
   envvar
   ;; (tree-sitter +lsp) ; using native treesit.el instead
-  projectile          ; Essential for Rust projects
+  ;; project management: use built-in project.el (see config.el).
+  ;; Doom still ships projectile via :doom compat until v3; do not
+  ;; re-enable the removed :tools projectile module.
   direnv              ; Keep for environment management
   editorconfig        ; Keep for consistent coding styles
   (eval +overlay)     ; Useful for code execution

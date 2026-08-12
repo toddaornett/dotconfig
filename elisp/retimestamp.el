@@ -7,7 +7,7 @@
 ;; Modified: July 07, 2026
 ;; Version: 0.1.0
 ;; Keywords: convenience files tools
-;; Package-Requires: ((emacs "27.1") (projectile "2.0.0") (seq "2.3"))
+;; Package-Requires: ((emacs "28.1") (seq "2.3"))
 ;; Homepage: https://github.com/yourusername/dotconfig
 ;;
 ;; This file is not part of GNU Emacs.
@@ -17,12 +17,12 @@
 ;; This package refreshes a 14-digit timestamp embedded in a filename
 ;; (and any occurrences of that timestamp inside the file's contents),
 ;; replacing it with the current time. It also sweeps the rest of the
-;; current Projectile project for other files sharing that same old
-;; timestamp and updates them in lockstep, so that related,
-;; timestamp-linked files stay in sync.
+;; current project (via built-in `project.el') for other files sharing
+;; that same old timestamp and updates them in lockstep, so that
+;; related, timestamp-linked files stay in sync.
 ;;
 ;;; Code:
-(require 'projectile)
+(require 'project)
 (require 'seq)
 (require 'magit)
 (require 'git-tools)
@@ -80,11 +80,13 @@
       new-file)))
 
 (defun retimestamp--project-files ()
-  "Get all of the project files."
-  (projectile-invalidate-cache nil)
-  (let ((root (projectile-project-root)))
-    (mapcar (lambda (f) (expand-file-name f root))
-      (projectile-current-project-files))))
+  "Return absolute paths for all files in the current project.
+Uses built-in `project.el'.  Signal a `user-error' when point is
+not inside a recognized project."
+  (let ((project (project-current)))
+    (unless project
+      (user-error "Not inside a project"))
+    (project-files project)))
 
 ;;;autoload
 (defun retimestamp ()
