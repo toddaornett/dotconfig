@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: August 7, 2026
+;; Modified: August 13, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -48,9 +48,49 @@ submodules correctly."
   (when-let* ((root (magit-toplevel)))
     (file-name-as-directory root)))
 
-(defun git-tools--project-name (root)
-  "Return the basename of git repo ROOT, to use as a project name."
-  (file-name-nondirectory (directory-file-name root)))
+;;;###autoload
+(defun git-tools-project-name (path)
+  "Return the git repo directory containing specified PATH."
+  (when (stringp path)
+    (let* ((clean-path (string-trim path))
+           ;; Find the actual git root if a random file/folder was passed
+           (true-root (or (vc-git-root clean-path)
+                          (if (file-directory-p clean-path) clean-path (file-name-directory clean-path))))
+           (root-dir (directory-file-name true-root))
+           (basename (file-name-nondirectory root-dir)))
+
+      ;; 1. Handle bare repositories ending in ".git"
+      (if (string-suffix-p ".git" basename t)
+          (file-name-sans-extension basename)
+
+        ;; 2. Handle internal Git paths (like submodules or .git/config files)
+        (if (string-prefix-p ".git" basename)
+            (file-name-nondirectory (directory-file-name (file-name-directory root-dir)))
+
+          ;; 3. Return the clean project folder name
+          basename)))))
+
+;;;###autoload
+(defun git-tools-project-name (&optional path)
+  "Return the git repo directory containing specified PATH.
+If PATH is nil, use `default-directory`. When called interactively,
+prompt for a directory and print the project name."
+  (interactive (list (read-directory-name "Directory: " default-directory)))
+  (let* ((target-path (or path default-directory))
+          (clean-path (string-trim target-path))
+          ;; Find the actual git root if a random file/folder was passed
+          (true-root (or (vc-git-root clean-path)
+                       (if (file-directory-p clean-path) clean-path (file-name-directory clean-path))))
+          (root-dir (directory-file-name true-root))
+          (basename (file-name-nondirectory root-dir))
+          (result (if (string-suffix-p ".git" basename t)
+                    (file-name-sans-extension basename)
+                    (if (string-prefix-p ".git" basename)
+                      (file-name-nondirectory (directory-file-name (file-name-directory root-dir)))
+                      basename))))
+    (when (called-interactively-p 'interactive)
+      (message "Git working directory: %s" result))
+    result))
 
 (defun git-tools--project-relative-path (root)
   "The function gets the ROOT path relative to a natural base.
@@ -264,8 +304,10 @@ is going on in the repo."
          (message (if (and message (not (string-empty-p (string-trim message))))
                     message
                     "chore: trigger CI")))
+    (if (string-equal (magit-get-current-branch) (git-tools-main-branch-name))
+      (message (format "Error - will not create empty message on %s branch" (git-tools-main-branch-name)))
     (magit-run-git "commit" "--allow-empty" "-m" message)
-    (message "Created empty commit: %s" message)))
+    (message "Created empty commit: %s" message))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
@@ -579,7 +621,7 @@ Return t if any changes made, nil otherwise."
       (list variable value)))
   (let* ((project-root (or (git-tools--project-root)
                          (error "No project root found. Ensure a project is active")))
-          (project-name (git-tools--project-name project-root))
+          (project-name (git-tools-project-name project-root))
           (project-files (git-tools--project-files project-root))
           (updates-made nil)
           (git-main-branch (git-tools-main-branch-name))
