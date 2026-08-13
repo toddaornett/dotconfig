@@ -6,7 +6,7 @@
 ;
 ;
 ;; Created: April 22, 2026
-;; Modified: August 12, 2026
+;; Modified: August 13, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -163,7 +163,7 @@ immediately above the first sibling TODO under the parent heading."
       (format "JIRA: [[%s][%s]]\n" url key)
       (format "Branch: %s\n" branch)
       (format "Prompt:\n")
-      (format "--begin--\n")Under the ~/dev/
+      (format "--begin--\n")
       (format "Under the %s directory in my current branch %s" jira-todo-git-directory branch)
       (format " please implement the JIRA at %s\n" url)
       (format "--end--\n")
