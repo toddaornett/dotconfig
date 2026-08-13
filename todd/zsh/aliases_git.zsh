@@ -12,25 +12,22 @@ git() {
   return $exit_status
 }
 
-function git_current_branch () {
+function git_current_branch() {
   local ref
   ref="$(git symbolic-ref --quiet HEAD 2>/dev/null)"
   local ret=$?
-  if [[ $ret != 0 ]]
-  then
+  if [[ $ret != 0 ]]; then
     [[ $ret == 128 ]] && return 0
-      ref=$(git rev-parse --short HEAD 2>/dev/null)  || return 0
+    ref=$(git rev-parse --short HEAD 2>/dev/null) || return 0
   fi
   echo "${ref#refs/heads/}"
 }
 
-function git_main_branch () {
-  command git rev-parse --git-dir &> /dev/null || return
+function git_main_branch() {
+  command git rev-parse --git-dir &>/dev/null || return
   local branch
-  for branch in main trunk
-  do
-    if command git show-ref -q --verify refs/heads/$branch
-    then
+  for branch in main trunk; do
+    if command git show-ref -q --verify refs/heads/$branch; then
       echo $branch
       return
     fi
@@ -44,15 +41,18 @@ function git_main_branch () {
 # example:
 # export GIT_UPSTREAM_NAME_REPLACE_PATTERN='s/my_fork_of_something_fabulous/something_fabulous/'
 function grau {
-  if ! git remote -v | grep -q "^upstream"
-then
+  if [ -z "${GIT_UPSTREAM_NAME_REPLACE_PATTERN}" ]; then
+    echo "Doing nothing since GIT_UPSTREAM_NAME_REPLACE_PATTERN is not set"
+    return 1
+  fi
+  if ! git remote -v | grep -q "^upstream"; then
     source=$(git remote -v | grep "^origin" | head -1 | cut -f 2 | cut -d ' ' -f 1 | sed -e $GIT_UPSTREAM_NAME_REPLACE_PATTERN)
     git remote add upstream $source
   fi
 }
 
 # Pretty log messages
-function _git_log_prettily(){
+function _git_log_prettily() {
   if ! [ -z $1 ]; then
     git log --pretty=$1
   fi
@@ -64,16 +64,15 @@ function git_cleanup_branches() {
 
   git fetch origin --prune
 
-  git branch --merged "$main_branch" \
-    | sed 's/^[* ]*//' \
-    | grep -vFx "$main_branch" \
-    | grep -vE '^release.*$' \
-    | xargs -r git branch -d
+  git branch --merged "$main_branch" |
+    sed 's/^[* ]*//' |
+    grep -vFx "$main_branch" |
+    grep -vE '^release.*$' |
+    xargs -r git branch -d
 }
 
 function gstA {
-  if (($# > 0))
-  then
+  if (($# > 0)); then
     git stash apply "$@"
   else
     git stash apply
@@ -81,8 +80,7 @@ function gstA {
 }
 
 function gstP {
-  if (($# > 0))
-  then
+  if (($# > 0)); then
     git stash pop "$@"
   else
     git stash pop
@@ -90,8 +88,7 @@ function gstP {
 }
 
 function gstp {
-  if (($# > 0))
-  then
+  if (($# > 0)); then
     git stash push "$@"
   else
     print 'Usage: gstp [-u] -m "<description for change to stash>"'
@@ -99,8 +96,7 @@ function gstp {
 }
 
 function gstD {
-  if (($# > 0))
-  then
+  if (($# > 0)); then
     git stash drop "$@"
   else
     git stash drop
@@ -141,13 +137,13 @@ function prs {
 }
 
 # delete specified branch locally and on remote
-function gbdr() {  # Check if branch name is provided
+function gbdr() { # Check if branch name is provided
   if [ -z "$1" ]; then
     echo "Error: Branch name must be provided"
     return 1
   fi
 
-  if git branch -D "$1" > /dev/null 2>&1; then
+  if git branch -D "$1" >/dev/null 2>&1; then
 
   fi
 }
@@ -208,7 +204,7 @@ function nuke_branch() {
   local root_dir="${2:-$HOME/Projects}"
 
   # Iterate through all subdirectories
-  for dir in "$root_dir"/* ; do
+  for dir in "$root_dir"/*; do
     # Check if directory exists and contains .git
     if [ -d "$dir" ] && [ -d "$dir/.git" ]; then
       echo "Processing repository: $(basename $dir)"
@@ -226,14 +222,14 @@ function nuke_branch() {
       fi
 
       # Switch to main branch
-      if ! git checkout "$main_branch" > /dev/null 2>&1; then
+      if ! git checkout "$main_branch" >/dev/null 2>&1; then
         echo "Failed to switch to $main_branch in $dir, skipping"
         continue
       fi
 
       # Delete requested branch if it exists
       if git show-ref --quiet "refs/heads/$1"; then
-        if git branch -D "$1" > /dev/null 2>&1; then
+        if git branch -D "$1" >/dev/null 2>&1; then
           echo "Deleted branch $1 in $dir"
         else
           echo "Failed to delete $1 in $dir"
@@ -252,7 +248,7 @@ function find_branch() {
     return 1
   fi
   local root_dir="${2:-$HOME/Projects}"
-  for dir in "$root_dir"/* ; do
+  for dir in "$root_dir"/*; do
     # TODO: remove this name check when no longer relevant
     if [[ "$(basename $dir)" == "j"* ]]; then
       continue
@@ -335,13 +331,13 @@ function gdnolock() {
   git diff "$@" ":(exclude)package-lock.json" ":(exclude)*.lock"
 }
 
-function gdv() { git diff -w "$@" | view - }
+function gdv() { git diff -w "$@" | view -; }
 
 alias gf='git fetch'
 # --jobs=<n> was added in git 2.8
-is-at-least 2.8 "$git_version" \
-  && alias gfa='git fetch --all --prune --jobs=10' \
-  || alias gfa='git fetch --all --prune'
+is-at-least 2.8 "$git_version" &&
+  alias gfa='git fetch --all --prune --jobs=10' ||
+  alias gfa='git fetch --all --prune'
 alias gfo='git fetch origin'
 
 alias gfg='git ls-files | grep'
@@ -350,35 +346,35 @@ alias gg='git gui citool'
 alias gga='git gui citool --amend'
 
 function ggf() {
-  [[ "$#" != 1 ]] && local b="$(git_current_branch)"
+  [[ "$" != 1 ]] && local b="$(git_current_branch)"
   git push --force origin "${b:=$1}"
 }
 
 function ggfl() {
-  [[ "$#" != 1 ]] && local b="$(git_current_branch)"
+  [[ "$" != 1 ]] && local b="$(git_current_branch)"
   git push --force-with-lease origin "${b:=$1}"
 }
 
 function ggp() {
-  if [[ "$#" != 0 ]] && [[ "$#" != 1 ]]; then
+  if [[ "$" != 0 ]] && [[ "$" != 1 ]]; then
     git pull origin "${*}"
   else
-    [[ "$#" == 0 ]] && local b="$(git_current_branch)"
+    [[ "$" == 0 ]] && local b="$(git_current_branch)"
     git pull origin "${b:=$1}"
   fi
 }
 
 function ggP() {
-  if [[ "$#" != 0 ]] && [[ "$#" != 1 ]]; then
+  if [[ "$" != 0 ]] && [[ "$" != 1 ]]; then
     git push origin "${*}"
   else
-    [[ "$#" == 0 ]] && local b="$(git_current_branch)"
+    [[ "$" == 0 ]] && local b="$(git_current_branch)"
     git push origin "${b:=$1}"
   fi
 }
 
 function ggpnp() {
-  if [[ "$#" == 0 ]]; then
+  if [[ "$" == 0 ]]; then
     ggp && ggP
   else
     ggp "${*}" && ggP "${*}"
@@ -386,7 +382,7 @@ function ggpnp() {
 }
 
 function ggu() {
-  [[ "$#" != 1 ]] && local b="$(git_current_branch)"
+  [[ "$" != 1 ]] && local b="$(git_current_branch)"
   git pull --rebase origin "${b:=$1}"
 }
 
@@ -579,7 +575,7 @@ function pclean {
 }
 
 function gForceSsh {
-    git config --global url."git@github.com:".insteadOf "https://github.com/"
+  git config --global url."git@github.com:".insteadOf "https://github.com/"
 }
 
 function gsearch {
@@ -638,7 +634,7 @@ function gnewproj {
   mkdir "$HOME/Projects/$1"
   cd "$HOME/Projects/$1"
 
-  echo "# $1" >> README.md
+  echo "# $1" >>README.md
   git init
   git add README.md
   git commit -m "first commit"
