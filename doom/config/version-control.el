@@ -102,6 +102,44 @@
   (add-to-list 'magit-section-initial-visibility-alist
                '(local-branches . hide))
 
+  (defface tao-magit-orange-face
+    '((t :foreground "#FFA500" :weight bold))
+    "High-contrast orange face for custom magit revision messages.")
+
+  (defun tao/magit-insert-revision-message ()
+    (let ((rev (or magit-buffer-refname "HEAD")))
+      (when-let ((msg (magit-git-string "log" "-1" "--format=%B" rev)))
+        (unless (string-empty-p msg)
+          (let* ((lines (split-string msg "\n"))
+                  (title (car lines))
+                  (body (string-trim (mapconcat #'identity (cdr lines) "\n"))))
+            ;; Title: plain line, not a foldable section
+            (insert (propertize "Title:   " 'face 'magit-section-secondary-heading))
+            (let ((start (point)))
+              (insert title "\n")
+              (add-face-text-property start (point) 'tao-magit-orange-face))
+            ;; Body: only inserted (and foldable) if it actually exists
+            (unless (string-empty-p body)
+              (insert "\n")
+              (magit-insert-section (commit-message nil t) ; t = hidden by default
+                (magit-insert-heading "Description")
+                (let ((start (point)))
+                  (insert body "\n")
+                  (add-face-text-property start (point) 'tao-magit-orange-face))))
+            (insert "\n"))))))
+
+  ;; Remove the stock inserter, and any prior copy of ours, so this
+  ;; block stays idempotent across config reloads.
+  (remove-hook 'magit-revision-sections-hook #'magit-insert-revision-message)
+  (remove-hook 'magit-revision-sections-hook #'tao/magit-insert-revision-message)
+
+  (setq magit-revision-sections-hook
+    '(magit-insert-revision-tag
+       magit-insert-revision-headers
+       tao/magit-insert-revision-message
+       magit-insert-revision-notes
+       magit-insert-revision-diff))
+
   (defun +magit-move-to-first-uncommitted-change ()
     (when (eq major-mode 'magit-status-mode)
       (run-at-time
