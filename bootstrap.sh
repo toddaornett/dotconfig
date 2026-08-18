@@ -2,8 +2,83 @@
 set -euo pipefail
 
 ZSHENV="$HOME/.zshenv"
-ZSHRC="$HOME/.zshrc"
+ZSHRC="$HOME/.config/todd/zsh/zshrc"
+ZSH_BOOTSTRAP="$HOME/.config/todd/zsh/bootstrap.zsh"
+HOME_ZSHRC="$HOME/.zshrc"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
+MISE_MARKER="mise version manager (bootstrap)"
+
+note_shell_init_for_builds() {
+  echo "   Update $ZSH_BOOTSTRAP with SDKROOT and Homebrew include/lib paths,"
+  echo "   then restart your shell: source ~/.config/zsh/.zshrc"
+}
+
+ensure_zdotdir_in_zshenv() {
+  local line='export ZDOTDIR=~/.config/zsh'
+  grep -Fqx "$line" "$ZSHENV" 2>/dev/null || echo "$line" >>"$ZSHENV"
+}
+
+ensure_no_sdkroot_in_zshenv() {
+  [[ -f "$ZSHENV" ]] || return 0
+  if grep -qE '^export SDKROOT=|^export CFLAGS=.*isysroot|^export LDFLAGS=.*isysroot' "$ZSHENV" 2>/dev/null; then
+    sed -i '' \
+      -e '/^export SDKROOT=/d' \
+      -e '/^export CFLAGS=.*isysroot/d' \
+      -e '/^export LDFLAGS=.*isysroot/d' \
+      "$ZSHENV"
+    echo "  Removed SDKROOT/isysroot from $ZSHENV (interactive shell init only)"
+  fi
+}
+
+ensure_bootstrap_sourced_in_zshrc() {
+  local source_line='[[ -f "$HOME/.config/todd/zsh/bootstrap.zsh" ]] && source "$HOME/.config/todd/zsh/bootstrap.zsh"'
+  grep -Fq "bootstrap.zsh" "$ZSHRC" 2>/dev/null && return 0
+  mkdir -p "$(dirname "$ZSHRC")"
+  echo "  Adding bootstrap.zsh source to $ZSHRC"
+  if [[ -f "$ZSHRC" ]]; then
+    sed -i '' "/^export OPENPROJECTS_PATH=/a\\
+\\
+# bootstrap-managed machine setup (see ~/.config/bootstrap.sh)\\
+$source_line
+" "$ZSHRC"
+  else
+    echo "$source_line" >>"$ZSHRC"
+  fi
+}
+
+migrate_home_zshrc_to_bootstrap() {
+  [[ -f "$HOME_ZSHRC" ]] || return 0
+  if ! grep -qE 'bootstrap|Homebrew/macOS build flags|Homebrew build flags' "$HOME_ZSHRC" 2>/dev/null; then
+    return 0
+  fi
+  if ! grep -Fq "$BUILD_FLAGS_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null; then
+    echo "📦 Migrating shell config from ~/.zshrc to $ZSH_BOOTSTRAP ..."
+    mkdir -p "$(dirname "$ZSH_BOOTSTRAP")"
+    {
+      echo "# bootstrap-managed shell config"
+      echo "# Migrated from ~/.zshrc by bootstrap.sh"
+      cat "$HOME_ZSHRC"
+    } >>"$ZSH_BOOTSTRAP"
+  fi
+  cat >"$HOME_ZSHRC" <<'EOF'
+# Shell config lives under ~/.config/todd/zsh/ (ZDOTDIR=~/.config/zsh in ~/.zshenv).
+# Bootstrap-managed settings: ~/.config/todd/zsh/bootstrap.zsh
+EOF
+  echo "  Replaced ~/.zshrc with pointer stub"
+}
+
+ensure_mise_in_shell() {
+  grep -Fq "$MISE_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null && return 0
+  mkdir -p "$(dirname "$ZSH_BOOTSTRAP")"
+  cat >>"$ZSH_BOOTSTRAP" <<'EOF'
+
+# mise version manager (bootstrap)
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+EOF
+  echo "  Added mise activation to $ZSH_BOOTSTRAP"
+}
 
 #################################
 # Detect Homebrew prefix (ARM / Intel safe)
@@ -32,6 +107,11 @@ lines=(
 for line in "${lines[@]}"; do
   grep -Fqx "$line" "$ZSHENV" || echo "$line" >>"$ZSHENV"
 done
+
+ensure_zdotdir_in_zshenv
+ensure_no_sdkroot_in_zshenv
+migrate_home_zshrc_to_bootstrap
+ensure_bootstrap_sourced_in_zshrc
 
 source "$ZSHENV"
 
@@ -111,25 +191,25 @@ verify_macos_compiler() {
   return 0
 }
 
-note_shell_init_for_builds() {
-  echo "   Update ~/.zshrc with SDKROOT and Homebrew include/lib paths,"
-  echo "   then restart your shell: source ~/.zshrc"
-}
-
 ensure_macos_build_env_in_shell() {
   echo "🛠️ Verify build env vars ..."
   [[ "$(uname -s)" != Darwin ]] && return 0
 
-  if grep -Fq "$BUILD_FLAGS_MARKER" "$ZSHRC" 2>/dev/null ||
-    grep -q 'Homebrew build flags' "$ZSHRC" 2>/dev/null; then
+  if grep -Fq "$BUILD_FLAGS_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null ||
+    grep -q 'Homebrew build flags' "$ZSH_BOOTSTRAP" 2>/dev/null; then
     return 0
   fi
 
-  cat >>"$ZSHRC" <<EOF
+  mkdir -p "$(dirname "$ZSH_BOOTSTRAP")"
+  cat >>"$ZSH_BOOTSTRAP" <<EOF
 
 # $BUILD_FLAGS_MARKER
 if [[ "\$(uname -s)" == Darwin ]]; then
   [[ -z "\$SDKROOT" ]] && export SDKROOT="\$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
+  if [[ -n "\$SDKROOT" ]]; then
+    [[ " \$CFLAGS " != *" -isysroot "* ]] && export CFLAGS="-isysroot \$SDKROOT"
+    [[ " \$LDFLAGS " != *" -isysroot "* ]] && export LDFLAGS="\${LDFLAGS:+\$LDFLAGS }-isysroot \$SDKROOT"
+  fi
   [[ " \$CPPFLAGS " != *" -I${BREW_PREFIX}/include "* ]] && \
     export CPPFLAGS="\${CPPFLAGS:+\$CPPFLAGS }-I${BREW_PREFIX}/include"
   [[ " \$LDFLAGS " != *" -L${BREW_PREFIX}/lib "* ]] && \
@@ -138,7 +218,7 @@ if [[ "\$(uname -s)" == Darwin ]]; then
     export PKG_CONFIG_PATH="${BREW_PREFIX}/opt/boost/lib/pkgconfig\${PKG_CONFIG_PATH:+:\$PKG_CONFIG_PATH}"
 fi
 EOF
-  echo "  Added macOS build env vars to $ZSHRC"
+  echo "  Added macOS build env vars to $ZSH_BOOTSTRAP"
   note_shell_init_for_builds
 }
 
@@ -382,7 +462,7 @@ echo "➡ using emacs at: $EMACS_BIN"
 
 if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
   echo "❌ Wrong Emacs (system stub). Homebrew Emacs is not first in PATH."
-  echo "   Check your shell init files (.zshenv, .zprofile, .zshrc)."
+  echo "   Check your shell init files (.zshenv, .config/zsh/.zprofile, .config/todd/zsh/)."
   exit 1
 fi
 
@@ -522,8 +602,8 @@ echo "🔥 Installing Doom packages..."
 
 DOOM_BIN="$DOOM_DIR/bin"
 
-if ! grep -Fqs "$DOOM_BIN" "$ZSHRC" 2>/dev/null; then
-  echo "path+=$DOOM_BIN" >>"$ZSHRC"
+if ! grep -Fqs "$DOOM_BIN" "$ZSH_BOOTSTRAP" 2>/dev/null; then
+  echo "path+=$DOOM_BIN" >>"$ZSH_BOOTSTRAP"
 fi
 
 # Set LIBRARY_PATH so libgccjit's embedded gcc driver can find libemutls_w.a.
@@ -536,9 +616,9 @@ GCC_LIB_FULL="${GCC_LIB_BASE}/gcc/${GCC_ARCH}/${GCC_VER}"
 if [ -d "$GCC_LIB_FULL" ]; then
   LIBRARY_PATH="${LIBRARY_PATH:-}"
   export LIBRARY_PATH="${GCC_LIB_FULL}:${GCC_LIB_BASE}${LIBRARY_PATH:+:$LIBRARY_PATH}"
-  # Persist both paths to .zshrc so interactive Emacs also gets them
-  if ! grep -Fq "gcc/current/gcc/${GCC_ARCH}" "$ZSHRC" 2>/dev/null; then
-    cat >>"$ZSHRC" <<EOF
+  # Persist both paths to bootstrap.zsh so interactive Emacs also gets them
+  if ! grep -Fq "gcc/current/gcc/${GCC_ARCH}" "$ZSH_BOOTSTRAP" 2>/dev/null; then
+    cat >>"$ZSH_BOOTSTRAP" <<EOF
 
 # GCC runtime libs for libgccjit native compilation (bootstrap)
 export LIBRARY_PATH="${GCC_LIB_FULL}:${GCC_LIB_BASE}\${LIBRARY_PATH:+:\$LIBRARY_PATH}"
@@ -744,6 +824,7 @@ if ! command -v mise >/dev/null 2>&1; then
     echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
   fi
 fi
+ensure_mise_in_shell
 
 #################################
 # Install goimports
@@ -770,8 +851,8 @@ fi
 #################################
 # Rust configuration
 #################################
-if ! grep -Fqs "CARGO_NET_GIT_FETCH_WITH_CLI" "$ZSHRC" 2>/dev/null; then
-  echo 'export CARGO_NET_GIT_FETCH_WITH_CLI=true' >>"$ZSHRC"
+if ! grep -Fqs "CARGO_NET_GIT_FETCH_WITH_CLI" "$ZSH_BOOTSTRAP" 2>/dev/null; then
+  echo 'export CARGO_NET_GIT_FETCH_WITH_CLI=true' >>"$ZSH_BOOTSTRAP"
 fi
 
 #################################
@@ -814,8 +895,8 @@ fi
 #################################
 echo "🐳 Configuring Docker..."
 
-if ! grep -qxF 'DOCKER_CONTEXT' "$ZSHRC"; then
-  echo 'export DOCKER_CONTEXT=colima' >>"$ZSHRC"
+if ! grep -Fq 'DOCKER_CONTEXT' "$ZSH_BOOTSTRAP" 2>/dev/null; then
+  echo 'export DOCKER_CONTEXT=colima' >>"$ZSH_BOOTSTRAP"
 fi
 
 if [ ! -f ~/.docker/config.json ]; then
