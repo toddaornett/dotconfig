@@ -6,6 +6,9 @@ export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
 export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-~/Projects}
 
+# bootstrap-managed machine setup (see ~/.config/bootstrap.sh)
+[[ -f "$HOME/.config/todd/zsh/bootstrap.zsh" ]] && source "$HOME/.config/todd/zsh/bootstrap.zsh"
+
 ##########
 # append specified path both to users .zprofile without any variables
 # and append to path of current session with any variables interpolated
@@ -71,9 +74,10 @@ if [ -n "$ZSH_VERSION" ]; then
   autoload -U bashcompinit
   bashcompinit
 fi
-autoload -Uz +X compinit && compinit
-typeset -i updated_at=$(date +'%j' -r ~/.zcompdump 2>/dev/null || stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null)
-if [ $(date +'%j') != $updated_at ]; then
+autoload -Uz compinit
+local zcompdump="${ZDOTDIR:-$HOME}/.zcompdump"
+typeset -i updated_at=$(date +'%j' -r "$zcompdump" 2>/dev/null || stat -f '%Sm' -t '%j' "$zcompdump" 2>/dev/null)
+if [[ $(date +'%j') != $updated_at ]]; then
   compinit -i
 else
   compinit -C -i
@@ -154,41 +158,13 @@ if [[ ! "$PATH" == */homebrew/opt/fzf/bin* ]]; then
 fi
 
 # Auto-completion
-[[ $- == *i* ]] && source "$)/opt/fzf/shell/completion.zsh" 2>/dev/null
+[[ $- == *i* ]] && source "$HOMEBREW/opt/fzf/shell/completion.zsh" 2>/dev/null
 
 # Key bindings
 # ------------
 source "$HOMEBREW/opt/fzf/shell/key-bindings.zsh"
 
 export _ZO_EXCLUDE_DIRS="$HOME/private/*"
-
-##########
-# node version manager
-##########
-if [ ! -d $HOME/.nvm ]
-then
-  mkdir $HOME/.nvm
-fi
-if [ ! -s "$HOMEBREW/opt/nvm/nvm.sh" ]; then
-  brew install nvm
-fi
-export NVM_DIR="$HOME/.nvm"
-[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"                                       # This loads nvm
-[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" # This loads nvm bash_completion
-autoload -U add-zsh-hook
-load-nvmrc() {
-  if [[ -f .nvmrc && -r .nvmrc ]]; then
-    local nvmrc_node_version
-    nvmrc_node_version=$(<.nvmrc)
-    local current_node_version
-    current_node_version=$(nvm version)
-
-    if [[ $nvmrc_node_version != "$current_node_version" ]]; then
-      nvm install "$nvmrc_node_version"
-    fi
-  fi
-}
-add-zsh-hook chpwd load-nvmrc
 
 ##########
 # preset folders
@@ -224,8 +200,6 @@ function d {
   fi
   unset key
 }
-
-source $HOMEBREW/opt/spaceship/spaceship.zsh
 
 ##########
 # misc
@@ -419,12 +393,11 @@ command_not_found_handler() {
 ##########
 # load ssh-agent keys
 ##########
-if [ -z "$SSH_AUTH_SOCK" ]; then
-  eval "$(ssh-agent -s)"
+if [[ -z "$SSH_AUTH_SOCK" ]]; then
+  eval "$(ssh-agent -s)" >/dev/null
 fi
-
-for key in $(find ~/.config -type f | xargs grep -l "PRIVATE KEY" 2>/dev/null); do
-  ssh-add "$key" 2>/dev/null
+for key in ~/.ssh/id_ed25519 ~/.ssh/id_rsa; do
+  [[ -f "$key" ]] && ssh-add --apple-use-keychain "$key" 2>/dev/null
 done
 
 eval "$(starship init zsh)"
