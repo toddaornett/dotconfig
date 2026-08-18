@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: August 13, 2026
+;; Modified: August 18, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -852,14 +852,68 @@ sort alphabetically by name instead."
       (message "Git review directory: %s" dir))
     dir))
 
-;;;###autoload
+(defun git-tools--pr-owner-repo (directory)
+  "Return (OWNER . REPO) parsed from origin's remote URL in DIRECTORY, or nil.
+Handles both HTTPS URLs (https://github.com/owner/repo.git) and
+SSH URLs, including SSH config host aliases
+(e.g. git@github-lb:owner/repo.git where `github-lb' is a Host
+alias in ~/.ssh/config, not the literal github.com)."
+  (let* ((default-directory directory)
+          (url (magit-git-string "remote" "get-url" "origin")))
+    (when (and url
+            (string-match
+              "\\`\\(?:[[:alnum:]_.-]+@\\)?[^:/@]+[:/]\\([^/]+\\)/\\([^/.]+\\)\\(?:\\.git\\)?/?\\'"
+              url))
+      (cons (match-string 1 url) (match-string 2 url)))))
+
+(defun git-tools--pr-head-branch-via-gh (owner repo pr-number)
+  "Look up the head branch of PR-NUMBER using the `gh' CLI, or nil."
+  (when (executable-find "gh")
+    (with-temp-buffer
+      (when (zerop (call-process "gh" nil t nil
+                     "pr" "view" (format "%s" pr-number)
+                     "--repo" (format "%s/%s" owner repo)
+                     "--json" "headRefName"
+                     "-q" ".headRefName"))
+        (let ((name (string-trim (buffer-string))))
+          (unless (string-empty-p name) name))))))
+
+(defun git-tools--pr-head-branch-via-api (owner repo pr-number)
+  "Look up the head branch of PR-NUMBER via the GitHub REST API, or nil."
+  (condition-case nil
+    (let (result)
+      (with-current-buffer
+        (url-retrieve-synchronously
+          (format "https://api.github.com/repos/%s/%s/pulls/%s"
+            owner repo pr-number)
+          t t 10)
+        (goto-char (point-min))
+        (when (re-search-forward "\n\n" nil t)
+          (let* ((json-object-type 'alist)
+                  (data (json-read))
+                  (head (alist-get 'head data))
+                  (ref (alist-get 'ref head)))
+            (when (stringp ref) (setq result ref))))
+        (kill-buffer))
+      result)
+    (error nil)))
+
+(defun git-tools--pr-head-branch (directory pr-number)
+  "Return PR-NUMBER's actual head branch name for the repo in DIRECTORY.
+Tries `gh' first, then the GitHub REST API. Returns nil if both fail."
+  (let* ((owner-repo (git-tools--pr-owner-repo directory))
+          (owner (car owner-repo))
+          (repo (cdr owner-repo)))
+    (when (and owner repo)
+      (or (git-tools--pr-head-branch-via-gh owner repo pr-number)
+        (git-tools--pr-head-branch-via-api owner repo pr-number)))))
+
+;;;###Autoload
 (defun git-tools-review-start ()
   "Start reviewing a GitHub pull request in a dedicated repo directory.
-
 Use `git-tools-review-home' as the repo directory if it is set to a
 non-empty string; otherwise fall back to `git-tools--project-root'
 (based on the current buffer, like the rest of git-tools).
-
 In that repo:
 1. Clean the working tree (`git reset --hard' + `git clean -fd',
    discarding local changes and untracked files).
@@ -870,7 +924,9 @@ In that repo:
    https://github.com/OWNER/REPO/pull/123).  If the clipboard is
    empty or doesn't hold such a URL, prompt for one interactively.
    Fetch that PR from origin and check it out into a local branch
-   named `review/pr-NUMBER'.
+   using the PR's actual head branch name (looked up via `gh' or the
+   GitHub API), falling back to `review/pr-NUMBER' if that lookup
+   fails.
 5. Add prompt to the kill ring."
   (interactive)
   (let* ((default-directory
@@ -897,8 +953,10 @@ In that repo:
     (if (magit-get-upstream-branch)
       (magit-run-git "pull" "origin" main-branch)
       (magit-run-git "fetch" "origin" (format "%s:%s" main-branch main-branch)))
-    ;; 4. Fetch and check out the PR.
-    (let* ((review-branch (format "review/pr-%s" pr-number))
+    ;; 4. Fetch and check out the PR, using its real branch name if we can find it.
+    (let* ((review-branch
+             (or (git-tools--pr-head-branch default-directory pr-number)
+               (format "review/pr-%s" pr-number)))
             (output (concat (format "In the directory %s, " default-directory)
                             (format "please review the latest commits in the current branch %s " review-branch)
                             (format "to be merged into %s " (git-tools-main-branch-name default-directory))
