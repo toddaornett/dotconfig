@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 28, 2026
-;; Modified: July 31, 2026
+;; Modified: August 18, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools agent llm convenience
 ;; Package-Requires: ((emacs "29.1"))
@@ -57,11 +57,18 @@
   (interactive "MText: ")
   (let* ((branch-name (git-tools-current-branch-name))
          (output (concat
-                   (format "In %s, " (git-tools-review-directory))
+                   (format "In %s, " (git-tools--project-root))
                    (format "concerning the current branch %s, please " branch-name)
                    (format "make an update to the implementation based on this review comment: %s." text))))
          (kill-new output)
          (message (format "yak-update-for-comment: current branch %s" branch-name))))
+
+
+(defun yak-commit-for-bugbot ()
+  (interactive)
+  (let* ((output "Please commit with bugbot compatible review message but do not push."))
+           (kill-new output)
+         (message (format "yak-commit-for-bugbot: copied message to clipboard"))))
 
 (defun yak-japanese-coe-request ()
   (interactive)
