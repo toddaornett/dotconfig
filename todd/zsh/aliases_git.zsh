@@ -62,13 +62,25 @@ function git_cleanup_branches() {
   local main_branch
   main_branch="$(git_main_branch)"
 
+  git checkout "$main_branch"
   git fetch origin --prune
-
   git branch --merged "$main_branch" |
     sed 's/^[* ]*//' |
     grep -vFx "$main_branch" |
     grep -vE '^release.*$' |
     xargs -r git branch -d
+}
+
+function git_nuke_branches() {
+  local main_branch
+  main_branch="$(git_main_branch)"
+  git checkout "$main_branch"
+  git fetch origin --prune
+  git branch |
+    sed 's/^[* ]*//' |
+    grep -vFx "$main_branch" |
+    grep -vE '^release.*$' |
+    xargs -r git branch -D
 }
 
 function gstA {
@@ -572,6 +584,12 @@ function pclean {
       done
     fi
   done
+}
+
+function gpurge {
+  git checkout main
+  git branch | grep -v "main" | xargs git branch -D
+
 }
 
 function gForceSsh {
