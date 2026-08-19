@@ -27,3 +27,4 @@ export DOCKER_CONTEXT=colima
 if command -v mise >/dev/null 2>&1; then
   eval "$(mise activate zsh)"
 fi
+path+=/Users/todd.ornett/.config/doom-emacs/bin
