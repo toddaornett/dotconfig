@@ -5,6 +5,7 @@ ZSHENV="$HOME/.zshenv"
 ZSHRC="$HOME/.config/todd/zsh/zshrc"
 ZSH_BOOTSTRAP="$HOME/.config/todd/zsh/bootstrap.zsh"
 HOME_ZSHRC="$HOME/.zshrc"
+ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
 
@@ -16,6 +17,145 @@ note_shell_init_for_builds() {
 ensure_zdotdir_in_zshenv() {
   local line='export ZDOTDIR=~/.config/zsh'
   grep -Fqx "$line" "$ZSHENV" 2>/dev/null || echo "$line" >>"$ZSHENV"
+}
+
+# After ZDOTDIR is set, zsh reads $ZDOTDIR/.zsh{env,profile,rc,login} and ignores
+# the same files in $HOME. Nested shells already have ZDOTDIR exported, so they
+# skip ~/.zshenv unless $ZDOTDIR/.zshenv bridges back to it.
+ensure_zdotdir_file_sources() {
+  local dest="$1"
+  local src="$2"
+  local comment="$3"
+  local src_home="${src/#$HOME/\$HOME}"
+
+  [[ -f "$src" ]] || return 0
+  mkdir -p "$(dirname "$dest")"
+
+  if [[ -f "$dest" ]] && { grep -Fq "$src" "$dest" || grep -Fq "$src_home" "$dest"; }; then
+    return 0
+  fi
+
+  local line="[[ -f \"$src_home\" ]] && source \"$src_home\""
+  if [[ ! -f "$dest" ]]; then
+    {
+      echo "# $comment"
+      echo "# Managed by ~/.config/bootstrap.sh — do not remove the source line."
+      echo "$line"
+    } >"$dest"
+    echo "  Created $dest → $src"
+  else
+    {
+      echo ""
+      echo "# $comment"
+      echo "$line"
+    } >>"$dest"
+    echo "  Added source of $src to $dest"
+  fi
+}
+
+ensure_zdotdir_startup_files() {
+  echo "🐚 Ensuring ZDOTDIR ($ZDOTDIR_DIR) sources your real zsh config..."
+  mkdir -p "$ZDOTDIR_DIR"
+  ensure_zdotdir_file_sources \
+    "$ZDOTDIR_DIR/.zshrc" \
+    "$ZSHRC" \
+    "ZDOTDIR entry point. Real interactive config: ~/.config/todd/zsh/zshrc"
+  ensure_zdotdir_file_sources \
+    "$ZDOTDIR_DIR/.zprofile" \
+    "$HOME/.zprofile" \
+    "ZDOTDIR login profile. Bridges to ~/.zprofile (Homebrew/mise PATH)"
+  ensure_zdotdir_file_sources \
+    "$ZDOTDIR_DIR/.zshenv" \
+    "$ZSHENV" \
+    "ZDOTDIR env. Nested zsh already has ZDOTDIR set, so ~/.zshenv would be skipped"
+  ensure_zdotdir_file_sources \
+    "$ZDOTDIR_DIR/.zlogin" \
+    "$HOME/.zlogin" \
+    "ZDOTDIR login. Bridges to ~/.zlogin"
+}
+
+# Old ~/.zlogin ran `sudo rm -rf` on every login shell. macOS terminals are login
+# shells, so that prompted on every new window. Replace with once-per-boot cleanup.
+ensure_teams_cleanup() {
+  local script="$HOME/.config/todd/zsh/teams_cleanup.zsh"
+  local zlogin="$HOME/.zlogin"
+  local version_marker="teams-cleanup-version: 1"
+  local source_line='[[ -f "$HOME/.config/todd/zsh/teams_cleanup.zsh" ]] && source "$HOME/.config/todd/zsh/teams_cleanup.zsh"'
+
+  echo "🧹 Ensuring Teams cache cleanup is once-per-boot (no unconditional sudo)..."
+
+  if [[ -f "$zlogin" ]] && grep -qE '^sudo rm -rf .*microsoft\.teams' "$zlogin"; then
+    sed -i '' -e '/^sudo rm -rf .*microsoft\.teams/d' "$zlogin"
+    echo "  Removed unconditional Teams sudo from $zlogin"
+  fi
+
+  mkdir -p "$(dirname "$script")"
+  if [[ ! -f "$script" ]] || ! grep -Fq "$version_marker" "$script"; then
+    cat >"$script" <<'EOF'
+# teams-cleanup-version: 1
+# Microsoft Teams leftover caches can crash the app. Clean them once per boot.
+# macOS terminals start login shells, so ~/.zlogin runs on every new window —
+# do not call sudo there unconditionally.
+
+todd_teams_cleanup_once_per_boot() {
+  [[ -o interactive ]] || return 0
+
+  local stamp_dir="${XDG_CACHE_HOME:-$HOME/.cache}/todd"
+  local stamp="$stamp_dir/teams-cache-cleanup.boot"
+  local boot_sec
+  boot_sec="$(sysctl -n kern.boottime 2>/dev/null | awk '{print $4}' | tr -d ',')"
+  [[ -n "$boot_sec" ]] || return 0
+
+  if [[ -f "$stamp" && "$(<"$stamp")" == "$boot_sec" ]]; then
+    return 0
+  fi
+
+  mkdir -p "$stamp_dir"
+  print -r -- "$boot_sec" >"$stamp"
+
+  local -a targets existing remaining
+  targets=(
+    "$HOME/Library/Group Containers/UBF8T346G9.com.microsoft.teams"
+    "$HOME/Library/Containers/com.microsoft.teams2"
+  )
+
+  local t
+  for t in "${targets[@]}"; do
+    [[ -e "$t" ]] && existing+=("$t")
+  done
+  (( ${#existing[@]} )) || return 0
+
+  echo "Cleaning Microsoft Teams caches (once since last restart):"
+  for t in "${existing[@]}"; do
+    if rm -rf "$t" 2>/dev/null; then
+      echo "  removed: $t"
+    else
+      remaining+=("$t")
+    fi
+  done
+  (( ${#remaining[@]} )) || return 0
+
+  echo "Some Teams cache dirs need elevated permissions:"
+  for t in "${remaining[@]}"; do
+    echo "  $t"
+  done
+  echo "About to run: sudo rm -rf <those paths>"
+  echo "This is requested at most once per reboot. Ctrl-C skips until the next restart."
+  sudo rm -rf "${remaining[@]}"
+}
+
+todd_teams_cleanup_once_per_boot
+EOF
+    echo "  Wrote $script"
+  fi
+
+  if [[ ! -f "$zlogin" ]] || ! grep -Fq "teams_cleanup.zsh" "$zlogin"; then
+    {
+      echo "# Microsoft Teams cache cleanup (once per boot). Managed by ~/.config/bootstrap.sh"
+      echo "$source_line"
+    } >>"$zlogin"
+    echo "  Ensured $zlogin sources teams_cleanup.zsh"
+  fi
 }
 
 ensure_no_sdkroot_in_zshenv() {
@@ -62,6 +202,7 @@ migrate_home_zshrc_to_bootstrap() {
   fi
   cat >"$HOME_ZSHRC" <<'EOF'
 # Shell config lives under ~/.config/todd/zsh/ (ZDOTDIR=~/.config/zsh in ~/.zshenv).
+# Interactive startup file: ~/.config/zsh/.zshrc (sources ~/.config/todd/zsh/zshrc).
 # Bootstrap-managed settings: ~/.config/todd/zsh/bootstrap.zsh
 EOF
   echo "  Replaced ~/.zshrc with pointer stub"
@@ -109,6 +250,8 @@ for line in "${lines[@]}"; do
 done
 
 ensure_zdotdir_in_zshenv
+ensure_zdotdir_startup_files
+ensure_teams_cleanup
 ensure_no_sdkroot_in_zshenv
 migrate_home_zshrc_to_bootstrap
 ensure_bootstrap_sourced_in_zshrc
@@ -923,19 +1066,9 @@ else
 fi
 
 #################################
-# Deal with Microsoft Teams cleanup to prevent future crashes
+# Microsoft Teams cache cleanup is handled by ensure_teams_cleanup
+# (once per boot; see ~/.config/todd/zsh/teams_cleanup.zsh)
 #################################
-if [ -d "/Applications/Microsoft Teams.app" ]; then
-  echo "Sucks to be you dealing with M$ Teams, so we try to prevent future crashes"
-  if [ ! -f ~/.zlogin ]; then
-    touch ~/.zlogin
-    chmod +x ~/.zlogin
-  fi
-  if ! grep "microsoft.teams" ~/.zlogin; then
-    echo "sudo rm -rf ~/Library/Group\ Containers/UBF8T346G9.com.microsoft.teams" >>~/.zlogin
-    echo "sudo rm -rf ~/Library/Containers/com.microsoft.teams2" >>~/.zlogin
-  fi
-fi
 
 #################################
 # Configure Boost / native build env
