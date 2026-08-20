@@ -52,11 +52,13 @@ append_path '$HOME/bin'
 ##########
 # load all aliases and functions sources
 ##########
-for f in $HOME/.config/todd/zsh/aliases*; do
-  source $f
-done
-for f in $HOME/.config/todd/zsh/*_functions.zsh; do
-  source $f
+# Interactive aliases must be enabled (zsh can start with them off in some paths).
+setopt aliases
+autoload -U add-zsh-hook
+# (N) null-glob: missing match must not abort .zshrc. Quote paths; only *.zsh.
+for f in "${HOME}/.config/todd/zsh"/aliases*.zsh(N) "${HOME}/.config/todd/zsh"/*_functions.zsh(N); do
+  [[ -r "$f" ]] || continue
+  source "$f"
 done
 
 ##########
@@ -82,6 +84,7 @@ if [[ $(date +'%j') != $updated_at ]]; then
 else
   compinit -C -i
 fi
+(( $+functions[_hsterm_complete] )) && compdef _hsterm_complete hsterm
 zmodload -i zsh/complist
 setopt auto_list # automatically list choices on ambiguous completion
 setopt auto_menu # automatically use menu completion

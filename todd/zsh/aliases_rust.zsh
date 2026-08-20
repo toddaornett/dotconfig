@@ -335,6 +335,7 @@ create_run_aliases() {
 }
 
 add-zsh-hook chpwd create_run_aliases
+create_run_aliases
 
 # static aliases
 local cmd='cargo audit'

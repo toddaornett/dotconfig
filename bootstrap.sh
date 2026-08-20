@@ -53,6 +53,48 @@ ensure_zdotdir_file_sources() {
   fi
 }
 
+ensure_zdotdir_home_zshrc_bridge() {
+  local zdot_rc="$ZDOTDIR_DIR/.zshrc"
+  local marker='_TODD_SOURCING_HOME_ZSHRC'
+  mkdir -p "$ZDOTDIR_DIR"
+  [[ -f "$zdot_rc" ]] || return 0
+  grep -Fq "$marker" "$zdot_rc" 2>/dev/null && return 0
+  cat >>"$zdot_rc" <<'EOF'
+
+# ~/.zshrc is skipped when ZDOTDIR is set. Load it for extra home-level aliases.
+# The guard prevents recursion when ~/.zshrc sources this file.
+if [[ -z ${_TODD_SOURCING_HOME_ZSHRC:-} && -o interactive && -f "$HOME/.zshrc" ]]; then
+  _TODD_SOURCING_HOME_ZSHRC=1
+  source "$HOME/.zshrc"
+  unset _TODD_SOURCING_HOME_ZSHRC
+fi
+EOF
+  echo "  Added ~/.zshrc bridge to $zdot_rc"
+}
+
+ensure_home_zshrc_sources_zdotdir() {
+  local marker='_TODD_SOURCING_HOME_ZSHRC'
+  touch "$HOME_ZSHRC"
+  grep -Fq "$marker" "$HOME_ZSHRC" 2>/dev/null && return 0
+  local tmp
+  tmp="$(mktemp)"
+  cat >"$tmp" <<'EOF'
+# Shell config lives under ~/.config/todd/zsh/ (ZDOTDIR=~/.config/zsh in ~/.zshenv).
+# Interactive startup file: ~/.config/zsh/.zshrc (sources ~/.config/todd/zsh/zshrc).
+# Bootstrap-managed settings: ~/.config/todd/zsh/bootstrap.zsh
+#
+# New shells with ZDOTDIR set read ~/.config/zsh/.zshrc, not this file.
+# Source that file so `source ~/.zshrc` and ZDOTDIR-unset shells still load
+# aliases*.zsh. The guard in ~/.config/zsh/.zshrc prevents recursion.
+if [[ -z ${_TODD_SOURCING_HOME_ZSHRC:-} && -f "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc" ]]; then
+  source "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc"
+fi
+EOF
+  cat "$HOME_ZSHRC" >>"$tmp"
+  mv "$tmp" "$HOME_ZSHRC"
+  echo "  Added ZDOTDIR .zshrc source to $HOME_ZSHRC"
+}
+
 ensure_zdotdir_startup_files() {
   echo "🐚 Ensuring ZDOTDIR ($ZDOTDIR_DIR) sources your real zsh config..."
   mkdir -p "$ZDOTDIR_DIR"
@@ -60,6 +102,8 @@ ensure_zdotdir_startup_files() {
     "$ZDOTDIR_DIR/.zshrc" \
     "$ZSHRC" \
     "ZDOTDIR entry point. Real interactive config: ~/.config/todd/zsh/zshrc"
+  ensure_zdotdir_home_zshrc_bridge
+  ensure_home_zshrc_sources_zdotdir
   ensure_zdotdir_file_sources \
     "$ZDOTDIR_DIR/.zprofile" \
     "$HOME/.zprofile" \
@@ -199,13 +243,20 @@ migrate_home_zshrc_to_bootstrap() {
       echo "# Migrated from ~/.zshrc by bootstrap.sh"
       cat "$HOME_ZSHRC"
     } >>"$ZSH_BOOTSTRAP"
-  fi
-  cat >"$HOME_ZSHRC" <<'EOF'
+    cat >"$HOME_ZSHRC" <<'EOF'
 # Shell config lives under ~/.config/todd/zsh/ (ZDOTDIR=~/.config/zsh in ~/.zshenv).
 # Interactive startup file: ~/.config/zsh/.zshrc (sources ~/.config/todd/zsh/zshrc).
 # Bootstrap-managed settings: ~/.config/todd/zsh/bootstrap.zsh
+#
+# New shells with ZDOTDIR set read ~/.config/zsh/.zshrc, not this file.
+# Source that file so `source ~/.zshrc` and ZDOTDIR-unset shells still load
+# aliases*.zsh. The guard in ~/.config/zsh/.zshrc prevents recursion.
+if [[ -z ${_TODD_SOURCING_HOME_ZSHRC:-} && -f "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc" ]]; then
+  source "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc"
+fi
 EOF
-  echo "  Replaced ~/.zshrc with pointer stub"
+    echo "  Replaced ~/.zshrc with pointer stub"
+  fi
 }
 
 ensure_mise_in_shell() {
