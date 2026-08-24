@@ -31,22 +31,27 @@
 
 (defun tao/font-installed-p (font-name)
   "Return t if FONT-NAME is installed."
-  (find-font (font-spec :family font-name)))
+  (or (find-font (font-spec :family font-name))
+    (member font-name (font-family-list))))
 
 (defun tao/ensure-doom-fonts ()
-  "Ensure Doom-required fonts are installed."
+  "Ensure Doom-required fonts are installed.
+Never fail startup if a download or DNS lookup is unavailable."
   (when (display-graphic-p)
     (unless (tao/font-installed-p "FiraCode Nerd Font")
       (message "🔤 Installing Fira Code Nerd Font…")
       (tao/install-nerd-font))
 
-    (when (featurep 'nerd-icons)
-      (unless (tao/font-installed-p "FiraCode Nerd Font")
-        (message "🎨 Nerd icons use Fira Code Nerd Font; install it if icons look wrong."))
-      (when (and (require 'nerd-icons nil t)
-              (fboundp 'nerd-icons-install-fonts)
-              (not (tao/font-installed-p "Symbols Nerd Font")))
-        (nerd-icons-install-fonts t)))))
+    (when (and (featurep 'nerd-icons)
+            (not (or (tao/font-installed-p "Symbols Nerd Font Mono")
+                   (tao/font-installed-p "Symbols Nerd Font"))))
+      (message "🎨 Symbols Nerd Font is missing; icons may look wrong.")
+      (condition-case err
+        (when (and (require 'nerd-icons nil t)
+                (fboundp 'nerd-icons-install-fonts))
+          (nerd-icons-install-fonts t))
+        (error
+          (message "⚠️ Could not download Nerd Fonts: %s" (error-message-string err)))))))
 
 (add-hook 'doom-after-init-hook #'tao/ensure-doom-fonts)
 
