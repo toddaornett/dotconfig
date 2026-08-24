@@ -1,8 +1,6 @@
 # bootstrap-managed shell config
 # Managed by ~/.config/bootstrap.sh — do not edit bootstrap markers by hand.
 
-export LLM_PROVIDERS="ollama"
-
 # Homebrew/macOS build flags (bootstrap)
 if [[ "$(uname -s)" == Darwin ]]; then
   [[ -z "$SDKROOT" ]] && export SDKROOT="$(xcrun --sdk macosx --show-sdk-path 2>/dev/null)"
