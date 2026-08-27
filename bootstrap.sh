@@ -1057,11 +1057,11 @@ if [ ! -f "$OMP_CONFIG" ]; then
   echo "📁 Creating oh-my-pi config directory ..."
   mkdir -p "$(dirname "$OMP_CONFIG")"
   echo "📄 Creating oh-my-pi config file ..."
-  touch "$OMP_CONFIG"
+  echo "{}" >>"$OMP_CONFIG"
 fi
-if ! grep -q '^export BROWSER=' "$OMP_CONFIG"; then
-  echo "🌐 Adding BROWSER environment variable for oh-my-pi ..."
-  echo 'export BROWSER="com.google.Chrome"' >>"$OMP_CONFIG"
+if ! grep -q '^export PUPPETEER_EXECUTABLE_PATH' "$ZSHRC"; then
+  echo "🌐 Adding PUPPETEER_EXECUTABLE_PATH environment variable for oh-my-pi ..."
+  echo 'export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"' >>"$ZSHRC"
 fi
 
 #################################
