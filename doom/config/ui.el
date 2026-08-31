@@ -1,5 +1,14 @@
 ;;; $DOOMDIR/config/ui.el --- ui config -*- lexical-binding: t -*-
 
+(setq window-divider-default-right-width 1)
+(setq window-divider-default-bottom-width 1)
+(setq window-divider-default-places t)
+(window-divider-mode 1)
+
+(set-face-attribute 'window-divider nil :foreground "yellow")
+(set-face-attribute 'window-divider-first-pixel nil :foreground "yellow")
+(set-face-attribute 'window-divider-last-pixel nil :foreground "yellow")
+
 (defcustom tao/auto-visual-line-max-scan-length 5000
   "Maximum number of lines to scan when checking a buffer for
 `tao/auto-visual-line-mode'. If the buffer has more lines than this,
