@@ -52,15 +52,18 @@
       (let ((tao/erc--refreshing t)) ; Raise recursion shield flag
         (let* ((users (with-current-buffer buf (tao/erc--users)))
                (member-count (length users))
+               (channel-name (with-current-buffer buf
+                               (or (and (boundp 'erc-default-target) erc-default-target)
+                                   (buffer-name))))
                (sidebar (get-buffer-create tao/erc-members-buffer)))
 
           (with-current-buffer sidebar
             (tao/erc-members-mode)
 
-            ;; Dynamically set the column headers with the fresh count
+            ;; Dynamically set the column header: "Nick (#) <channel name>" on one line
             (setq tabulated-list-format
                   (vector '("P" 2 t)
-                          (list (format "Nick (%d)" member-count) 24 t)))
+                          (list (format "Nick (%d) %s" member-count channel-name) 24 t)))
 
             ;; Force the layout engine to recalculate and redraw the top header bar
             (tabulated-list-init-header)
