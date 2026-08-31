@@ -1059,10 +1059,6 @@ if [ ! -f "$OMP_CONFIG" ]; then
   echo "📄 Creating oh-my-pi config file ..."
   echo "{}" >>"$OMP_CONFIG"
 fi
-if ! grep -q '^export PUPPETEER_EXECUTABLE_PATH' "$ZSHRC"; then
-  echo "🌐 Adding PUPPETEER_EXECUTABLE_PATH environment variable for oh-my-pi ..."
-  echo 'export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"' >>"$ZSHRC"
-fi
 
 #################################
 # Install Krew if missing

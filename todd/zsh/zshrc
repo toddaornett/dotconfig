@@ -404,3 +404,4 @@ for key in ~/.ssh/id_ed25519 ~/.ssh/id_rsa; do
 done
 
 eval "$(starship init zsh)"
+export PUPPETEER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
