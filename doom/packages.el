@@ -79,6 +79,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("teamscount.el")))
 
+(package! teams-tools
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("teams-tools.el")))
+
 (package! git-tools
   :recipe (:local-repo "~/.config/elisp"
             :files ("git-tools.el")))
