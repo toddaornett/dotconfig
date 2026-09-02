@@ -75,7 +75,7 @@ Never fail startup if a download or DNS lookup is unavailable."
 (custom-set-faces!
   '(font-lock-comment-face :slant italic)
   '(font-lock-keyword-face :slant italic)
-  '(doom-dashboard-menu-title :height 1.2 :slant normal :inherit default))
+  '(+dashboard-menu-title :height 1.2 :slant normal :inherit default))
 
 (after! nerd-icons
   (when (facep 'nerd-icons-default-face)
@@ -143,68 +143,129 @@ Only works when called from a Dired buffer."
   (define-key company-active-map (kbd "TAB") nil)
   (define-key company-active-map (kbd "<tab>") nil))
 
+;;; ============================================================================
+;;; RUST & LSP CONFIGURATION
+;;; ============================================================================
+
 (after! rustic
-  (setq rustic-format-on-save nil)
-  (add-hook 'rustic-mode-hook
-    (lambda ()
-      (yas-minor-mode 1)
-      (setq-local company-backends '((company-capf company-yasnippet))))))
+  (setq rustic-format-trigger nil
+    rustic-format-on-save-method nil
+    rustic-lsp-client 'lsp-mode
+    rustic-lsp-server 'rust-analyzer)
 
-(after! eglot
-  (setq eglot-sync-connect 0)
-  (setq eglot-autoshutdown t)
-  (setq eglot-events-buffer-config '(:size 1000000 :format full))
-  (add-to-list 'eglot-server-programs
-    '(rustic-mode . ("rust-analyzer"
-                      :initializationOptions
-                      (:procMacro (:enable t)
-                        :diagnostics (:enable nil)
-                        :cargo (:watch (:enable nil))
-                        :completion (:autoimport (:enable t)))))))
+  ;; Optimization variables (per-buffer overrides where needed)
+  (setq-local company-minimum-prefix-length 1
+    company-idle-delay 0.0))
 
-(after! yasnippet
-  (yas-global-mode 1)
-  (setq yas-snippet-dirs '("~/.config/yasnippets/"))
-  (defun tao/snippet-keywords-from-description (desc)
-    "Derive org-package keyword tags from DESC string."
-    (let* ((keyword-map
-             '(("org"        . "outlines")
-                ("task"       . "outlines")
-                ("outline"    . "outlines")
-                ("slack"      . "convenience")
-                ("status"     . "convenience")
-                ("message"    . "convenience")
-                ("report"     . "convenience")
-                ("git"        . "tools")
-                ("github"     . "tools")
-                ("process"    . "tools")
-                ("shell"      . "tools")
-                ("script"     . "tools")
-                ("generate"   . "convenience")
-                ("parse"      . "lisp")
-                ("macro"      . "lisp")
-                ("elisp"      . "lisp")
-                ("emacs"      . "convenience")))
-            (desc-lower (downcase (or desc "")))
-            (matched
-              (delete-dups
-                (delq nil
-                  (mapcar (lambda (pair)
-                            (when (string-match-p (car pair) desc-lower)
-                              (cdr pair)))
-                    keyword-map)))))
-      (if matched
-        (mapconcat #'identity matched " ")
-        "tools")))
-  (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
-  (add-hook 'yas-minor-mode-hook
-    (lambda ()
-      (local-set-key (kbd "TAB") 'yas-expand)
-      (local-set-key (kbd "<tab>") 'yas-expand))))
+(add-hook 'rustic-mode-hook #'lsp)
+(add-hook 'rustic-mode-hook #'company-mode)
+(add-hook 'rustic-mode-hook #'yas-minor-mode)
 
-(after! vue
-  (add-hook 'vue-mode-hook #'lsp!))
+;; Hook to auto-enable inlay hints when any variation of Rust LSP activates
+(add-hook 'lsp-mode-hook
+  (lambda ()
+    ;; Added rust-ts-mode to the derived mode check for native tree-sitter compatibility
+    (when (derived-mode-p 'rustic-mode 'rust-mode 'rust-ts-mode)
+      (lsp-inlay-hints-mode 1)
+      ;; Tailored for doom-palenight: Muted blue-gray comments color
+      (custom-set-faces
+        '(lsp-inlay-hint-face ((t (:foreground "#676e95" :height 0.85 :slant italic :weight light))))))))
 
+
+;;; LSP Mode Core Setup
+(use-package! lsp-mode
+  :diminish "LSP"
+  :hook ((lsp-mode . lsp-diagnostics-mode)
+          (lsp-mode . lsp-enable-which-key-integration)
+          ((tsx-ts-mode
+             typescript-ts-mode
+             js-ts-mode) . lsp-deferred))
+  :custom
+  (lsp-keymap-prefix "C-c l")
+  (lsp-completion-provider :capf)
+  (lsp-diagnostics-provider :flycheck)
+  (lsp-session-file (locate-user-emacs-file ".lsp-session"))
+  (lsp-log-io nil)
+  (lsp-keep-workspace-alive nil)
+  (lsp-idle-delay 0.3) ;; Snappy response time
+  (lsp-enable-xref t)
+  (lsp-auto-configure t)
+  (lsp-eldoc-enable-hover t)
+  (lsp-enable-dap-auto-configure t)
+  (lsp-enable-file-watchers nil)
+  (lsp-enable-folding nil)
+  (lsp-enable-imenu t)
+  (lsp-enable-indentation nil)
+  (lsp-enable-links nil)
+  (lsp-enable-on-type-formatting nil)
+  (lsp-enable-suggest-server-download t)
+  (lsp-enable-symbol-highlighting t)
+  (lsp-enable-text-document-color nil)
+
+  ;; UI / Visuals - Crisp & Minimalist
+  (lsp-ui-sideline-show-hover nil)
+  (lsp-ui-sideline-diagnostic-max-lines 20)
+  (lsp-completion-enable t)
+  (lsp-completion-enable-additional-text-edit t)
+  (lsp-enable-snippet t)
+  (lsp-completion-show-kind t)
+  (lsp-headerline-breadcrumb-enable t)
+  (lsp-headerline-breadcrumb-enable-diagnostics nil)
+  (lsp-headerline-breadcrumb-enable-symbol-numbers nil)
+  (lsp-headerline-breadcrumb-icons-enable nil)
+  (lsp-modeline-code-actions-enable nil)
+  (lsp-modeline-diagnostics-enable nil)
+  (lsp-modeline-workspace-status-enable nil)
+  (lsp-signature-doc-lines 1)
+  (lsp-ui-doc-use-childframe t)
+  (lsp-eldoc-render-all nil)
+  (lsp-lens-enable nil)
+  (lsp-semantic-tokens-enable nil)
+
+  ;; Inlay Hints Setup
+  (lsp-inlay-hint-enable t)
+
+  ;; Crash recovery
+  (lsp-restart 'auto-restart)
+
+  :init
+  (setq lsp-use-plists t))
+
+
+;;; LSP UI Layout (Sharp Documentation & Lookup Windows)
+(use-package! lsp-ui
+  :commands (lsp-ui-doc-show lsp-ui-doc-glance)
+  :bind (:map lsp-mode-map
+          ("C-c C-d" . lsp-ui-doc-glance))
+  :after (lsp-mode evil)
+  :config
+  (setq lsp-ui-doc-enable t
+    evil-lookup-func #'lsp-ui-doc-glance
+    lsp-ui-doc-show-with-cursor nil
+    lsp-ui-doc-include-signature t
+    lsp-ui-doc-position 'at-point
+    lsp-ui-doc-border (face-foreground 'default) ;; Sharp frame outline matching theme
+    lsp-ui-doc-max-width 80
+    lsp-ui-doc-max-height 25))
+
+
+;;; Rust-Analyzer Specific Variables
+(after! lsp-rust
+  (setq lsp-rust-analyzer-display-parameter-hints t
+    lsp-rust-analyzer-display-chaining-hints t
+    lsp-rust-analyzer-display-closure-return-type-hints t
+    lsp-rust-analyzer-display-lifetime-elision-hints-enable "skip_trivial"
+    lsp-rust-analyzer-display-reborrow-hints "always"
+    lsp-rust-analyzer-binding-mode-hints t
+    lsp-rust-analyzer-closing-brace-hints t
+    lsp-rust-analyzer-proc-macro-enable t
+    lsp-rust-analyzer-cargo-watch-enable t
+    lsp-rust-analyzer-cargo-watch-command "clippy"))
+
+
+;;; ============================================================================
+;;; NATIVE TREE-SITTER MANAGEMENT
+;;; ============================================================================
 (defvar tao/treesit-grammars
   '((css        . ("https://github.com/tree-sitter/tree-sitter-css" "v0.25.0"))
      (bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
@@ -223,7 +284,8 @@ Only works when called from a Dired buffer."
      (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "tsx/src"))
      (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "v0.23.2" "typescript/src"))
      (yaml       . ("https://github.com/ikatyang/tree-sitter-yaml" "v0.5.0"))
-     (prisma     . ("https://github.com/victorhqc/tree-sitter-prisma")))
+     (prisma     . ("https://github.com/victorhqc/tree-sitter-prisma"))
+     (rust       . ("https://github.com/tree-sitter/tree-sitter-rust")))
   "Tree-sitter grammars to install. Bump a version string to trigger reinstall.")
 
 (defvar tao/treesit-grammars-hash-file
@@ -282,10 +344,16 @@ Call interactively to force reinstall of all grammars."
                (json-mode       . json-ts-mode)
                (js-json-mode    . json-ts-mode)
                (sh-mode         . bash-ts-mode)
-               (sh-base-mode    . bash-ts-mode)))
+               (sh-base-mode    . bash-ts-mode)
+               ;; INTEGRATED: Map traditional rust-mode targets to native tree-sitter major mode
+               (rust-mode       . rust-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
-  (tao/setup-install-grammars))
+  ;; `doom doctor`/`doom sync` load treesit; don't compile grammars there.
+  (unless noninteractive
+    (tao/setup-install-grammars)))
 
+(after! vue
+  (add-hook 'vue-mode-hook #'lsp!))
 (use-package! expand-region
   :commands er/expand-region)
 
@@ -331,73 +399,45 @@ _q_: quit
     :n "+" #'tao/expand-region-hydra
     :n "-" #'tao/hydra-expand-region/body))
 
-(use-package! lsp-mode
-  :diminish "LSP"
-  :hook ((lsp-mode . lsp-diagnostics-mode)
-          (lsp-mode . lsp-enable-which-key-integration)
-          ((tsx-ts-mode
-             typescript-ts-mode
-             js-ts-mode) . lsp-deferred))
-  :custom
-  (lsp-keymap-prefix "C-c l")
-  (lsp-completion-provider :none)
-  (lsp-diagnostics-provider :flycheck)
-  (lsp-session-file (locate-user-emacs-file ".lsp-session"))
-  (lsp-log-io nil)
-  (lsp-keep-workspace-alive nil)
-  (lsp-idle-delay 0.5)
-  (lsp-enable-xref t)
-  (lsp-auto-configure t)
-  (lsp-eldoc-enable-hover t)
-  (lsp-enable-dap-auto-configure t)
-  (lsp-enable-file-watchers nil)
-  (lsp-enable-folding nil)
-  (lsp-enable-imenu t)
-  (lsp-enable-indentation nil)
-  (lsp-enable-links nil)
-  (lsp-enable-on-type-formatting nil)
-  (lsp-enable-suggest-server-download t)
-  (lsp-enable-symbol-highlighting t)
-  (lsp-enable-text-document-color nil)
-
-  (lsp-ui-sideline-show-hover nil)
-  (lsp-ui-sideline-diagnostic-max-lines 20)
-  (lsp-completion-enable t)
-  (lsp-completion-enable-additional-text-edit t)
-  (lsp-enable-snippet t)
-  (lsp-completion-show-kind t)
-  (lsp-headerline-breadcrumb-enable t)
-  (lsp-headerline-breadcrumb-enable-diagnostics nil)
-  (lsp-headerline-breadcrumb-enable-symbol-numbers nil)
-  (lsp-headerline-breadcrumb-icons-enable nil)
-  (lsp-modeline-code-actions-enable nil)
-  (lsp-modeline-diagnostics-enable nil)
-  (lsp-modeline-workspace-status-enable nil)
-  (lsp-signature-doc-lines 1)
-  (lsp-ui-doc-use-childframe t)
-  (lsp-eldoc-render-all nil)
-  (lsp-lens-enable nil)
-  (lsp-semantic-tokens-enable nil)
-
-  :init
-  (setq lsp-use-plists t))
-
-(use-package! lsp-completion
-  :no-require
-  :hook ((lsp-mode . lsp-completion-mode)))
-
-(use-package! lsp-ui
-  :commands
-  (lsp-ui-doc-show
-    lsp-ui-doc-glance)
-  :bind (:map lsp-mode-map
-          ("C-c C-d" . 'lsp-ui-doc-glance))
-  :after (lsp-mode evil)
-  :config (setq lsp-ui-doc-enable t
-            evil-lookup-func #'lsp-ui-doc-glance
-            lsp-ui-doc-show-with-cursor nil
-            lsp-ui-doc-include-signature t
-            lsp-ui-doc-position 'at-point))
+(after! yasnippet
+  (yas-global-mode 1)
+  (setq yas-snippet-dirs '("~/.config/yasnippets/"))
+  (defun tao/snippet-keywords-from-description (desc)
+    "Derive org-package keyword tags from DESC string."
+    (let* ((keyword-map
+             '(("org"        . "outlines")
+                ("task"       . "outlines")
+                ("outline"    . "outlines")
+                ("slack"      . "convenience")
+                ("status"     . "convenience")
+                ("message"    . "convenience")
+                ("report"     . "convenience")
+                ("git"        . "tools")
+                ("github"     . "tools")
+                ("process"    . "tools")
+                ("shell"      . "tools")
+                ("script"     . "tools")
+                ("generate"   . "convenience")
+                ("parse"      . "lisp")
+                ("macro"      . "lisp")
+                ("elisp"      . "lisp")
+                ("emacs"      . "convenience")))
+            (desc-lower (downcase (or desc "")))
+            (matched
+              (delete-dups
+                (delq nil
+                  (mapcar (lambda (pair)
+                            (when (string-match-p (car pair) desc-lower)
+                              (cdr pair)))
+                    keyword-map)))))
+      (if matched
+        (mapconcat #'identity matched " ")
+        "tools")))
+  (add-to-list 'yas-snippet-dirs "~/.config/yasnippets/")
+  (add-hook 'yas-minor-mode-hook
+    (lambda ()
+      (local-set-key (kbd "TAB") 'yas-expand)
+      (local-set-key (kbd "<tab>") 'yas-expand))))
 
 (use-package! typescript-ts-mode
   :hook
