@@ -148,10 +148,48 @@
             (when (derived-mode-p 'erc-mode)
               (tao/erc-members-refresh (current-buffer)))))
 
+;; 5. AUTO-SCROLL TO BOTTOM ON USER MESSAGES
 ;; =========================================================================
-;; 5. UTILITY & CONNECTION CONFIGURATION
+
+(defvar tao/erc--autoscroll-timer nil
+  "Holds the debounced autoscroll timer.")
+
+(defcustom tao/erc-autoscroll-threshold 5
+  "Number of lines from buffer end where manual scrolling is assumed."
+  :type 'integer)
+
+(defun tao/erc--near-bottom-p ()
+  "Return non-nil if point is within `tao/erc-autoscroll-threshold' lines of the buffer end."
+  (let ((dist (- (line-number-at-pos (point-max))
+                 (line-number-at-pos (point)))))
+    (< dist tao/erc-autoscroll-threshold)))
+
+(defun tao/erc--autoscroll-bottom ()
+  "Scroll ERC channel buffer to bottom if near the current end.
+Debounce is handled by cancelling any existing timer before scheduling a new one."
+  (when (and (derived-mode-p 'erc-mode)
+             (tao/erc--near-bottom-p))
+    (when tao/erc--autoscroll-timer
+      (cancel-timer tao/erc--autoscroll-timer))
+    (setq tao/erc--autoscroll-timer
+          (run-with-idle-timer 1 nil
+                               (lambda ()
+                                 (when (and (derived-mode-p 'erc-mode)
+                                            (tao/erc--near-bottom-p))
+                                   (with-current-buffer (current-buffer)
+                                     (goto-char (point-max))))
+                                 (setq tao/erc--autoscroll-timer nil)))))))
+
+(add-hook 'erc-post-msg-hook #'tao/erc--maybe-autoscroll-after-msg)
+
+(defun tao/erc--maybe-autoscroll-after-msg ()
+  "Auto-scroll ERC buffer only for PRIVMSG (user messages), not system events."
+  (when (eq erc-last-message-type 'PRIVMSG)
+    (tao/erc--autoscroll-bottom)))
+
+;; 6. UTILITY & CONNECTION CONFIGURATION
 ;; =========================================================================
-(defun tao/erc-quit-and-cleanup ()
+(defun tao/erc-disconnect-all ()
   "Disconnect from all IRC networks, close channels, and kill the member sidebar."
   (interactive)
   ;; 1. Cancel the background idle timer so it stops running loops
@@ -178,7 +216,6 @@
   (interactive)
   (require 'erc)
   (erc-tls :server erc-server :port erc-port :nick erc-nick))
-
 (after! erc
   (when (and (boundp 'irc-nickname)
              (stringp irc-nickname)
@@ -192,5 +229,5 @@
           erc-autojoin-channels-alist `(("libera.chat" ,@irc-channels))
           erc-sasl-mechanism 'plain
           erc-sasl-user irc-nickname
-          erc-nick irc-nickname
-          erc-sasl-password :password)))
+          erc-sasl-password (auth-source-secret-get-password :user irc-nickname
+                                                                 :host "irc.libera.chat")))
