@@ -1,12 +1,110 @@
 #!/usr/bin/env bash
 ##########
 # install rust and diesel
+#
+# rust-analyzer must come from rustup, matching the active rustc. Homebrew's
+# rust-analyzer would win on PATH (/opt/homebrew/bin is ahead of ~/.cargo/bin)
+# and Emacs treats the rustup proxy as "installed" even when the component is
+# missing — that produces the lsp-mode startup/Connected crash loop.
+#
+#   setup_rust.sh           full install (components + cargo tools + diesel)
+#   setup_rust.sh --ensure  non-interactive: rustup + rust-analyzer + rust-src
 ##########
-if ! type "rustup" > /dev/null 2>&1; then
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  append_path '$HOME/.cargo/bin'
-  rustup component add rust-src
-  rustup component add rust-analyzer
+
+ensure_cargo_env() {
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    # shellcheck source=/dev/null
+    . "$HOME/.cargo/env"
+  fi
+
+  local cargo_bin="$HOME/.cargo/bin"
+  if [[ -d "$cargo_bin" ]]; then
+    case ":$PATH:" in
+      *":$cargo_bin:"*) ;;
+      *) export PATH="$cargo_bin:$PATH" ;;
+    esac
+    if [[ "$(type -t append_path 2>/dev/null)" == "function" ]]; then
+      append_path "\$HOME/.cargo/bin"
+    fi
+  fi
+}
+
+ensure_cargo_env_in_zshenv() {
+  local zshenv="${ZSHENV:-$HOME/.zshenv}"
+  local line
+  printf -v line '. "%s/.cargo/env"' "\$HOME"
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    mkdir -p "$(dirname "$zshenv")"
+    touch "$zshenv"
+    grep -Fqs "$line" "$zshenv" || echo "$line" >>"$zshenv"
+  fi
+}
+
+ensure_no_homebrew_rust_analyzer() {
+  if command -v brew >/dev/null 2>&1 && brew list rust-analyzer &>/dev/null; then
+    echo "🍺 Uninstalling Homebrew rust-analyzer (it shadows the rustup proxy on PATH)"
+    brew uninstall rust-analyzer
+  fi
+}
+
+ensure_rustup() {
+  ensure_cargo_env
+  if ! command -v rustup >/dev/null 2>&1; then
+    echo "🦀 Installing rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    ensure_cargo_env
+    ensure_cargo_env_in_zshenv
+  fi
+  if ! command -v rustup >/dev/null 2>&1; then
+    echo "❌ rustup not found after install" >&2
+    return 1
+  fi
+}
+
+ensure_rust_analyzer() {
+  ensure_rustup
+  ensure_no_homebrew_rust_analyzer
+
+  echo "🦀 Ensuring rust-analyzer + rust-src on the default toolchain"
+  rustup component add rust-analyzer rust-src
+
+  local default_tc toolchain
+  default_tc="$(rustup show active-toolchain 2>/dev/null | awk '{print $1}')"
+  while IFS= read -r toolchain; do
+    [[ -z "$toolchain" || "$toolchain" == */* ]] && continue
+    [[ -n "$default_tc" && "$toolchain" == "$default_tc" ]] && continue
+    echo "🦀 Ensuring rust-analyzer + rust-src on $toolchain"
+    rustup component add rust-analyzer rust-src --toolchain "$toolchain" || \
+      echo "⚠️  skipped rust-analyzer on $toolchain"
+  done < <(rustup toolchain list | awk '{print $1}')
+
+  if ! rust-analyzer --version >/dev/null 2>&1; then
+    echo "❌ rust-analyzer is not runnable (rustup component missing?)" >&2
+    rust-analyzer --version >&2 || true
+    return 1
+  fi
+  echo "✅ $(rust-analyzer --version)"
+}
+
+ensure_rust_completions() {
+  if ! command -v rustup >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ ! -e ~/.config/zsh/_rustup.zsh || ! -e ~/.config/zsh/_cargo.zsh ]]; then
+    mkdir -p ~/.config/zsh 2>/dev/null
+    rustup completions zsh cargo >> ~/.config/zsh/_cargo.zsh
+    rustup completions zsh > ~/.config/zsh/_rustup.zsh
+    if command -v diesel >/dev/null 2>&1; then
+      diesel completions zsh > ~/.config/zsh/_diesel.zsh
+    fi
+  fi
+}
+
+ensure_rust_analyzer
+ensure_rust_completions
+
+if [[ "${1:-}" == "--ensure" ]]; then
+  exit 0
 fi
 
 # Cargo tools menu
@@ -73,17 +171,5 @@ if [[ "$reply" =~ ^[Yy]$ ]]; then
     else
       cargo install diesel_cli --no-default-features --features postgres
     fi
-  fi
-fi
-
-##########
-# autocomplete for rust tools
-##########
-if [[ ! -e ~/.config/zsh/_rustup.zsh || ! -e ~/.config/zsh/_cargo.zsh ]] && type "rustup" > /dev/null 2>&1; then
-  mkdir -p ~/.config/zsh 2>/dev/null
-  rustup completions zsh cargo >> ~/.config/zsh/_cargo.zsh
-  rustup completions zsh > ~/.config/zsh/_rustup.zsh
-  if type "diesel" > /dev/null 2>&1; then
-    diesel completions zsh > ~/.config/zsh/_diesel.zsh
   fi
 fi
