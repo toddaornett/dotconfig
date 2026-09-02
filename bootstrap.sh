@@ -1049,6 +1049,12 @@ if ! grep -Fqs "CARGO_NET_GIT_FETCH_WITH_CLI" "$ZSH_BOOTSTRAP" 2>/dev/null; then
   echo 'export CARGO_NET_GIT_FETCH_WITH_CLI=true' >>"$ZSH_BOOTSTRAP"
 fi
 
+# rust-analyzer via rustup (never Homebrew — brew is ahead of ~/.cargo/bin).
+# --ensure is idempotent: installs rustup if needed, then rust-analyzer + rust-src
+# on every installed toolchain. Interactive cargo tools stay in setup_rust.sh.
+echo "🦀 Ensuring rustup rust-analyzer..."
+"$HOME/.config/todd/zsh/setup_rust.sh" --ensure
+
 #################################
 # omp configuration
 #################################

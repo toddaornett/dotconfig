@@ -1,4 +1,5 @@
 ;;; $DOOMDIR/config/ui.el --- ui config -*- lexical-binding: t -*-
+(global-auto-revert-mode 1)
 
 (setq window-divider-default-right-width 1)
 (setq window-divider-default-bottom-width 1)
@@ -28,8 +29,8 @@ lines of the current buffer (or `tao/auto-visual-line-max-scan-length'
 lines if MAX-LINES is nil). Only scans up to that many lines, regardless
 of how long any individual line is."
   (let ((limit (or max-lines tao/auto-visual-line-max-scan-length))
-        (max-len 0)
-        (lines-checked 0))
+         (max-len 0)
+         (lines-checked 0))
     (save-excursion
       (goto-char (point-min))
       (while (and (not (eobp)) (< lines-checked limit))
@@ -47,10 +48,10 @@ the current window's text width."
   (unless (minibufferp)
     (let ((needs-wrap (> (tao/buffer-longest-line) (window-body-width))))
       (cond
-       ((and needs-wrap (not visual-line-mode))
-        (visual-line-mode 1))
-       ((and (not needs-wrap) visual-line-mode)
-        (visual-line-mode -1))))))
+        ((and needs-wrap (not visual-line-mode))
+          (visual-line-mode 1))
+        ((and (not needs-wrap) visual-line-mode)
+          (visual-line-mode -1))))))
 
 (add-hook 'find-file-hook #'tao/auto-visual-line-mode)
 (add-hook 'window-configuration-change-hook #'tao/auto-visual-line-mode)

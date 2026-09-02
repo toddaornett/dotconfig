@@ -17,7 +17,7 @@
 
   :ui
   doom                ; Core Doom UI
-  doom-dashboard
+  dashboard
   hl-todo             ; Useful for code annotations
   indent-guides       ; Helpful for Rust code
   (ligatures +monaco) ; Remove +extra to reduce font processing
@@ -82,7 +82,7 @@
   (web +lsp)
   (markdown +grip)    ; Lightweight, keep, add grip for GH equiv
   (org +pomodoro)     ; Keep for note-taking
-  (rust +eglot)       ; Use eglot only, remove +lsp and +cargo
+  (rust +lsp)
   sh                  ; Lightweight, keep
   yaml                ; Lightweight, keep
 
