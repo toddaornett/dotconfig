@@ -27,7 +27,7 @@ they look like a safelink; otherwise prompt for the URL."
   (interactive)
   (let* ((clip (ignore-errors (current-kill 0)))
          (input (or safelink
-                    (and (teams-safelink-p clip) clip)
+                    (and (teams-tools-safelink-p clip) clip)
                     (read-string "Safelink URL: "))))
     (if (string-match "[?&]url=\\([^&]+\\)" input)
         (let ((real-url (url-unhex-string (match-string 1 input))))
