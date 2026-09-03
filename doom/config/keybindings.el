@@ -67,3 +67,5 @@
     :desc "Copy relative path"     "r" #'tao/copy-relative-path-dwim
     :desc "Copy org link and text" "L" #'tao/org-copy-link-and-text-at-point
     :desc "Copy org link"          "l" #'tao/org-copy-link-at-point))
+
+(map! :leader :desc "Mark defun" "m d" #'mark-defun)
