@@ -87,6 +87,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("git-tools.el")))
 
+(package! cargo-tools
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("cargo-tools.el")))
+
 (package! yak
   :recipe (:local-repo "~/.config/elisp"
             :files ("yak.el")))

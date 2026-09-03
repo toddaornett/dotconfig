@@ -768,6 +768,8 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! git-tools)
 
+(use-package! cargo-tools)
+
 (use-package! yak)
 
 (use-package! rust-clean)
