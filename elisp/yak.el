@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 28, 2026
-;; Modified: August 18, 2026
+;; Modified: September 3, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools agent llm convenience
 ;; Package-Requires: ((emacs "29.1"))
@@ -23,16 +23,27 @@
   (interactive "MText: ")
   (let* ((branch-name (git-tools-current-branch-name))
          (output (concat
-                   (format "In the current branch %s, " branch-name)
-                   (format "please make this change %s." text))))
+                   (format "In %s, under the current branch %s, " default-directory branch-name)
+                   (format "please make this change: %s." text))))
          (kill-new output)
          (message (format "yak-implement: current branch %s" branch-name))))
+
+(defun yak-commit (text)
+  (interactive "MText: ")
+  (let* ((branch-name (git-tools-current-branch-name))
+         (output (concat
+                   (format "In %s, under the current branch %s, " default-directory branch-name)
+                   (format "please commit the changes with a title similar to \"%s\" and a " text)
+                   (format "short concise body only if it is necessary."))))
+         (kill-new output)
+    (message (format "yak-commit: current branch %s" branch-name))))
 
 (defun yak-review-pull-request (arg)
   (interactive "P")
   (let* ((branch-name (git-tools-current-branch-name))
          (count (if (null arg) 0 (prefix-numeric-value arg)))
-          (prefix (concat (format "In %s, please review the latest " (git-tools-review-directory))
+          (prefix (concat (format "In %s, under the current branch %s, " (git-tools-review-directory) branch-name)
+                            "please review the latest "
                     (if (> count 0)
                      (format "%d commits for the current branch" count)
                    "commit for the current branch")))
@@ -62,23 +73,6 @@
                    (format "make an update to the implementation based on this review comment: %s." text))))
          (kill-new output)
          (message (format "yak-update-for-comment: current branch %s" branch-name))))
-
-
-(defun yak-commit-for-bugbot ()
-  (interactive)
-  (let* ((output "Please commit with bugbot compatible review message but do not push."))
-           (kill-new output)
-         (message (format "yak-commit-for-bugbot: copied message to clipboard"))))
-
-(defun yak-japanese-coe-request ()
-  (interactive)
-  (let ((output (concat
-                  (format "I am renewing my Work Visa with immigration and")
-                  (format "need to obtain my Certificate of Employment ")
-                  (format "(在職証明書). Please send the certificate ")
-                  (format "(or advise on how to obtain it."))))
-         (kill-new output)
-         (message output)))
 
 (provide 'yak)
 ;;; yak.el ends here
