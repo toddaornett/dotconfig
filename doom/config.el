@@ -770,6 +770,8 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! cargo-tools)
 
+(use-package! json-tools)
+
 (use-package! yak)
 
 (use-package! rust-clean)
