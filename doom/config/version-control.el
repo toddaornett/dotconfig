@@ -338,3 +338,34 @@
         (let ((section (magit-current-section)))
           (when (magit-section-p section)
             (magit-section-toggle section)))))))
+
+;; -----------------------------------------------------------------------
+;; Live diff markers in editing buffers
+;;
+;; This is `git-gutter`, the package Doom's `:ui vc-gutter` module wires
+;; up. It shows +/-/~ markers (or fringe icons, with the +pretty flag) next
+;; to lines that are added, deleted, or modified relative to HEAD, updated
+;; live as you type — separate from magit's status/diff views above.
+;;
+;; If you don't already have this module, add it to $DOOMDIR/init.el:
+;;   :ui
+;;   (vc-gutter +pretty)   ; or just `vc-gutter` for the plain character style
+;; then `doom sync` and restart.
+;; -----------------------------------------------------------------------
+(after! git-gutter
+  ;; Recompute markers frequently, without requiring a save first.
+  (setq git-gutter:update-interval 0.5)
+
+  ;; Enable it in every file-visiting buffer.
+  (add-hook 'find-file-hook #'git-gutter-mode)
+
+  ;; Keep the gutter in sync right after staging/committing/etc. in magit.
+  (add-hook 'magit-post-refresh-hook #'git-gutter:update-all-windows))
+
+;; If you're using the +pretty flag (fringe bitmaps instead of characters),
+;; this tweaks their shape/placement; safe to remove if you prefer the
+;; module's defaults.
+(after! git-gutter-fringe
+  (define-fringe-bitmap 'git-gutter-fr:added [224] nil nil '(center repeated))
+  (define-fringe-bitmap 'git-gutter-fr:modified [224] nil nil '(center repeated))
+  (define-fringe-bitmap 'git-gutter-fr:deleted [128 192 224 240] nil nil 'bottom))
