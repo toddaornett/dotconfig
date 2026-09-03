@@ -8,6 +8,7 @@ HOME_ZSHRC="$HOME/.zshrc"
 ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
+EMACS_PACKAGE="emacs-plus@31"
 
 note_shell_init_for_builds() {
   echo "   Update $ZSH_BOOTSTRAP with SDKROOT and Homebrew include/lib paths,"
@@ -554,17 +555,35 @@ echo "🧹 Pruning stale Homebrew opt directories..."
 prune_stale_brew_opt_dirs
 
 echo "📦 Installing Homebrew packages..."
-# Allow emacs-plus link conflict — we force-link it immediately after
+# Allow emacs-plus link conflict — we force-link the desired keg immediately after
 brew bundle --file="./Brewfile" || true
 
-# Force-link emacs-plus@30, overwriting stale symlinks from /Applications/Emacs.app
-if ! brew link --dry-run emacs-plus@30 &>/dev/null; then
-  echo "🔗 Relinking emacs-plus@30 to overwrite stale symblinks..."
-  brew unlink emacs-plus@30 &>/dev/null || true
-  brew link --overwrite emacs-plus@30 || true
-else
-  echo "✅ emacs-plus@30 is already successfully linked."
-fi
+# Homebrew reports a keg "already linked" via opt/emacs-plus even when bin/emacs
+# still belongs to another emacs-plus@N keg. Unlink every other emacs-plus first.
+ensure_emacs_plus_linked() {
+  echo "🔗 Linking $EMACS_PACKAGE as the active Emacs..."
+
+  if ! brew list --versions "$EMACS_PACKAGE" &>/dev/null; then
+    echo "❌ $EMACS_PACKAGE is not installed (brew bundle failed)."
+    exit 1
+  fi
+
+  local keg
+  while IFS= read -r keg; do
+    [ -z "$keg" ] && continue
+    [ "$keg" = "$EMACS_PACKAGE" ] && continue
+    echo "  Unlinking $keg so it cannot shadow $EMACS_PACKAGE"
+    brew unlink "$keg" || true
+  done < <(brew list --formula | grep '^emacs-plus' || true)
+
+  brew unlink "$EMACS_PACKAGE" &>/dev/null || true
+  if ! brew link --overwrite "$EMACS_PACKAGE"; then
+    echo "❌ Failed to link $EMACS_PACKAGE"
+    exit 1
+  fi
+}
+
+ensure_emacs_plus_linked
 
 #################################
 # Install ClickHouse
@@ -652,11 +671,25 @@ if ! command -v emacs >/dev/null 2>&1; then
 fi
 
 EMACS_BIN="$(command -v emacs)"
-echo "➡ using emacs at: $EMACS_BIN"
+EMACS_REAL="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$EMACS_BIN")"
+echo "➡ using emacs at: $EMACS_BIN -> $EMACS_REAL"
 
 if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
   echo "❌ Wrong Emacs (system stub). Homebrew Emacs is not first in PATH."
   echo "   Check your shell init files (.zshenv, .config/zsh/.zprofile, .config/todd/zsh/)."
+  exit 1
+fi
+
+if [[ "$EMACS_REAL" != *"/Cellar/${EMACS_PACKAGE}/"* ]]; then
+  echo "❌ emacs resolved to $EMACS_REAL, expected $EMACS_PACKAGE"
+  echo "   Another keg is still owning $(brew --prefix)/bin/emacs."
+  exit 1
+fi
+
+EMACS_MAJOR="$(emacs --batch --eval '(princ emacs-major-version)' 2>/dev/null || true)"
+EMACS_EXPECTED_MAJOR="${EMACS_PACKAGE##*@}"
+if [ "$EMACS_MAJOR" != "$EMACS_EXPECTED_MAJOR" ]; then
+  echo "❌ emacs-major-version is ${EMACS_MAJOR:-unknown}, expected $EMACS_EXPECTED_MAJOR"
   exit 1
 fi
 
@@ -666,20 +699,26 @@ ensure_emacs_runtime_deps() {
 
   echo "🔗 Ensuring Emacs runtime libraries..."
   local dep missing=()
-  for dep in jpeg zlib tree-sitter@0.25; do
+  # keg-only libs emacs-plus commonly links against even when not declared
+  for dep in jpeg zlib tree-sitter; do
     if ! brew list "$dep" &>/dev/null; then
       missing+=("$dep")
     fi
   done
+  # brew cleanup can drop declared runtime deps (webp, libtiff, ...)
+  while IFS= read -r dep; do
+    [ -z "$dep" ] && continue
+    missing+=("$dep")
+  done < <(brew missing "$EMACS_PACKAGE" 2>/dev/null || true)
 
   if [ "${#missing[@]}" -gt 0 ]; then
-    echo "  Installing missing keg-only deps: ${missing[*]}"
+    echo "  Installing missing Emacs runtime deps: ${missing[*]}"
     brew install "${missing[@]}"
   fi
 
   if ! emacs --batch --eval '(message "ok")' &>/dev/null; then
     echo "❌ Emacs failed to launch (missing dylibs?)."
-    echo "   Try: brew reinstall emacs-plus@30"
+    echo "   Try: brew reinstall $EMACS_PACKAGE"
     exit 1
   fi
   echo "✅ Emacs runtime libraries OK"
@@ -688,7 +727,7 @@ ensure_emacs_runtime_deps() {
 ensure_emacs_runtime_deps
 
 # Link Emacs.app into /Applications if missing (use full formula path for tap)
-EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/emacs-plus@30 2>/dev/null || brew --prefix emacs-plus@30 2>/dev/null)"
+EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/$EMACS_PACKAGE 2>/dev/null || brew --prefix $EMACS_PACKAGE 2>/dev/null)"
 EMACS_APP_SRC="${EMACS_PREFIX}/Emacs.app"
 EMACS_APP_DST="/Applications/Emacs.app"
 
@@ -824,8 +863,9 @@ else
   echo "   Native compilation may fail. Try: brew reinstall --build-from-source gcc"
 fi
 
-"$DOOM_BIN/doom" install
-"$DOOM_BIN/doom" sync
+# -! auto-accepts "Emacs version has changed; rebuild packages?"
+"$DOOM_BIN/doom" install -!
+"$DOOM_BIN/doom" sync -!
 
 #################################
 # Build emacs-libvterm module
@@ -914,24 +954,41 @@ write_chemacs2_profiles() {
 EOF
 }
 
-if [ ! -f "$CHEMACS2_PROFILES_FILE" ]; then
-  if [ -d "$CHEMACS2_DIR/.git" ]; then
-    echo "✅ chemacs2 repo already present at $CHEMACS2_DIR"
-    write_chemacs2_profiles
-    echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
-  elif [ -e "$CHEMACS2_DIR" ]; then
-    echo "⚠️  Cannot install chemacs2: $CHEMACS2_DIR already exists and is not a git repo."
-    echo "   Move or rename that directory, then re-run bootstrap."
-    echo "   Or create $CHEMACS2_PROFILES_FILE manually if chemacs2 is installed elsewhere."
-  else
-    echo "🦬 λ Installing chemacs2 with Doom Emacs as default"
-    if git clone https://github.com/plexus/chemacs2.git "$CHEMACS2_DIR"; then
-      write_chemacs2_profiles
-      echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
-    else
-      echo "❌ chemacs2 clone failed — see errors above"
-    fi
+is_chemacs2_init() {
+  [ -f "$CHEMACS2_DIR/init.el" ] && grep -Fqs "chemacs" "$CHEMACS2_DIR/init.el"
+}
+
+install_chemacs2_files() {
+  mkdir -p "$CHEMACS2_DIR"
+  if [ -z "$(ls -A "$CHEMACS2_DIR" 2>/dev/null)" ]; then
+    git clone https://github.com/plexus/chemacs2.git "$CHEMACS2_DIR"
+    return
   fi
+
+  local tmp
+  tmp="$(mktemp -d)"
+  git clone --depth 1 https://github.com/plexus/chemacs2.git "$tmp/chemacs2"
+  local f
+  for f in init.el early-init.el chemacs.el; do
+    if [ ! -f "$CHEMACS2_DIR/$f" ]; then
+      cp "$tmp/chemacs2/$f" "$CHEMACS2_DIR/$f"
+    elif ! grep -Fqs "chemacs" "$CHEMACS2_DIR/$f"; then
+      echo "⚠️  $CHEMACS2_DIR/$f exists and is not chemacs2; leaving it in place."
+    fi
+  done
+  rm -rf "$tmp"
+}
+
+if is_chemacs2_init || [ -d "$CHEMACS2_DIR/.git" ]; then
+  echo "✅ chemacs2 already present at $CHEMACS2_DIR"
+else
+  echo "🦬 λ Installing chemacs2 with Doom Emacs as default"
+  install_chemacs2_files
+fi
+
+if [ ! -f "$CHEMACS2_PROFILES_FILE" ]; then
+  write_chemacs2_profiles
+  echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
 else
   echo "✅ chemacs2 profiles already configured"
 fi
