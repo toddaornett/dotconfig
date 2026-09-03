@@ -178,7 +178,7 @@ Debounce is handled by cancelling any existing timer before scheduling a new one
                                             (tao/erc--near-bottom-p))
                                    (with-current-buffer (current-buffer)
                                      (goto-char (point-max))))
-                                 (setq tao/erc--autoscroll-timer nil)))))))
+                                 (setq tao/erc--autoscroll-timer nil))))))
 
 (add-hook 'erc-post-msg-hook #'tao/erc--maybe-autoscroll-after-msg)
 
@@ -230,4 +230,4 @@ Debounce is handled by cancelling any existing timer before scheduling a new one
           erc-sasl-mechanism 'plain
           erc-sasl-user irc-nickname
           erc-sasl-password (auth-source-secret-get-password :user irc-nickname
-                                                                 :host "irc.libera.chat")))
+                                                                 :host "irc.libera.chat"))))
