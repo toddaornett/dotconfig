@@ -1,10 +1,10 @@
 ;;; retimestamp.el --- Refresh timestamped filenames and contents -*- lexical-binding: t; -*-
 ;;
-;; Copyright (C) 2026 Your Name
+;; Copyright (C) 2026 Todd Ornett
 ;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 07, 2026
-;; Modified: July 07, 2026
+;; Modified: September 4, 2026
 ;; Version: 0.1.0
 ;; Keywords: convenience files tools
 ;; Package-Requires: ((emacs "28.1") (seq "2.3"))
@@ -115,6 +115,6 @@ not inside a recognized project."
         (git-tools-commit-amend-no-edit))
       (message "Retimestamped %d file%s."
         count (if (= count 1) "" "s")))))
-(provide 'retimestamp)
 
+(provide 'retimestamp)
 ;;; retimestamp.el ends here
