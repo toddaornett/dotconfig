@@ -802,6 +802,8 @@ If the point is not on a file, copies the full path of the current directory."
     teamscount-icon-fg-color "#7B83EB")
   (teamscount-mode 1))
 
+(use-package! teams-tools)
+
 ;;; Flycheck
 ;; Doom config uses macros (after!, use-package!, …) that flycheck's standalone
 ;; emacs-lisp byte-compiler cannot evaluate. Use `doom sync` for real syntax checks.
