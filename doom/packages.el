@@ -136,6 +136,9 @@
   :recipe (:host github :repo "casouri/expreg"))
 
 (package! ellama)
+
 (package! minuet)
 
 (package! valign)
+
+(package! tzc)
