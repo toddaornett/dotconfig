@@ -725,6 +725,7 @@ If the point is not on a file, copies the full path of the current directory."
 (load! "config/modes")
 (load! "config/text")
 (load! "config/ui")
+(load! "config/datetime")
 
 (use-package! ws-butler
   :config
@@ -806,7 +807,7 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! tzc
   :config
-  (setq tzc-favorite-time-zones '("UTC"
+  (setq tzc-favourite-time-zones '("UTC"
                                   "Asia/Tokyo"
                                   "America/Los_Angeles"
                                   "America/Chicago"
