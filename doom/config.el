@@ -725,7 +725,6 @@ If the point is not on a file, copies the full path of the current directory."
 (load! "config/modes")
 (load! "config/text")
 (load! "config/ui")
-(load! "config/datetime")
 
 (use-package! ws-butler
   :config
@@ -790,6 +789,15 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! org-pomodoro)
 
+(use-package! datetime
+  :config
+  (setq tzc-favourite-time-zones '("UTC"
+                                   "Asia/Tokyo"
+                                   "America/Los_Angeles"
+                                   "America/Chicago"
+                                   "America/New_York"
+                                   "Europe/London")))
+
 (use-package! slackcount
   :if (slackcount-available-p)
   :config
@@ -804,15 +812,6 @@ If the point is not on a file, copies the full path of the current directory."
   (teamscount-mode 1))
 
 (use-package! teams-tools)
-
-(use-package! tzc
-  :config
-  (setq tzc-favourite-time-zones '("UTC"
-                                  "Asia/Tokyo"
-                                  "America/Los_Angeles"
-                                  "America/Chicago"
-                                  "America/New_York"
-                                  "Europe/London")))
 
 ;;; Flycheck
 ;; Doom config uses macros (after!, use-package!, …) that flycheck's standalone
