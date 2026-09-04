@@ -62,6 +62,21 @@ for f in "${HOME}/.config/todd/zsh"/aliases*.zsh(N) "${HOME}/.config/todd/zsh"/*
 done
 
 ##########
+# map ~/bin scripts to commands without .sh suffix
+##########
+_autoload_bin_scripts() {
+  local script fname
+  for script in ~/bin/*.sh(N); do
+    [[ -x $script ]] || continue
+    fname=${script:t:r}          # basename, strip .sh
+    fname=${fname//_/-}          # underscores -> dashes
+    functions[$fname]="\"$script\" \"\$@\""
+  done
+}
+_autoload_bin_scripts
+unfunction _autoload_bin_scripts
+
+##########
 # zsf custom functions path
 ##########
 fpath+=$HOME/.config/zsh
