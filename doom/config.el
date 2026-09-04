@@ -804,6 +804,15 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! teams-tools)
 
+(use-package! tzc
+  :config
+  (setq tzc-favorite-time-zones '("UTC"
+                                  "Asia/Tokyo"
+                                  "America/Los_Angeles"
+                                  "America/Chicago"
+                                  "America/New_York"
+                                  "Europe/London")))
+
 ;;; Flycheck
 ;; Doom config uses macros (after!, use-package!, …) that flycheck's standalone
 ;; emacs-lisp byte-compiler cannot evaluate. Use `doom sync` for real syntax checks.
