@@ -69,3 +69,6 @@
     :desc "Copy org link"          "l" #'tao/org-copy-link-at-point))
 
 (map! :leader :desc "Mark defun" "m d" #'mark-defun)
+
+(map! :leader
+      :desc "Convert freeform time string" "o z" #'datetime-convert-freeform)
