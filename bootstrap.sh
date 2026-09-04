@@ -9,6 +9,7 @@ ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
 EMACS_PACKAGE="emacs-plus@31"
+EDITOR_CONFIG="$HOME/.editorconfig"
 
 note_shell_init_for_builds() {
   echo "   Update $ZSH_BOOTSTRAP with SDKROOT and Homebrew include/lib paths,"
@@ -117,6 +118,17 @@ ensure_zdotdir_startup_files() {
     "$ZDOTDIR_DIR/.zlogin" \
     "$HOME/.zlogin" \
     "ZDOTDIR login. Bridges to ~/.zlogin"
+}
+
+ensure_editor_config_file() {
+  [[ -f "$EDITOR_CONFIG" ]] || return 0
+  cat >"$EDITOR_CONFIG" <<'EOF'
+root = true
+
+[*.{sh,zsh,bash}]
+indent_style = space
+indent_size = 2
+EOF
 }
 
 # Old ~/.zlogin ran `sudo rm -rf` on every login shell. macOS terminals are login
@@ -303,6 +315,7 @@ done
 
 ensure_zdotdir_in_zshenv
 ensure_zdotdir_startup_files
+ensure_editor_config_file
 ensure_teams_cleanup
 ensure_no_sdkroot_in_zshenv
 migrate_home_zshrc_to_bootstrap
