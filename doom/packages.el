@@ -126,8 +126,6 @@
 
 (package! ws-butler)
 
-(package! jira)
-
 (package! request)
 
 (package! hydra)
