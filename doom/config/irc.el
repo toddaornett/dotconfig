@@ -216,6 +216,7 @@ Debounce is handled by cancelling any existing timer before scheduling a new one
   (interactive)
   (require 'erc)
   (erc-tls :server erc-server :port erc-port :nick erc-nick))
+
 (after! erc
   (when (and (boundp 'irc-nickname)
              (stringp irc-nickname)
@@ -229,5 +230,8 @@ Debounce is handled by cancelling any existing timer before scheduling a new one
           erc-autojoin-channels-alist `(("libera.chat" ,@irc-channels))
           erc-sasl-mechanism 'plain
           erc-sasl-user irc-nickname
-          erc-sasl-password (auth-source-secret-get-password :user irc-nickname
-                                                                 :host "irc.libera.chat"))))
+          erc-sasl-password (let* ((res (car (auth-source-search :user irc-nickname :host "irc.libera.chat" :max 1)))
+                                   (secret (plist-get res :secret)))
+                              (if (functionp secret)
+                                  (funcall secret)
+                                secret)))))
