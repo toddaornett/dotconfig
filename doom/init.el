@@ -28,6 +28,7 @@
   (vc-gutter +pretty) ; Keep for version control
   vi-tilde-fringe     ; Lightweight, keep
   workspaces          ; Keep for project isolation
+  unicode             ; displays unicode glyphs and fixes emoji rendering issues
   ;; Removed: tabs, window-select, zen (optional, add back if needed)
 
   :editor
