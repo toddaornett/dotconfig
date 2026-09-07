@@ -3,14 +3,14 @@
 ;; Copyright (C) 2026 Todd Ornett
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
-;
-;
+                                        ;
+                                        ;
 ;; Created: April 22, 2026
-;; Modified: August 13, 2026
+;; Modified: September 7, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "28.1"))
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -132,8 +132,8 @@ immediately above the first sibling TODO under the parent heading."
     (format "Slack:\n")
     (format "--begin--\n")
     (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
+    (format "PR <PR-TBD>\n")
     (format "%s\n" summary)
-    (format "TBD\n")
     (format "--end--\n")))
 
 (defun jira-todo--format-teams-message (summary)
@@ -142,8 +142,9 @@ immediately above the first sibling TODO under the parent heading."
     (format "Teams:\n")
     (format "--begin--\n")
     (format "PTAL PR \n")
+    (format "PTAL %s\n" jira-todo-pr-reviewers)
+    (format "PR <PR-TBD>\n")
     (format "%s\n" summary)
-    (format "cc: %s\n" jira-todo-pr-reviewers)
     (format "--end--\n")))
 
 (defun jira-todo--format-output (data)
@@ -168,7 +169,7 @@ immediately above the first sibling TODO under the parent heading."
       (format " please implement the JIRA at %s\n" url)
       (format "--end--\n")
       (format "Title: %s: %s\n" key clean-summary)
-      (format "PR: TBD\n")
+      (format "PR: <PR-TBD>\n")
       (format "PR Text:\n")
       (format "--begin--\n")
       (format "## JIRA\n")
@@ -252,12 +253,63 @@ Signals an error if INPUT cannot be parsed."
   "Return the JIRA browse URL for KEY."
   (format "%s/browse/%s" jira-todo-base-url key))
 
+(defun jira-todo--clipboard-text ()
+  "Return trimmed kill-ring/clipboard text, or nil if unavailable."
+  (let ((text (ignore-errors (current-kill 0 t))))
+    (when (and (stringp text) (not (string-empty-p (string-trim text))))
+      (string-trim text))))
+
+(defun jira-todo--http-url-p (text)
+  "Return non-nil if TEXT is a single bare http(s) URL."
+  (and (stringp text)
+    (string-match-p "\\`https?://[^[:space:]]+\\'" text)))
+
 (defun jira-todo--clipboard-jira-url ()
-  "Returns the clipboard if it is URL and contains JIRA prefix, otherwise nil."
-  (let ((url (current-kill 0 t)))
-    (if (string-search jira-todo-issue-key-prefix url)
-      url
-      nil)))
+  "Return clipboard text when it names a JIRA issue, otherwise nil.
+
+Accepts a browse URL, a key such as JIRA-11111, or a bare issue number."
+  (let ((text (jira-todo--clipboard-text)))
+    (when (and text (ignore-errors (jira-todo--parse-input text)))
+      text)))
+
+(defun jira-todo--clipboard-pr-url ()
+  "Return the clipboard text when it is a non-JIRA http(s) URL, otherwise nil."
+  (let ((url (jira-todo--clipboard-text)))
+    (when (and (jira-todo--http-url-p url)
+            (not (string-search jira-todo-issue-key-prefix url)))
+      url)))
+
+(defun jira-todo--resolve-pr-url (&optional url)
+  "Return URL, else a clipboard PR URL, else prompt.
+Empty strings are treated as omitted so clipboard/prompt still run."
+  (let ((url (and (stringp url) (string-trim url))))
+    (cond
+      ((and url (not (string-empty-p url))) url)
+      ((jira-todo--clipboard-pr-url))
+      (t (let ((typed (string-trim (read-string "PR URL: "))))
+           (when (string-empty-p typed)
+             (user-error "No PR URL provided"))
+           typed)))))
+
+(defun jira-todo--replace-pr-placeholders (url)
+  "Replace <PR-TBD> and <TBD> placeholders in the current org heading with URL.
+Return the number of replacements.  Signal if point is not in an org heading
+or if no placeholder is found."
+  (unless (derived-mode-p 'org-mode)
+    (user-error "Must be called from an org-mode TODO"))
+  (save-excursion
+    (org-back-to-heading t)
+    (let* ((start (point))
+            (end (copy-marker (save-excursion (org-end-of-subtree t t) (point))))
+            (count 0))
+      (goto-char start)
+      (while (re-search-forward "<\\(PR-\\)?TBD>" end t)
+        (replace-match url t t)
+        (setq count (1+ count)))
+      (set-marker end nil)
+      (when (zerop count)
+        (user-error "No <PR-TBD> placeholder in the current TODO"))
+      count)))
 
 ;;;###autoload
 (defun jira-todo-fetch (&optional input)
@@ -280,6 +332,17 @@ If INPUT is not provided, prompt interactively."
       :error (cl-function
                (lambda (&key error-thrown &allow-other-keys)
                  (message "Error fetching JIRA ticket: %S" error-thrown))))))
+
+;;;###autoload
+(defun jira-todo-update-with-pr (&optional url)
+  "Update the current TODO with URL, clipboard, or then prompt for it.
+
+It will look for <PR-TBD> patterns to replace within the current TODO."
+  (interactive)
+  (let* ((url (jira-todo--resolve-pr-url url))
+          (count (jira-todo--replace-pr-placeholders url)))
+    (message "Updated %d PR placeholder(s)" count)
+    count))
 
 (provide 'jira-todo)
 ;;; jira-todo.el ends here
