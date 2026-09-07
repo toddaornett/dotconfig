@@ -1,10 +1,9 @@
 ;;; jira-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
+;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
-                                        ;
-                                        ;
 ;; Created: April 22, 2026
 ;; Modified: September 7, 2026
 ;; Version: 0.0.1
@@ -149,16 +148,17 @@ immediately above the first sibling TODO under the parent heading."
 
 (defun jira-todo--format-output (data)
   "Format `org-mode' TODO and message from parsed JIRA DATA."
-  (let* ((key             (format "%s" (alist-get 'key data)))
-          (fields          (alist-get 'fields data))
-          (summary         (format "%s" (alist-get 'summary fields)))
-          (url             (jira-todo--key-to-browse-url key))
-          (clean-summary   (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
-          (branch-words    (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
-          (branch-compact  (replace-regexp-in-string "-+" "-" branch-words))
-          (branch-trimmed  (replace-regexp-in-string "-+$" "" branch-compact))
-          (branch-summ     (downcase branch-trimmed))
-          (branch          (format "%s_%s" key branch-summ)))
+  (let* ((key                 (format "%s" (alist-get 'key data)))
+          (fields             (alist-get 'fields data))
+          (summary            (format "%s" (alist-get 'summary fields)))
+          (url                (jira-todo--key-to-browse-url key))
+          (clean-summary      (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
+          (branch-words       (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
+          (branch-compact     (replace-regexp-in-string "-+" "-" branch-words))
+          (branch-trimmed     (replace-regexp-in-string "-+$" "" branch-compact))
+          (branch-normalized  (replace-regexp-in-string "_-+" "_" branch-trimmed))
+          (branch-summ        (downcase branch-normalized))
+          (branch             (format "%s_%s" key branch-summ)))
     (concat
       (format "*** TODO CR: %s %s\n" key clean-summary)
       (format "JIRA: [[%s][%s]]\n" url key)
@@ -217,10 +217,11 @@ once, the first occurrence wins."
             (title (cdr (assoc "Title" fields))))
       (when (fboundp 'evil-force-normal-state)
         (evil-force-normal-state))
-      (if (or (null branch) (string-empty-p branch))
-        (message "You must manually create branch, could not identify name.")
-        (git-tools-branch-create-from-main branch jira-todo-git-directory)
-        (git-tools-empty-commit-message title jira-todo-git-directory)))))
+      (cond
+        ((or (null branch) (string-empty-p branch))
+          (message "You must manually create branch, could not identify name."))
+        ((git-tools-branch-create-from-main branch jira-todo-git-directory)
+          (git-tools-empty-commit-message title jira-todo-git-directory))))))
 
 (defun jira-todo--parse-input (input)
   "Parse INPUT into a JIRA key.
