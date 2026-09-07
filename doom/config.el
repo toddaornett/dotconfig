@@ -791,7 +791,8 @@ If the point is not on a file, copies the full path of the current directory."
 (use-package! emojify
   :hook (after-init . global-emojify-mode)
   :config
-  (setq emojify-emoji-styles '(github)))
+  (setq emojify-emoji-styles '(github)
+        emojify-download-emojis-p t))
 
 (use-package! datetime
   :config
