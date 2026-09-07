@@ -10,6 +10,9 @@
 (set-face-attribute 'window-divider-first-pixel nil :foreground "yellow")
 (set-face-attribute 'window-divider-last-pixel nil :foreground "yellow")
 
+;; Keep the echo area / minibuffer from ever growing to fill the frame.
+(setq max-mini-window-height 0.2)
+
 (defcustom tao/auto-visual-line-max-scan-length 5000
   "Maximum number of lines to scan when checking a buffer for
 `tao/auto-visual-line-mode'. If the buffer has more lines than this,
