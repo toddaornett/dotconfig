@@ -1,6 +1,6 @@
 ;;; $DOOMDIR/config/hooks.el --- various hooks -*- lexical-binding: t; -*-
 ;; Created: July 30, 2026
-;; Modified: August 1, 2026
+;; Modified: September 7, 2026
 
 (defun tao/update-modified-timestamp ()
   (when (derived-mode-p 'emacs-lisp-mode)
@@ -13,3 +13,8 @@
               (delete-region (point) (line-end-position))
               (insert (format-time-string "%B %-d, %Y")))))))))
 (add-hook 'before-save-hook #'tao/update-modified-timestamp)
+
+(after! yasnippet
+  (add-hook 'snippet-mode-hook
+            (lambda ()
+              (remove-hook 'before-save-hook #'delete-trailing-whitespace t))))

@@ -1,0 +1,7 @@
+# -*- mode: snippet -*-
+# name: insert TODO Emacs:
+# uuid: 
+# key: tde
+# condition: t
+# --
+*** TODO Emacs:  
