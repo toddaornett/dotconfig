@@ -1,41 +1,12 @@
 ;;; $DOOMDIR/config/clipboard.el --- clipboard enhancements -*- lexical-binding: t -*-
 
 (defcustom tao/paste-url-inspect-length 1000
-  "Max number of characters tao/paste-from-clipboard will inspect/accept
+  "Max number of characters `tao/paste-from-clipboard' will inspect/accept
 before deciding clipboard content is a URL candidate. If the clipboard
-contents exceed this length, tao/paste-from-clipboard always pastes
+contents exceed this length, `tao/paste-from-clipboard' always pastes
 literally instead of trying to format a link."
   :type 'integer
   :group 'tao)
-
-(defun tao/clipboard-string ()
-  "Return the current system clipboard contents as a string, or nil.
-Relies on `current-kill', which transparently syncs with the system
-clipboard via `interprogram-paste-function' — the same mechanism
-`clipboard-yank' uses."
-  (current-kill 0 t))
-
-(defun tao/url-p (str)
-  "Non-nil if STR, trimmed, looks like a single bare URL."
-  (and str
-    (string-match-p
-      (rx bos (* space)
-        (or "http://" "https://" "ftp://" "www.")
-        (+ (not space))
-        (* space) eos)
-      str)))
-
-(defun tao/url->description (url)
-  "Text after the last `/' in URL, ignoring a trailing slash if present."
-  (car (last (split-string url "/" t))))
-
-(defun tao/format-url-for-mode (url)
-  "Return URL formatted as a link appropriate to the current major mode."
-  (let ((desc (tao/url->description url)))
-    (cond
-      ((derived-mode-p 'org-mode)      (format "[[%s][%s]]" url desc))
-      ((derived-mode-p 'markdown-mode) (format "[%s](%s)" desc url))
-      (t url))))
 
 (defun tao/clipboard-string ()
   "Return the current system clipboard contents as a string, or nil.
@@ -121,3 +92,38 @@ exactly once."
           (derived-mode-p 'org-mode 'markdown-mode))
       (insert (tao/format-url-for-mode trimmed))
       (tao/paste-literal (prefix-numeric-value force-literal)))))
+
+(defun tao/org-copy-as-rich-text ()
+  "Convert emoji shortcodes, export active region to HTML, and copy as rich text."
+  (interactive)
+  (if (use-region-p)
+      (progn
+        ;; FORCE LOAD: Ensure Emacs explicitly loads emojify from the disk right now
+        (require 'emojify nil t)
+
+        (if (not (fboundp 'emojify-text-region))
+            (user-error "The 'emojify' package could not be initialized. Run 'doom sync' in your terminal")
+
+          (let* ((raw-text (buffer-substring (region-beginning) (region-end)))
+                 (emoji-text (with-temp-buffer
+                               (insert raw-text)
+                               (emojify-text-region (point-min) (point-max))
+                               (buffer-string)))
+                 (html (org-export-string-as emoji-text 'html t))
+                 (clip-cmd (cond
+                            ((string= (getenv "XDG_SESSION_TYPE") "wayland") "wl-copy -t text/html")
+                            ((eq system-type 'darwin) "textutil -stdin -format html -convert rtf -stdout | pbcopy")
+                            ((eq system-type 'gnu/linux) "xclip -siblings -selection clipboard -t text/html")
+                            ((eq system-type 'windows-nt) "powershell -NoProfile -Command \"[User32.Windows.Clipboard]::SetText(([Console]::In.ReadToEnd()), [User32.Windows.Clipboard+TextDataFormat]::Html)\""))))
+            (with-temp-buffer
+              (insert html)
+              (shell-command-on-region (point-min) (point-max) clip-cmd))
+            (message "Converted emojis and copied region to clipboard!"))))
+    (user-error "No active region selected to copy")))
+
+(map! :leader
+  :desc "Copy Org region as Rich Text"
+  "o c" #'tao/org-copy-as-rich-text)
+
+(provide 'clipboard)
+;;; clipboard.el ends here

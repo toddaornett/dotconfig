@@ -719,7 +719,6 @@ If the point is not on a file, copies the full path of the current directory."
 (load! "config/ai")
 (load! "config/keybindings")
 (load! "config/irc")
-(load! "config/clipboard")
 (load! "config/notes")
 (load! "config/hooks")
 (load! "config/modes")
@@ -789,14 +788,19 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! org-pomodoro)
 
+(use-package! emojify
+  :hook (after-init . global-emojify-mode)
+  :config
+  (setq emojify-emoji-styles '(github)))
+
 (use-package! datetime
   :config
   (setq tzc-favourite-time-zones '("UTC"
-                                   "Asia/Tokyo"
-                                   "America/Los_Angeles"
-                                   "America/Chicago"
-                                   "America/New_York"
-                                   "Europe/London")))
+                                    "Asia/Tokyo"
+                                    "America/Los_Angeles"
+                                    "America/Chicago"
+                                    "America/New_York"
+                                    "Europe/London")))
 
 (use-package! slackcount
   :if (slackcount-available-p)
@@ -824,8 +828,8 @@ If the point is not on a file, copies the full path of the current directory."
       (append flycheck-disabled-checkers
         '(emacs-lisp emacs-lisp-checkdoc)))))
 
-(add-hook! emacs-lisp-mode
-  #'tao/flycheck-disable-in-doom-dir -90)
+(add-hook! emacs-lisp-mode :depth -90
+  #'tao/flycheck-disable-in-doom-dir)
 
 (add-hook! markdown-mode
   #'markdown-toggle-markup-hiding
@@ -834,3 +838,5 @@ If the point is not on a file, copies the full path of the current directory."
 (setq custom-file (expand-file-name "custom.el" doom-user-dir))
 (when (file-exists-p custom-file)
   (load custom-file))
+
+(load! "config/clipboard")

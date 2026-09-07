@@ -144,3 +144,5 @@
 (package! valign)
 
 (package! tzc)
+
+(package! emojify)

@@ -7,7 +7,7 @@
     '(sql-mode tex-mode latex-mode LaTeX-mode org-msg-edit-mode yaml-mode))
  '(org-pomodoro-count-format "[%s] ")
  '(org-pomodoro-display-count-p t)
- '(package-selected-packages '(yasnippet-snippets eglot))
+ '(package-selected-packages '(eglot emojify yasnippet-snippets))
  '(safe-local-variable-values '((checkdoc-package-keywords-flag))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
