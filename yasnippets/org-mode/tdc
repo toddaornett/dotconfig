@@ -1,7 +1,5 @@
 # -*- mode: snippet -*-
-# name: insert TODO CR:
-# uuid: 
+# name: insert TODO CR
 # key: tdc
-# condition: t
 # --
 *** TODO CR:
