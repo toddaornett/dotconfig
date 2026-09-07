@@ -259,12 +259,26 @@ When called interactively, also display the result in the echo area."
     branch))
 
 ;;;###autoload
+(defun git-tools-branch-p (branch &optional dir)
+  "Return non-nil if BRANCH exists in DIR.
+DIR defaults to `default-directory'.  Matches a local branch or
+the corresponding origin remote-tracking branch."
+  (let ((default-directory (file-name-as-directory
+                             (or dir default-directory))))
+    (or (magit-branch-p branch)
+      (magit-branch-p (concat "origin/" branch)))))
+
+;;;###autoload
 (defun git-tools-branch-create-from-main (branch &optional dir)
   "Create BRANCH with starting point at main for repo in DIR.
 DIR defaults to `default-directory' when nil.  If the
 resulting directory is not a git repository, prompt for one
 via `git-tools--ensure-project-directory' (see that function
 for caching behavior).
+
+If BRANCH already exists locally or as origin/BRANCH, do not
+create it again; return nil after messaging.  Otherwise return
+non-nil after creating and checking out BRANCH.
 
 Signal a `user-error' if the repository has uncommitted or
 unstaged changes.  Otherwise, update the local main branch
@@ -275,16 +289,21 @@ from \"origin\", create BRANCH from it, and check out BRANCH."
     (unless main-branch
       (user-error "Could not determine main branch for repo in %s"
         default-directory))
-    (when (magit-anything-modified-p)
-      (user-error
-        "Repository is not clean; commit or stash changes first"))
-    (if (equal (magit-get-current-branch) main-branch)
-      (magit-run-git "pull" "origin" main-branch)
-      (magit-run-git "fetch" "origin"
-        (format "%s:%s" main-branch main-branch)))
-    (magit-run-git "checkout" "-b" branch main-branch)
-    (message "Created and checked out `%s' from `%s'"
-      branch main-branch)))
+    (if (git-tools-branch-p branch default-directory)
+      (progn
+        (message "Branch `%s' already exists; skipping create" branch)
+        nil)
+      (when (magit-anything-modified-p)
+        (user-error
+          "Repository is not clean; commit or stash changes first"))
+      (if (equal (magit-get-current-branch) main-branch)
+        (magit-run-git "pull" "origin" main-branch)
+        (magit-run-git "fetch" "origin"
+          (format "%s:%s" main-branch main-branch)))
+      (magit-run-git "checkout" "-b" branch main-branch)
+      (message "Created and checked out `%s' from `%s'"
+        branch main-branch)
+      t)))
 
 ;;;###autoload
 (defun git-tools-empty-commit-message (&optional message dir)
