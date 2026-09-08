@@ -50,28 +50,6 @@ submodules correctly."
     (file-name-as-directory root)))
 
 ;;;###autoload
-(defun git-tools-project-name (path)
-  "Return the git repo directory containing specified PATH."
-  (when (stringp path)
-    (let* ((clean-path (string-trim path))
-           ;; Find the actual git root if a random file/folder was passed
-           (true-root (or (vc-git-root clean-path)
-                          (if (file-directory-p clean-path) clean-path (file-name-directory clean-path))))
-           (root-dir (directory-file-name true-root))
-           (basename (file-name-nondirectory root-dir)))
-
-      ;; 1. Handle bare repositories ending in ".git"
-      (if (string-suffix-p ".git" basename t)
-          (file-name-sans-extension basename)
-
-        ;; 2. Handle internal Git paths (like submodules or .git/config files)
-        (if (string-prefix-p ".git" basename)
-            (file-name-nondirectory (directory-file-name (file-name-directory root-dir)))
-
-          ;; 3. Return the clean project folder name
-          basename)))))
-
-;;;###autoload
 (defun git-tools-project-name (&optional path)
   "Return the git repo directory containing specified PATH.
 If PATH is nil, use `default-directory`. When called interactively,
