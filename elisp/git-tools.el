@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'magit)
+(require 'vc-git)
 
 ;; Keep `user-full-name'/`user-mail-address' in sync with the current
 ;; repo's git config (falling back to Emacs' original values outside
@@ -47,28 +48,6 @@ Delegates to `magit-toplevel', which also handles worktrees and
 submodules correctly."
   (when-let* ((root (magit-toplevel)))
     (file-name-as-directory root)))
-
-;;;###autoload
-(defun git-tools-project-name (path)
-  "Return the git repo directory containing specified PATH."
-  (when (stringp path)
-    (let* ((clean-path (string-trim path))
-           ;; Find the actual git root if a random file/folder was passed
-           (true-root (or (vc-git-root clean-path)
-                          (if (file-directory-p clean-path) clean-path (file-name-directory clean-path))))
-           (root-dir (directory-file-name true-root))
-           (basename (file-name-nondirectory root-dir)))
-
-      ;; 1. Handle bare repositories ending in ".git"
-      (if (string-suffix-p ".git" basename t)
-          (file-name-sans-extension basename)
-
-        ;; 2. Handle internal Git paths (like submodules or .git/config files)
-        (if (string-prefix-p ".git" basename)
-            (file-name-nondirectory (directory-file-name (file-name-directory root-dir)))
-
-          ;; 3. Return the clean project folder name
-          basename)))))
 
 ;;;###autoload
 (defun git-tools-project-name (&optional path)
@@ -700,106 +679,74 @@ Return t if any changes made, nil otherwise."
         (find-file (expand-file-name file (magit-toplevel))))
       (message "Opened %d conflicting file(s)." (length files)))))
 
-(defun git-tools--author-weights (directory)
-  "Return an alist of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
-AUTHOR-STRING is \"Name <email>\". LINE-COUNT sums added+deleted
-lines from commits touching files within DIRECTORY (not the whole
-repo, if DIRECTORY is a subdirectory of a larger repository)."
-  (let* ((default-directory (expand-file-name directory))
-          (output (shell-command-to-string
-                    "git log --no-merges --format='@@@%aN <%aE>' --numstat -- ."))
-          (table (make-hash-table :test 'equal))
-          (current-author nil))
-    (dolist (line (split-string output "\n"))
-      (cond
-        ((string-prefix-p "@@@" line)
-          (setq current-author (substring line 3)))
-        ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
-          (when current-author
-            (let ((added (string-to-number (match-string 1 line)))
-                   (deleted (string-to-number (match-string 2 line))))
-              (puthash current-author
-                (+ (gethash current-author table 0) added deleted)
-                table))))
-        ;; Binary files show as "-\t-\tpath"; contribute 0, ignored.
-        ))
-    ;; Make sure authors with zero countable lines (e.g. only touched
-    ;; binary files) still show up.
-    (dolist (author (split-string
-                      (shell-command-to-string "git log --format='%aN <%aE>' -- .")
-                      "\n" t))
-      (unless (gethash author table)
-        (puthash author 0 table)))
-    (let (result)
-      (maphash (lambda (k v) (push (cons k v) result)) table)
-      result)))
-
-(defun git-tools--sorted-author-weights (directory &optional alphabetical)
-  "Return author weights for DIRECTORY, sorted.
-By default, sort by line count descending, breaking ties
-alphabetically. When ALPHABETICAL is non-nil, sort by author name
-instead."
-  (let ((alist (git-tools--author-weights directory)))
-    (if alphabetical
-      (sort alist (lambda (a b) (string-lessp (car a) (car b))))
-      (sort alist (lambda (a b)
-                    (if (= (cdr a) (cdr b))
-                      (string-lessp (car a) (car b))
-                      (> (cdr a) (cdr b))))))))
-
-;;;###autoload
-(defun git-tools-authors-insert (directory &optional alphabetical)
-  "List all unique authors (name and email) for DIRECTORY.
-Results are annotated with total lines changed (added+deleted) in
-commits touching files within DIRECTORY, and displayed in a
-dedicated buffer. Sorted by line count descending by default; with
-a prefix argument (ALPHABETICAL), sort alphabetically by name
-instead."
-  (interactive "DGit repository directory: \nP")
-  (let* ((default-directory (expand-file-name directory))
-          (entries (git-tools--sorted-author-weights directory alphabetical))
-          (buf (get-buffer-create "*Git Authors*")))
-    (if (null entries)
-      (message "No authors found or not a git repository: %s" directory)
-      (with-current-buffer buf
-        (read-only-mode -1)
-        (erase-buffer)
-        (insert (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
-        (insert (format "(sorted by %s)\n"
-                  (if alphabetical "name" "lines changed, descending")))
-        (insert (make-string 40 ?=) "\n")
-        (dolist (entry entries)
-          (insert (format "%-50s %6d lines\n" (car entry) (cdr entry))))
-        (goto-char (point-min))
-        (read-only-mode 1))
-      (pop-to-buffer buf))))
-
-;;;###autoload
-(defun git-tools-authors-list (directory &optional alphabetical)
-  "Return a list of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
-Sorted by line count descending by default; with a prefix argument
-(ALPHABETICAL), sort alphabetically by name instead. When called
-interactively, also prints a summary in the echo area."
-  (interactive "DGit repository directory: \nP")
-  (let ((entries (git-tools--sorted-author-weights directory alphabetical)))
-    (if (null entries)
-      (progn
-        (message "No authors found or not a git repository: %s" directory)
-        nil)
-      (when (called-interactively-p 'interactive)
-        (message "Authors in %s (%d found, sorted by %s)"
-          (abbreviate-file-name (expand-file-name directory))
-          (length entries)
-          (if alphabetical "name" "lines changed, descending")))
-      entries)))
-
 (defun git-tools--default-directory ()
   "Return the directory of the current buffer's file, or `default-directory'."
   (if buffer-file-name
     (file-name-directory buffer-file-name)
     default-directory))
 
-(defun git-tools--sorted-author-weights (directory &optional alphabetical)
+(defun git-tools--resolve-directory (&optional directory)
+  "Resolve DIRECTORY to a valid git repository directory, or nil.
+If DIRECTORY is nil, use `(git-tools--default-directory)'.
+If DIRECTORY is a file, use its directory.
+Returns the directory name (ending in a slash) if it is inside
+a git repository, or nil otherwise."
+  (let* ((raw-dir (or directory (git-tools--default-directory)))
+         (expanded (expand-file-name raw-dir))
+         (dir (if (file-directory-p expanded)
+                  (file-name-as-directory expanded)
+                (file-name-directory expanded))))
+    (when (and dir
+               (file-directory-p dir)
+               (or (locate-dominating-file dir ".git")
+                   (vc-git-root dir)
+                   (and (fboundp 'magit-toplevel)
+                        (git-tools--git-repo-p dir))))
+      dir)))
+
+(defun git-tools--author-weights (&optional directory)
+  "Return an alist of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
+AUTHOR-STRING is \"Name <email>\". LINE-COUNT sums added+deleted
+lines from commits touching files within DIRECTORY (not the whole
+repo, if DIRECTORY is a subdirectory of a larger repository)."
+  (when-let* ((dir (git-tools--resolve-directory directory)))
+    (let* ((default-directory dir)
+           (output (with-temp-buffer
+                     (if (zerop (call-process "git" nil t nil
+                                              "log" "--no-merges"
+                                              "--format=@@@%aN <%aE>"
+                                              "--numstat" "--" "."))
+                         (buffer-string)
+                       "")))
+           (table (make-hash-table :test 'equal))
+           (current-author nil))
+      (dolist (line (split-string output "\n"))
+        (cond
+          ((string-prefix-p "@@@" line)
+           (setq current-author (substring line 3)))
+          ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
+           (when current-author
+             (let ((added (string-to-number (match-string 1 line)))
+                   (deleted (string-to-number (match-string 2 line))))
+               (puthash current-author
+                 (+ (gethash current-author table 0) added deleted)
+                 table))))))
+      ;; Make sure authors with zero countable lines (e.g. only touched
+      ;; binary files) still show up.
+      (let ((all-authors (with-temp-buffer
+                           (when (zerop (call-process "git" nil t nil
+                                                      "log" "--format=%aN <%aE>"
+                                                      "--" "."))
+                             (buffer-string)))))
+        (when all-authors
+          (dolist (author (split-string all-authors "\n" t))
+            (unless (gethash author table)
+              (puthash author 0 table)))))
+      (let (result)
+        (maphash (lambda (k v) (push (cons k v) result)) table)
+        result))))
+
+(defun git-tools--sorted-author-weights (&optional directory alphabetical)
   "Return author weights for DIRECTORY, sorted.
 By default, sort by line count descending, breaking ties
 alphabetically. When ALPHABETICAL is non-nil, sort by author name
@@ -813,7 +760,7 @@ instead."
                       (> (cdr a) (cdr b))))))))
 
 ;;;###autoload
-(defun git-tools-authors-insert (directory &optional alphabetical)
+(defun git-tools-authors-insert (&optional directory alphabetical)
   "List all unique authors (name and email) for DIRECTORY.
 Results are annotated with total lines changed (added+deleted) in
 commits touching files within DIRECTORY, and displayed in a new,
@@ -824,25 +771,58 @@ sort alphabetically by name instead."
     (list (read-directory-name "Git repository directory: "
             (git-tools--default-directory) nil t)
       current-prefix-arg))
-  (let* ((default-directory (expand-file-name directory))
-          (entries (git-tools--sorted-author-weights directory alphabetical))
-          (buf (generate-new-buffer
-                 (format "*Git Authors: %s*"
-                   (abbreviate-file-name default-directory)))))
+  (let* ((target-dir (or directory (git-tools--default-directory)))
+         (resolved (git-tools--resolve-directory target-dir))
+         (entries (when resolved
+                    (git-tools--sorted-author-weights resolved alphabetical))))
+    (if (null entries)
+      (message "No authors found or not a git repository: %s" target-dir)
+      (let ((buf (generate-new-buffer
+                  (format "*Git Authors: %s*"
+                    (abbreviate-file-name resolved)))))
+        (with-current-buffer buf
+          (insert (format "Authors in: %s\n" (abbreviate-file-name resolved)))
+          (insert (format "(sorted by %s)\n"
+                    (if alphabetical "name" "lines changed, descending")))
+          (insert (make-string 40 ?=) "\n")
+          (dolist (entry entries)
+            (insert (format "%-50s %6d lines\n" (car entry) (cdr entry))))
+          (goto-char (point-min))
+          (read-only-mode 1)
+          (pop-to-buffer buf))))))
+
+;;;###autoload
+(defun git-tools-authors-list (&optional directory alphabetical)
+  "Return a list of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
+Sorted by line count descending by default; with a prefix argument
+(ALPHABETICAL), sort alphabetically by name instead. When called
+interactively, also prints the authors and summary in the echo area."
+  (interactive
+    (list (read-directory-name "Git repository directory: "
+            (git-tools--default-directory) nil t)
+      current-prefix-arg))
+  (let* ((target-dir (or directory (git-tools--default-directory)))
+         (resolved (git-tools--resolve-directory target-dir))
+         (entries (when resolved
+                    (git-tools--sorted-author-weights resolved alphabetical))))
     (if (null entries)
       (progn
-        (kill-buffer buf)
-        (message "No authors found or not a git repository: %s" directory))
-      (with-current-buffer buf
-        (insert (format "Authors in: %s\n" (abbreviate-file-name default-directory)))
-        (insert (format "(sorted by %s)\n"
-                  (if alphabetical "name" "lines changed, descending")))
-        (insert (make-string 40 ?=) "\n")
-        (dolist (entry entries)
-          (insert (format "%-50s %6d lines\n" (car entry) (cdr entry))))
-        (goto-char (point-min))
-        (read-only-mode 1)
-        (pop-to-buffer buf)))))
+        (message "No authors found or not a git repository: %s" target-dir)
+        nil)
+      (when (called-interactively-p 'interactive)
+        (let ((lines (mapconcat
+                      (lambda (entry)
+                        (format "%-50s %6d lines" (car entry) (cdr entry)))
+                      entries "\n")))
+          (message "Authors in %s (%d found, sorted by %s):\n%s"
+            (abbreviate-file-name resolved)
+            (length entries)
+            (if alphabetical "name" "lines changed, descending")
+            lines)))
+      entries)))
+
+;;;###autoload
+(defalias 'git-tools-authors #'git-tools-authors-list)
 
 ;;;###autoload
 (defun git-tools-commit-amend-no-edit ()
