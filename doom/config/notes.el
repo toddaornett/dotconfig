@@ -8,20 +8,22 @@ If it does not exist, than the web bookmarks menu will not be provided.")
 
 (after! org
   (setq org-todo-keywords
-        '((sequence
-           "TODO(t)"
-           "DOING(p)"
-           "REVIEW(r)"
-           "BLOCKED(b)"
-           "|" "DONE(d)" "CANCELED(c)"))
-        org-log-done 'time
-        org-todo-keyword-faces
-        '(("TODO" . (:foreground "#008080" :weight bold))
-          ("DOING" . (:foreground "#00ff00" :weight bold))
-          ("BLOCKED" . (:foreground "#ff0000" :weight bold))
-          ("REVIEW" . (:foreground "#00ffff" :weight bold))
-          ("DONE" . (:foreground "#708090" :weight bold)))
-        org-use-fast-todo-selection 'auto)
+    '((sequence
+        "TODO(t)"
+        "DOING(p)"
+        "PULL REQUEST(g)"
+        "REVIEW(r)"
+        "BLOCKED(b)"
+        "|" "DONE(d)" "CANCELED(c)"))
+    org-log-done 'time
+    org-todo-keyword-faces
+    '(("TODO"         . (:foreground "#008080" :weight bold))
+       ("DOING"        . (:foreground "#00ff00" :weight bold))
+       ("PULL REQUEST" . (:foreground "#ffff00" :weight bold))
+       ("BLOCKED"      . (:foreground "#ff0000" :weight bold))
+       ("REVIEW"       . (:foreground "#00ffff" :weight bold))
+       ("DONE"         . (:foreground "#708090" :weight bold)))
+    org-use-fast-todo-selection 'auto)
 
   (defun my/org-time-stamp-with-time ()
     "Insert an Org timestamp including time."
@@ -29,16 +31,16 @@ If it does not exist, than the web bookmarks menu will not be provided.")
     (org-time-stamp '(4)))
 
   (map! :map org-mode-map
-        :localleader
-        :desc "Set TODO state" "t" #'org-todo
-        :desc "Insert timestamp with time" "T" #'my/org-time-stamp-with-time)
+    :localleader
+    :desc "Set TODO state" "t" #'org-todo
+    :desc "Insert timestamp with time" "T" #'my/org-time-stamp-with-time)
 
   (defun tao/org-prettify-symbols ()
     "Set up prettify symbols for Org buffers."
     (setq-local prettify-symbols-alist
-                '(("[ ]" . "☐")
-                  ("[X]" . "☑")
-                  ("[-]" . "❍")))
+      '(("[ ]" . "☐")
+         ("[X]" . "☑")
+         ("[-]" . "❍")))
     (prettify-symbols-mode 1))
   (add-hook 'org-mode-hook #'tao/org-prettify-symbols)
 
@@ -60,14 +62,14 @@ If it does not exist, than the web bookmarks menu will not be provided.")
       (goto-char (point-min))
       (while (re-search-forward org-heading-regexp nil t)
         (let* ((beg (match-beginning 0))
-               (end (match-end 0))
-               (text-beg (progn
-                           (goto-char beg)
-                           (skip-chars-forward "*[:space:]")
-                           (when (looking-at org-todo-regexp)
-                             (goto-char (match-end 0))
-                             (skip-chars-forward "[:space:]"))
-                           (point))))
+                (end (match-end 0))
+                (text-beg (progn
+                            (goto-char beg)
+                            (skip-chars-forward "*[:space:]")
+                            (when (looking-at org-todo-regexp)
+                              (goto-char (match-end 0))
+                              (skip-chars-forward "[:space:]"))
+                            (point))))
           (when (tao/org-has-clock-entries-p)
             (add-text-properties text-beg end '(font-lock-face org-task-with-clock)))))))
   (add-hook 'org-mode-hook #'tao/org-fontify-clock-tasks)
@@ -79,24 +81,24 @@ If it does not exist, than the web bookmarks menu will not be provided.")
 the last modified time for other files."
     (interactive)
     (if (buffer-file-name)
-        (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
-          (if (derived-mode-p 'org-mode)
-              (save-excursion
+      (let ((timestamp (format-time-string "[%Y-%m-%d %a %H:%M]")))
+        (if (derived-mode-p 'org-mode)
+          (save-excursion
+            (goto-char (point-min))
+            (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
+              (replace-match (concat "#+UPDATED: " timestamp))
+              (goto-char (point-min))
+              (if (re-search-forward "^#\\+CREATED:.*$" nil t)
+                (progn
+                  (end-of-line)
+                  (insert "\n#+UPDATED: " timestamp))
                 (goto-char (point-min))
-                (if (re-search-forward "^#\\+UPDATED:.*$" nil t)
-                    (replace-match (concat "#+UPDATED: " timestamp))
-                  (goto-char (point-min))
-                  (if (re-search-forward "^#\\+CREATED:.*$" nil t)
-                      (progn
-                        (end-of-line)
-                        (insert "\n#+UPDATED: " timestamp))
-                    (goto-char (point-min))
-                    (if (re-search-forward "^#\\+.*$" nil t)
-                        (progn
-                          (end-of-line)
-                          (insert "\n#+UPDATED: " timestamp))
-                      (insert "#+UPDATED: " timestamp "\n")))))
-            (message "Last modified: %s" timestamp)))
+                (if (re-search-forward "^#\\+.*$" nil t)
+                  (progn
+                    (end-of-line)
+                    (insert "\n#+UPDATED: " timestamp))
+                  (insert "#+UPDATED: " timestamp "\n")))))
+          (message "Last modified: %s" timestamp)))
       (message "Buffer is not associated with a file")))
   (add-hook 'before-save-hook #'tao/org-update-last-timestamp)
 
@@ -112,34 +114,34 @@ Runs via `org-after-todo-state-change-hook'."
       (save-excursion
         (org-back-to-heading t)
         (let* ((level        (org-current-level))
-               (stars        (make-string level ?*))
-               (subtree-beg  (point))
-               (subtree-end  (save-excursion (org-end-of-subtree t t) (point)))
-               (subtree-text (buffer-substring subtree-beg subtree-end))
-               (insert-after  nil))
+                (stars        (make-string level ?*))
+                (subtree-beg  (point))
+                (subtree-end  (save-excursion (org-end-of-subtree t t) (point)))
+                (subtree-text (buffer-substring subtree-beg subtree-end))
+                (insert-after  nil))
 
           (save-excursion
             (if (org-up-heading-safe)
-                (org-goto-first-child)
+              (org-goto-first-child)
               (goto-char (point-min))
               (unless (looking-at (concat "^" stars "[^*]"))
                 (re-search-forward (concat "^" stars "[^*]") nil t)
                 (beginning-of-line)))
             (while (and (looking-at org-heading-regexp)
-                        (= (org-current-level) level))
+                     (= (org-current-level) level))
               (let ((kw (org-get-todo-state)))
                 (unless (tao/org-todo-state-is-terminal-p kw)
                   (setq insert-after
-                        (save-excursion (org-end-of-subtree t t) (point)))))
+                    (save-excursion (org-end-of-subtree t t) (point)))))
               (unless (org-get-next-sibling)
                 (goto-char (point-max)))))
 
           (when insert-after
             (unless (= subtree-beg insert-after)
               (let ((adjusted-insert
-                     (if (< subtree-beg insert-after)
-                         (- insert-after (- subtree-end subtree-beg))
-                       insert-after)))
+                      (if (< subtree-beg insert-after)
+                        (- insert-after (- subtree-end subtree-beg))
+                        insert-after)))
                 (delete-region subtree-beg subtree-end)
                 (goto-char adjusted-insert)
                 (unless (bolp) (insert "\n"))
@@ -323,25 +325,25 @@ stripping any leading words common to every single bookmark)."
   (defun org-pomodoro-format-count ()
     "Format the total number of pomodoros or empty string if not shown."
     (if (and org-pomodoro-display-count-p (> org-pomodoro-count 0))
-        (format org-pomodoro-count-format org-pomodoro-count)
+      (format org-pomodoro-count-format org-pomodoro-count)
       ""))
   (defun org-pomodoro-update-mode-line ()
     "Set the modeline accordingly to the current state."
     (let ((s (cl-case org-pomodoro-state
                (:pomodoro
-                (propertize org-pomodoro-format 'face 'org-pomodoro-mode-line))
+                 (propertize org-pomodoro-format 'face 'org-pomodoro-mode-line))
                (:overtime
-                (propertize org-pomodoro-overtime-format
-                            'face 'org-pomodoro-mode-line-overtime))
+                 (propertize org-pomodoro-overtime-format
+                   'face 'org-pomodoro-mode-line-overtime))
                (:short-break
-                (propertize org-pomodoro-short-break-format
-                            'face 'org-pomodoro-mode-line-break))
+                 (propertize org-pomodoro-short-break-format
+                   'face 'org-pomodoro-mode-line-break))
                (:long-break
-                (propertize org-pomodoro-long-break-format
-                            'face 'org-pomodoro-mode-line-break)))))
+                 (propertize org-pomodoro-long-break-format
+                   'face 'org-pomodoro-mode-line-break)))))
       (setq org-pomodoro-mode-line
-            (when (and (org-pomodoro-active-p) (> (length s) 0))
-              (list "[" (format s (org-pomodoro-format-seconds)) "] " (org-pomodoro-format-count))))
+        (when (and (org-pomodoro-active-p) (> (length s) 0))
+          (list "[" (format s (org-pomodoro-format-seconds)) "] " (org-pomodoro-format-count))))
       (force-mode-line-update t)))
   (defun tao/org-pomodoro-start-or-finished-hook ()
     "Hook to run when org-pomodoro starts or finishes."
