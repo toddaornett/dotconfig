@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: August 18, 2026
+;; Modified: September 9, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -304,8 +304,8 @@ is going on in the repo."
                     "chore: trigger CI")))
     (if (string-equal (magit-get-current-branch) (git-tools-main-branch-name))
       (message (format "Error - will not create empty message on %s branch" (git-tools-main-branch-name)))
-    (magit-run-git "commit" "--allow-empty" "-m" message)
-    (message "Created empty commit: %s" message))))
+      (magit-run-git "commit" "--allow-empty" "-m" message)
+      (message "Created empty commit: %s" message))))
 
 (defun git-tools-discard-unstaged-changes (&optional parent-dir force)
   "Discard all unstaged commits in git subdirectories under PARENT-DIR.
@@ -692,16 +692,16 @@ If DIRECTORY is a file, use its directory.
 Returns the directory name (ending in a slash) if it is inside
 a git repository, or nil otherwise."
   (let* ((raw-dir (or directory (git-tools--default-directory)))
-         (expanded (expand-file-name raw-dir))
-         (dir (if (file-directory-p expanded)
-                  (file-name-as-directory expanded)
-                (file-name-directory expanded))))
+          (expanded (expand-file-name raw-dir))
+          (dir (if (file-directory-p expanded)
+                 (file-name-as-directory expanded)
+                 (file-name-directory expanded))))
     (when (and dir
-               (file-directory-p dir)
-               (or (locate-dominating-file dir ".git")
-                   (vc-git-root dir)
-                   (and (fboundp 'magit-toplevel)
-                        (git-tools--git-repo-p dir))))
+            (file-directory-p dir)
+            (or (locate-dominating-file dir ".git")
+              (vc-git-root dir)
+              (and (fboundp 'magit-toplevel)
+                (git-tools--git-repo-p dir))))
       dir)))
 
 (defun git-tools--author-weights (&optional directory)
@@ -711,32 +711,32 @@ lines from commits touching files within DIRECTORY (not the whole
 repo, if DIRECTORY is a subdirectory of a larger repository)."
   (when-let* ((dir (git-tools--resolve-directory directory)))
     (let* ((default-directory dir)
-           (output (with-temp-buffer
-                     (if (zerop (call-process "git" nil t nil
-                                              "log" "--no-merges"
-                                              "--format=@@@%aN <%aE>"
-                                              "--numstat" "--" "."))
-                         (buffer-string)
-                       "")))
-           (table (make-hash-table :test 'equal))
-           (current-author nil))
+            (output (with-temp-buffer
+                      (if (zerop (call-process "git" nil t nil
+                                   "log" "--no-merges"
+                                   "--format=@@@%aN <%aE>"
+                                   "--numstat" "--" "."))
+                        (buffer-string)
+                        "")))
+            (table (make-hash-table :test 'equal))
+            (current-author nil))
       (dolist (line (split-string output "\n"))
         (cond
           ((string-prefix-p "@@@" line)
-           (setq current-author (substring line 3)))
+            (setq current-author (substring line 3)))
           ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
-           (when current-author
-             (let ((added (string-to-number (match-string 1 line)))
-                   (deleted (string-to-number (match-string 2 line))))
-               (puthash current-author
-                 (+ (gethash current-author table 0) added deleted)
-                 table))))))
+            (when current-author
+              (let ((added (string-to-number (match-string 1 line)))
+                     (deleted (string-to-number (match-string 2 line))))
+                (puthash current-author
+                  (+ (gethash current-author table 0) added deleted)
+                  table))))))
       ;; Make sure authors with zero countable lines (e.g. only touched
       ;; binary files) still show up.
       (let ((all-authors (with-temp-buffer
                            (when (zerop (call-process "git" nil t nil
-                                                      "log" "--format=%aN <%aE>"
-                                                      "--" "."))
+                                          "log" "--format=%aN <%aE>"
+                                          "--" "."))
                              (buffer-string)))))
         (when all-authors
           (dolist (author (split-string all-authors "\n" t))
@@ -772,14 +772,14 @@ sort alphabetically by name instead."
             (git-tools--default-directory) nil t)
       current-prefix-arg))
   (let* ((target-dir (or directory (git-tools--default-directory)))
-         (resolved (git-tools--resolve-directory target-dir))
-         (entries (when resolved
-                    (git-tools--sorted-author-weights resolved alphabetical))))
+          (resolved (git-tools--resolve-directory target-dir))
+          (entries (when resolved
+                     (git-tools--sorted-author-weights resolved alphabetical))))
     (if (null entries)
       (message "No authors found or not a git repository: %s" target-dir)
       (let ((buf (generate-new-buffer
-                  (format "*Git Authors: %s*"
-                    (abbreviate-file-name resolved)))))
+                   (format "*Git Authors: %s*"
+                     (abbreviate-file-name resolved)))))
         (with-current-buffer buf
           (insert (format "Authors in: %s\n" (abbreviate-file-name resolved)))
           (insert (format "(sorted by %s)\n"
@@ -795,25 +795,25 @@ sort alphabetically by name instead."
 (defun git-tools-authors-list (&optional directory alphabetical)
   "Return a list of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
 Sorted by line count descending by default; with a prefix argument
-(ALPHABETICAL), sort alphabetically by name instead. When called
+`(ALPHABETICAL), sort alphabetically by name instead. When called
 interactively, also prints the authors and summary in the echo area."
   (interactive
     (list (read-directory-name "Git repository directory: "
             (git-tools--default-directory) nil t)
       current-prefix-arg))
   (let* ((target-dir (or directory (git-tools--default-directory)))
-         (resolved (git-tools--resolve-directory target-dir))
-         (entries (when resolved
-                    (git-tools--sorted-author-weights resolved alphabetical))))
+          (resolved (git-tools--resolve-directory target-dir))
+          (entries (when resolved
+                     (git-tools--sorted-author-weights resolved alphabetical))))
     (if (null entries)
       (progn
         (message "No authors found or not a git repository: %s" target-dir)
         nil)
       (when (called-interactively-p 'interactive)
         (let ((lines (mapconcat
-                      (lambda (entry)
-                        (format "%-50s %6d lines" (car entry) (cdr entry)))
-                      entries "\n")))
+                       (lambda (entry)
+                         (format "%-50s %6d lines" (car entry) (cdr entry)))
+                       entries "\n")))
           (message "Authors in %s (%d found, sorted by %s):\n%s"
             (abbreviate-file-name resolved)
             (length entries)
@@ -842,11 +842,11 @@ interactively, also prints the authors and summary in the echo area."
   "Return the effective git working directory for review."
   (interactive)
   (let ((dir (file-name-as-directory
-              (or (and (stringp git-tools-review-home)
-                       (not (string-empty-p git-tools-review-home))
-                       (expand-file-name git-tools-review-home))
-                  (git-tools--project-root)
-                  default-directory))))
+               (or (and (stringp git-tools-review-home)
+                     (not (string-empty-p git-tools-review-home))
+                     (expand-file-name git-tools-review-home))
+                 (git-tools--project-root)
+                 default-directory))))
     (when (called-interactively-p 'interactive)
       (message "Git review directory: %s" dir))
     dir))
@@ -855,7 +855,7 @@ interactively, also prints the authors and summary in the echo area."
   "Return (OWNER . REPO) parsed from origin's remote URL in DIRECTORY, or nil.
 Handles both HTTPS URLs (https://github.com/owner/repo.git) and
 SSH URLs, including SSH config host aliases
-(e.g. git@github-lb:owner/repo.git where `github-lb' is a Host
+`(e.g. git@github-lb:owner/repo.git where `github-lb' is a Host
 alias in ~/.ssh/config, not the literal github.com)."
   (let* ((default-directory directory)
           (url (magit-git-string "remote" "get-url" "origin")))
@@ -866,7 +866,7 @@ alias in ~/.ssh/config, not the literal github.com)."
       (cons (match-string 1 url) (match-string 2 url)))))
 
 (defun git-tools--pr-head-branch-via-gh (owner repo pr-number)
-  "Look up the head branch of PR-NUMBER using the `gh' CLI, or nil."
+  "Look up the head branch of PR-NUMBER in OWNER/REPO using the `gh' CLI, or nil."
   (when (executable-find "gh")
     (with-temp-buffer
       (when (zerop (call-process "gh" nil t nil
@@ -878,7 +878,7 @@ alias in ~/.ssh/config, not the literal github.com)."
           (unless (string-empty-p name) name))))))
 
 (defun git-tools--pr-head-branch-via-api (owner repo pr-number)
-  "Look up the head branch of PR-NUMBER via the GitHub REST API, or nil."
+  "Look up PR-NUMBER in head of OWNER?REPO via GitHub REST API, or nil."
   (condition-case nil
     (let (result)
       (with-current-buffer
@@ -912,7 +912,7 @@ Tries `gh' first, then the GitHub REST API. Returns nil if both fail."
   "Start reviewing a GitHub pull request in a dedicated repo directory.
 Use `git-tools-review-home' as the repo directory if it is set to a
 non-empty string; otherwise fall back to `git-tools--project-root'
-(based on the current buffer, like the rest of git-tools).
+`(based on the current buffer, like the rest of git-tools).
 In that repo:
 1. Clean the working tree (`git reset --hard' + `git clean -fd',
    discarding local changes and untracked files).
@@ -931,8 +931,8 @@ In that repo:
   (let* ((default-directory
            (file-name-as-directory
              (or (and (stringp git-tools-review-home)
-                    (not (string-empty-p git-tools-review-home))
-                    (expand-file-name git-tools-review-home))
+                   (not (string-empty-p git-tools-review-home))
+                   (expand-file-name git-tools-review-home))
                (git-tools--project-root)
                (user-error "Could not determine a git repository directory"))))
           (main-branch (or (git-tools-main-branch-name)
@@ -957,11 +957,11 @@ In that repo:
              (or (git-tools--pr-head-branch default-directory pr-number)
                (format "review/pr-%s" pr-number)))
             (output (concat (format "In the directory %s, " default-directory)
-                            (format "please review the latest commits in the current branch %s " review-branch)
-                            (format "to be merged into %s " (git-tools-main-branch-name default-directory))
-                            (format "and start with a simple Approve 'Yes' or 'No' and ")
-                            (format "if not approved, provide concise list of critical problems. ")
-                            (format "Also provide a short list of a few comments for improvement if applicable."))))
+                      (format "please review the latest commits in the current branch %s " review-branch)
+                      (format "to be merged into %s " (git-tools-main-branch-name default-directory))
+                      (format "and start with a simple Approve 'Yes' or 'No' and ")
+                      (format "if not approved, provide concise list of critical problems. ")
+                      (format "Also provide a short list of a few comments for improvement if applicable."))))
       (magit-run-git "fetch" "origin"
         (format "pull/%s/head:%s" pr-number review-branch))
       (magit-run-git "checkout" review-branch)
