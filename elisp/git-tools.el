@@ -705,76 +705,181 @@ a git repository, or nil otherwise."
       dir)))
 
 (defun git-tools--author-weights (&optional directory)
-  "Return an alist of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
-AUTHOR-STRING is \"Name <email>\". LINE-COUNT sums added+deleted
-lines from commits touching files within DIRECTORY (not the whole
-repo, if DIRECTORY is a subdirectory of a larger repository)."
+  "Return an alist of (EMAIL . PLIST) for DIRECTORY.
+EMAIL is the author's email address, deduplicated so each email
+appears once even when its commits use different display names.
+PLIST has keys `:lines' (sum of added+deleted lines from non-merge
+commits touching files within DIRECTORY, not the whole repo if
+DIRECTORY is a subdirectory of a larger repository), `:first'
+(author-date of the author's earliest such commit, a Unix timestamp
+or nil), `:last' (author-date of the latest such commit, or nil),
+and `:name' (the author's display name from the most recent such
+commit, or nil)."
   (when-let* ((dir (git-tools--resolve-directory directory)))
     (let* ((default-directory dir)
             (output (with-temp-buffer
                       (if (zerop (call-process "git" nil t nil
                                    "log" "--no-merges"
-                                   "--format=@@@%aN <%aE>"
+                                   "--format=@@@%aN%x09%aE%x09%at"
                                    "--numstat" "--" "."))
                         (buffer-string)
                         "")))
             (table (make-hash-table :test 'equal))
-            (current-author nil))
+            (current-name nil)
+            (current-email nil)
+            (current-time nil))
       (dolist (line (split-string output "\n"))
         (cond
           ((string-prefix-p "@@@" line)
-            (setq current-author (substring line 3)))
+           (let ((fields (split-string (substring line 3) "\t")))
+             (setq current-name (nth 0 fields)
+                   current-email (nth 1 fields)
+                   current-time (and (nth 2 fields)
+                                     (string-to-number (nth 2 fields)))))
+           (when current-email
+             (let ((entry (or (gethash current-email table)
+                              (list :lines 0 :first nil :last nil :name nil))))
+               (when current-time
+                 (unless (and (plist-get entry :first)
+                              (< (plist-get entry :first) current-time))
+                   (setq entry (plist-put entry :first current-time)))
+                 (unless (and (plist-get entry :last)
+                              (> (plist-get entry :last) current-time))
+                   (setq entry (plist-put entry :last current-time))
+                   (setq entry (plist-put entry :name current-name))))
+               (puthash current-email entry table))))
           ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
-            (when current-author
-              (let ((added (string-to-number (match-string 1 line)))
-                     (deleted (string-to-number (match-string 2 line))))
-                (puthash current-author
-                  (+ (gethash current-author table 0) added deleted)
-                  table))))))
+           (when current-email
+             (let* ((entry (or (gethash current-email table)
+                               (list :lines 0 :first nil :last nil :name nil)))
+                    (added (string-to-number (match-string 1 line)))
+                    (deleted (string-to-number (match-string 2 line))))
+               (puthash current-email
+                 (plist-put entry :lines (+ (plist-get entry :lines) added deleted))
+                 table))))))
       ;; Make sure authors with zero countable lines (e.g. only touched
-      ;; binary files) still show up.
+      ;; binary files, or only made merge commits) still show up.
       (let ((all-authors (with-temp-buffer
                            (when (zerop (call-process "git" nil t nil
-                                          "log" "--format=%aN <%aE>"
+                                          "log" "--format=%aN%x09%aE"
                                           "--" "."))
                              (buffer-string)))))
         (when all-authors
-          (dolist (author (split-string all-authors "\n" t))
-            (unless (gethash author table)
-              (puthash author 0 table)))))
+          (dolist (line (split-string all-authors "\n" t))
+            (let* ((fields (split-string line "\t"))
+                   (name (nth 0 fields))
+                   (email (nth 1 fields)))
+              (unless (gethash email table)
+                (puthash email (list :lines 0 :first nil :last nil :name name) table))))))
       (let (result)
         (maphash (lambda (k v) (push (cons k v) result)) table)
         result))))
 
-(defun git-tools--sorted-author-weights (&optional directory alphabetical)
-  "Return author weights for DIRECTORY, sorted.
-By default, sort by line count descending, breaking ties
-alphabetically. When ALPHABETICAL is non-nil, sort by author name
-instead."
-  (let ((alist (git-tools--author-weights directory)))
-    (if alphabetical
-      (sort alist (lambda (a b) (string-lessp (car a) (car b))))
-      (sort alist (lambda (a b)
-                    (if (= (cdr a) (cdr b))
-                      (string-lessp (car a) (car b))
-                      (> (cdr a) (cdr b))))))))
+(defun git-tools--author-display (name email)
+  "Return a display string for author NAME and EMAIL, email first.
+The email appears first, followed by the display name, e.g.
+\"alice@example.com (Alice)\". When EMAIL is nil or empty, just
+return NAME."
+  (if (and email (not (string-empty-p email)))
+    (format "%s (%s)" email name)
+    name))
+
+(defun git-tools--time-asc (a b)
+  "Return non-nil if author time A (a Unix timestamp or nil) sorts before B.
+A nil (unknown) time always sorts last."
+  (cond
+    ((null a) nil)
+    ((null b) t)
+    (t (< a b))))
+
+(defun git-tools--time-desc (a b)
+  "Return non-nil if A sorts before B in descending order; nil sorts last."
+  (cond
+    ((null a) nil)
+    ((null b) t)
+    (t (> a b))))
+
+(defun git-tools--normalize-sort (sort)
+  "Return a canonical sort key from SORT.
+Accepts the symbols `lines', `name', `created-asc', `created-desc',
+`updated-asc' and `updated-desc'; the boolean t as `name' and nil as
+`lines' for backward compatibility."
+  (cond
+    ((eq sort t) 'name)
+    ((null sort) 'lines)
+    ((memq sort '(lines name created-asc created-desc updated-asc updated-desc))
+      sort)
+    (t 'lines)))
+
+(defconst git-tools--author-sort-options
+  '(("lines changed (descending)" . lines)
+    ("author name (ascending)" . name)
+    ("first commit, oldest first" . created-asc)
+    ("first commit, newest first" . created-desc)
+    ("last commit, oldest first" . updated-asc)
+    ("last commit, newest first" . updated-desc)))
+
+(defun git-tools--author-sort-label (sort-key)
+  "Return a human-readable label for SORT-KEY."
+  (pcase sort-key
+    ('name "author name, ascending")
+    ('created-asc "first commit, oldest first")
+    ('created-desc "first commit, newest first")
+    ('updated-asc "last commit, oldest first")
+    ('updated-desc "last commit, newest first")
+    (_ "lines changed, descending")))
+
+(defun git-tools--sorted-author-weights (&optional directory sort)
+  "Return author weights for DIRECTORY, sorted by SORT.
+SORT is a symbol selecting the sort key and direction; see
+`git-tools--normalize-sort'. Each element is (EMAIL . PLIST) with
+`:lines', `:first', `:last' and `:name' keys."
+  (let* ((sort-key (git-tools--normalize-sort sort))
+         (alist (git-tools--author-weights directory))
+         (pred
+           (pcase sort-key
+             ('name (lambda (a b) (string-lessp (plist-get (cdr a) :name)
+                                                (plist-get (cdr b) :name))))
+             ('created-asc (lambda (a b) (git-tools--time-asc
+                                          (plist-get (cdr a) :first)
+                                          (plist-get (cdr b) :first))))
+             ('created-desc (lambda (a b) (git-tools--time-desc
+                                           (plist-get (cdr a) :first)
+                                           (plist-get (cdr b) :first))))
+             ('updated-asc (lambda (a b) (git-tools--time-asc
+                                          (plist-get (cdr a) :last)
+                                          (plist-get (cdr b) :last))))
+             ('updated-desc (lambda (a b) (git-tools--time-desc
+                                           (plist-get (cdr a) :last)
+                                           (plist-get (cdr b) :last))))
+             (_ (lambda (a b)
+                  (if (= (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))
+                    (string-lessp (plist-get (cdr a) :name)
+                      (plist-get (cdr b) :name))
+                    (> (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))))))))
+    (sort alist pred)))
 
 ;;;###autoload
-(defun git-tools-authors-insert (&optional directory alphabetical)
-  "List all unique authors (name and email) for DIRECTORY.
-Results are annotated with total lines changed (added+deleted) in
-commits touching files within DIRECTORY, and displayed in a new,
-uniquely-named buffer each time this is called. Sorted by line
-count descending by default; with a prefix argument (ALPHABETICAL),
-sort alphabetically by name instead."
+(defun git-tools-authors-insert (&optional directory sort)
+  "List all unique authors for DIRECTORY.
+Each email appears once (deduplicated by email), shown as
+\"email (name)\". Results are annotated with total lines changed
+(added+deleted) in commits touching files within DIRECTORY, and
+displayed in a new, uniquely-named buffer each time this is called.
+SORT is a symbol selecting the sort key and direction; see
+`git-tools--normalize-sort'."
   (interactive
     (list (read-directory-name "Git repository directory: "
             (git-tools--default-directory) nil t)
-      current-prefix-arg))
+      (if current-prefix-arg
+          (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
+                      git-tools--author-sort-options))
+        'lines)))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
+          (sort-key (git-tools--normalize-sort sort))
           (entries (when resolved
-                     (git-tools--sorted-author-weights resolved alphabetical))))
+                     (git-tools--sorted-author-weights resolved sort-key))))
     (if (null entries)
       (message "No authors found or not a git repository: %s" target-dir)
       (let ((buf (generate-new-buffer
@@ -782,29 +887,36 @@ sort alphabetically by name instead."
                      (abbreviate-file-name resolved)))))
         (with-current-buffer buf
           (insert (format "Authors in: %s\n" (abbreviate-file-name resolved)))
-          (insert (format "(sorted by %s)\n"
-                    (if alphabetical "name" "lines changed, descending")))
+          (insert (format "(sorted by %s)\n" (git-tools--author-sort-label sort-key)))
           (insert (make-string 40 ?=) "\n")
           (dolist (entry entries)
-            (insert (format "%-50s %6d lines\n" (car entry) (cdr entry))))
+            (insert (format "%-50s %6d lines\n"
+                      (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
+                      (plist-get (cdr entry) :lines))))
           (goto-char (point-min))
           (read-only-mode 1)
           (pop-to-buffer buf))))))
 
 ;;;###autoload
-(defun git-tools-authors-list (&optional directory alphabetical)
+(defun git-tools-authors-list (&optional directory sort)
   "Return a list of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
-Sorted by line count descending by default; with a prefix argument
-`(ALPHABETICAL), sort alphabetically by name instead. When called
-interactively, also prints the authors and summary in the echo area."
+AUTHOR-STRING is \"email (name)\", with each author deduplicated by
+email (using the most recent display name). Sorted according to
+SORT, a symbol selecting the sort key and direction; see
+`git-tools--normalize-sort'. When called interactively, also prints
+the authors and summary in the echo area."
   (interactive
     (list (read-directory-name "Git repository directory: "
             (git-tools--default-directory) nil t)
-      current-prefix-arg))
+      (if current-prefix-arg
+          (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
+                      git-tools--author-sort-options))
+        'lines)))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
+          (sort-key (git-tools--normalize-sort sort))
           (entries (when resolved
-                     (git-tools--sorted-author-weights resolved alphabetical))))
+                     (git-tools--sorted-author-weights resolved sort-key))))
     (if (null entries)
       (progn
         (message "No authors found or not a git repository: %s" target-dir)
@@ -812,17 +924,19 @@ interactively, also prints the authors and summary in the echo area."
       (when (called-interactively-p 'interactive)
         (let ((lines (mapconcat
                        (lambda (entry)
-                         (format "%-50s %6d lines" (car entry) (cdr entry)))
+                         (format "%-50s %6d lines"
+                           (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
+                           (plist-get (cdr entry) :lines)))
                        entries "\n")))
           (message "Authors in %s (%d found, sorted by %s):\n%s"
             (abbreviate-file-name resolved)
             (length entries)
-            (if alphabetical "name" "lines changed, descending")
+            (git-tools--author-sort-label sort-key)
             lines)))
-      entries)))
-
-;;;###autoload
-(defalias 'git-tools-authors #'git-tools-authors-list)
+      (mapcar (lambda (entry)
+                (cons (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
+                      (plist-get (cdr entry) :lines)))
+        entries))))
 
 ;;;###autoload
 (defun git-tools-commit-amend-no-edit ()
