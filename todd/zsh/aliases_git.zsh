@@ -12,6 +12,32 @@ git() {
   return $exit_status
 }
 
+function gh_rerun_failed_ci() {
+  local pr_id="${1:-$(gh pr view --json number --jq '.number' 2>/dev/null)}"
+
+  if [[ -z "$pr_id" ]]; then
+    echo "❌ Error: Please provide a PR number or run this from a branch with an open PR." >&2
+    return 1
+  fi
+
+  echo "🔍 Fetching failed runs for PR #$pr_id..."
+
+  local jq_filter='map(select(.bucket=="fail") | .link | capture("/runs/(?<id>[0-9]+)/") | .id) | unique | .[]'
+  local run_ids
+  run_ids=($(gh pr checks "$pr_id" --json link,bucket --jq "$jq_filter" 2>/dev/null))
+
+  if [[ ${#run_ids[@]} -eq 0 ]]; then
+    echo "✅ No failed checks found for PR #$pr_id!"
+    return 0
+  fi
+
+  echo "🚀 Re-running failed jobs for ${#run_ids[@]} workflow run(s):"
+  for run_id in "${run_ids[@]}"; do
+    echo "  -> Triggering Run ID: $run_id"
+    gh run rerun "$run_id" --failed
+  done
+}
+
 function git_current_branch() {
   local ref
   ref="$(git symbolic-ref --quiet HEAD 2>/dev/null)"
