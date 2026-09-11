@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 9, 2026
+;; Modified: September 11, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -87,15 +87,42 @@ DISPLAY-NAME is the mention to write, typically \"@Full Name\"."
   (and (stringp a) (stringp b)
     (string= (downcase a) (downcase b))))
 
+(defun jira-todo--email-local-part (email)
+  "Return EMAIL's local part, stripping a plus-address tag."
+  (when (and (stringp email) (not (string-empty-p email)))
+    (car (split-string (car (split-string email "@")) "\\+"))))
+
+(defun jira-todo--email-plus-stripped (email)
+  "Return EMAIL with a plus-address tag removed from the local part."
+  (when (and (stringp email)
+          (string-match "\\`\\([^@+]+\\)\\(?:\\+[^@]*\\)?@\\(.+\\)\\'" email))
+    (concat (match-string 1 email) "@" (match-string 2 email))))
+
 (defun jira-todo-github-user-map-get (key)
   "Return the PTAL display name for KEY, or nil if unset.
 
-KEY is a git author email.  Lookup is case-insensitive.
+KEY is a git author email.  Lookup is case-insensitive.  A
+plus-address (user+tag@domain) also matches user@domain.  When
+that fails, the local part is compared across domains so
+gem.hung@levelblue.com matches gem.hung@cybereason.com.
 Return nil when the map is unset or KEY is not present."
   (when (and key jira-todo-github-user-map)
-    (alist-get key
-      jira-todo-github-user-map
-      nil nil #'jira-todo--string-equal-fold)))
+    (or (alist-get key
+          jira-todo-github-user-map
+          nil nil #'jira-todo--string-equal-fold)
+      (let ((stripped (jira-todo--email-plus-stripped key)))
+        (and stripped
+          (not (jira-todo--string-equal-fold stripped key))
+          (alist-get stripped
+            jira-todo-github-user-map
+            nil nil #'jira-todo--string-equal-fold)))
+      (let ((local (jira-todo--email-local-part key)))
+        (when local
+          (cl-some (lambda (cell)
+                     (and (jira-todo--string-equal-fold
+                            local (jira-todo--email-local-part (car cell)))
+                       (cdr cell)))
+            jira-todo-github-user-map))))))
 
 (defun jira-todo-github-user-map-set (key display-name)
   "Set DISPLAY-NAME for KEY in the mapping, adding or updating."
@@ -554,6 +581,68 @@ Works even when the subtree is folded."
       "."
       (directory-file-name dir))))
 
+(defconst jira-todo--project-markers
+  '("Cargo.toml" "go.mod" "package.json" "pyproject.toml"
+     "pom.xml" "build.gradle" "build.gradle.kts" "mix.exs"
+     "Gemfile" "composer.json")
+  "Filenames that mark a project directory for PTAL author lookup.")
+
+(defun jira-todo--project-marker-in-directory-p (dir)
+  "Return non-nil if DIR contains a `jira-todo--project-markers' file."
+  (cl-some (lambda (name)
+             (file-exists-p (expand-file-name name dir)))
+    jira-todo--project-markers))
+
+(defun jira-todo--project-directory-for-file (file root)
+  "Return the repo-relative project directory for FILE under ROOT.
+
+Walks from FILE's parent toward ROOT and stops at the nearest
+directory that contains a `jira-todo--project-markers' file
+\(so a crate Cargo.toml wins over a workspace Cargo.toml).  When
+no marker is found, FILE's parent directory is used."
+  (let* ((root (file-name-as-directory (expand-file-name root)))
+          (full (expand-file-name file root))
+          (dir (file-name-directory full))
+          found)
+    (while (and dir (not found)
+             (string-prefix-p root
+               (file-name-as-directory (expand-file-name dir))))
+      (if (jira-todo--project-marker-in-directory-p dir)
+        (setq found dir)
+        (let ((parent (file-name-directory (directory-file-name dir))))
+          (setq dir (and parent
+                      (not (string= (file-name-as-directory parent)
+                             (file-name-as-directory dir)))
+                      parent)))))
+    (if (not found)
+      (jira-todo--file-parent-directory file)
+      (let ((rel (directory-file-name (file-relative-name found root))))
+        (if (or (string= rel ".") (string-empty-p rel)
+              (string-prefix-p ".." rel))
+          "."
+          rel)))))
+
+(defun jira-todo--author-directories-for-files (files root)
+  "Return project directories covering FILES under ROOT.
+
+Each file is assigned to `jira-todo--project-directory-for-file'.
+When several projects are touched, keep only those with the
+highest changed-file count so an incidental extra crate cannot
+dominate the PTAL ranking."
+  (let ((files (cl-remove-if (lambda (f)
+                               (or (not (stringp f)) (string-empty-p f)))
+                 files))
+         (counts (make-hash-table :test #'equal)))
+    (dolist (file files)
+      (let ((dir (jira-todo--project-directory-for-file file root)))
+        (puthash dir (1+ (or (gethash dir counts) 0)) counts)))
+    (let (alist)
+      (maphash (lambda (dir n) (push (cons dir n) alist)) counts)
+      (when alist
+        (let ((max-count (apply #'max (mapcar #'cdr alist))))
+          (mapcar #'car
+            (cl-remove-if-not (lambda (p) (= (cdr p) max-count)) alist)))))))
+
 (defun jira-todo--common-prefix-components (lists)
   "Return the shared leading components of LISTS of strings."
   (when lists
@@ -661,11 +750,11 @@ Accepts \"Name <email>\", \"email (name)\", or a bare email."
 
 EMAIL is compared case-insensitively against
 `jira-todo-github-user-map'.  Returns nil when the map or EMAIL
-is unset, or when EMAIL is not a key."
+is unset, or when EMAIL is not a key.  A leading `@' is added
+when the map value does not already have one."
   (when (and email jira-todo-github-user-map)
     (let ((mapped (jira-todo-github-user-map-get email)))
-      (and mapped (not (string-empty-p (string-trim mapped)))
-        (string-trim mapped)))))
+      (and mapped (jira-todo--ensure-at-mention mapped)))))
 
 (defun jira-todo--format-ptal-mention (author-string)
   "Format AUTHOR-STRING for a PTAL mention.
@@ -676,14 +765,16 @@ email.  Accepts \"Name <email>\", \"@Name <email>\",
 \"email (name)\", or a bare email.
 
 If the map is unset or has no entry, use the original email
-name: the name that accompanies the email, without the address."
+name: the name that accompanies the email, without the address.
+The result always has a leading `@'."
   (when (consp author-string)
     (setq author-string (car author-string)))
   (let* ((author-string (and (stringp author-string) author-string))
           (email (jira-todo--author-email author-string))
           (mapped (jira-todo--mapped-display-name email))
           (original (jira-todo--author-display-name author-string)))
-    (or mapped original email author-string)))
+    (jira-todo--ensure-at-mention
+      (or mapped original email author-string))))
 
 (defun jira-todo--apply-email-map-to-text (text)
   "Replace mapped emails in TEXT with `jira-todo-github-user-map' values.
@@ -786,13 +877,15 @@ token is trimmed.  Emails are rewritten via
   "Normalize NAME for uniqueness comparison.
 
 Trims, drops a leading `@', treats `.' and `_' as spaces,
-collapses whitespace, and downcases.  So \"@Shashank Vangari\"
-and \"@Shashank.Vangari\" compare equal."
+collapses whitespace, downcases, and sorts name tokens.  So
+\"@Shashank Vangari\" and \"@Shashank.Vangari\" compare equal,
+and \"@Xie Zirui\" matches \"@Zirui Xie\"."
   (let ((name (string-trim (or name ""))))
     (setq name (replace-regexp-in-string "\\`@" "" name))
     (setq name (replace-regexp-in-string "[._]+" " " name))
     (setq name (replace-regexp-in-string "[ \t]+" " " name))
-    (downcase (string-trim name))))
+    (setq name (downcase (string-trim name)))
+    (mapconcat #'identity (sort (split-string name) #'string-lessp) " ")))
 
 (defun jira-todo--merge-ptal-names (auto-names extra-names)
   "Return AUTO-NAMES followed by EXTRA-NAMES not already rendered.
@@ -804,19 +897,107 @@ in their original order."
   (let ((seen (make-hash-table :test #'equal))
          merged)
     (dolist (name (append auto-names extra-names))
-      (let ((key (jira-todo--normalize-ptal-name name)))
-        (unless (or (string-empty-p key) (gethash key seen))
+      (let* ((name (jira-todo--ensure-at-mention name))
+              (key (jira-todo--normalize-ptal-name name)))
+        (unless (or (null name) (string-empty-p key) (gethash key seen))
           (puthash key t seen)
           (push name merged))))
     (nreverse merged)))
 
+(defun jira-todo--author-identity-keys (author-string)
+  "Return identity keys used to merge AUTHOR-STRING with aliases.
+
+Keys are drawn from the mapped PTAL name, the git display name,
+and the email local-part (plus-tags and case ignored)."
+  (let* ((email (jira-todo--author-email author-string))
+          (mapped (jira-todo--mapped-display-name email))
+          (display (jira-todo--author-display-name author-string))
+          keys)
+    (when mapped
+      (push (concat "n:" (jira-todo--normalize-ptal-name mapped)) keys))
+    (when display
+      (push (concat "n:" (jira-todo--normalize-ptal-name display)) keys))
+    (when-let* ((local (jira-todo--email-local-part email)))
+      (push (concat "l:" (downcase local)) keys))
+    keys))
+
+(defun jira-todo--self-identity-keys (&optional root)
+  "Return identity keys for the current git user in ROOT."
+  (let* ((default-directory (file-name-as-directory
+                              (or root default-directory)))
+          (git-email (ignore-errors (git-tools-git-config-value "user.email")))
+          (git-name (ignore-errors (git-tools-git-config-value "user.name")))
+          (email (or git-email user-mail-address))
+          (name (or git-name user-full-name)))
+    (jira-todo--author-identity-keys
+      (git-tools--author-display name email))))
+
+(defun jira-todo--identity-keys-overlap-p (a b)
+  "Return non-nil if identity key lists A and B share an element."
+  (cl-some (lambda (k) (member k b)) a))
+
+(defun jira-todo--choose-author-string (a a-lines b b-lines)
+  "Pick a representative author string from A and B.
+Prefer a mapped PTAL email; otherwise the string with more lines."
+  (let ((a-mapped (jira-todo--mapped-display-name (jira-todo--author-email a)))
+         (b-mapped (jira-todo--mapped-display-name (jira-todo--author-email b))))
+    (cond
+      ((and a-mapped (not b-mapped)) a)
+      ((and b-mapped (not a-mapped)) b)
+      ((> b-lines a-lines) b)
+      (t a))))
+
+(defun jira-todo--merge-author-line-counts (entries)
+  "Merge ENTRIES (AUTHOR-STRING . LINES) that represent the same person.
+
+Same person means the same mapped PTAL name, the same display
+name, or the same email local-part (plus-tags ignored, case
+ignored)."
+  (let (groups)
+    (dolist (entry entries)
+      (let* ((author (car entry))
+              (lines (or (cdr entry) 0))
+              (keys (jira-todo--author-identity-keys author))
+              matches others)
+        (dolist (g groups)
+          (if (jira-todo--identity-keys-overlap-p keys (nth 0 g))
+            (push g matches)
+            (push g others)))
+        (let ((best-author author)
+               (best-lines lines)
+               (total lines)
+               (all-keys keys))
+          (dolist (g matches)
+            (setq all-keys (cl-delete-duplicates
+                             (append all-keys (nth 0 g)) :test #'equal)
+              total (+ total (nth 3 g))
+              best-author (jira-todo--choose-author-string
+                            best-author best-lines (nth 1 g) (nth 2 g))
+              best-lines (if (string= best-author (nth 1 g))
+                           (nth 2 g)
+                           best-lines)))
+          (setq groups (cons (list all-keys best-author best-lines total)
+                         others)))))
+    (mapcar (lambda (g) (cons (nth 1 g) (nth 3 g))) groups)))
+
+(defun jira-todo--exclude-self-authors (entries &optional root)
+  "Drop ENTRIES whose identity matches the git user in ROOT."
+  (let ((self (jira-todo--self-identity-keys root)))
+    (if (null self)
+      entries
+      (cl-remove-if
+        (lambda (entry)
+          (jira-todo--identity-keys-overlap-p
+            (jira-todo--author-identity-keys (car entry)) self))
+        entries))))
+
 (defun jira-todo--ptal-reviewer-line ()
   "Return the merged PTAL reviewer line, or nil if none.
 
-Top 5 git authors for changed-file parent directories come first,
-formatted via `jira-todo--format-ptal-mention'.  Display names
-from `jira-todo-pr-reviewers' are appended when they are not
-already present."
+Top 5 git authors for the project (crate) with the most changed
+files come first, formatted via `jira-todo--format-ptal-mention'.
+Display names from `jira-todo-pr-reviewers' are appended when
+they are not already present."
   (let* ((authors (condition-case err
                     (jira-todo--top-authors-for-changed-dirs 5)
                     (error
@@ -870,17 +1051,23 @@ resolved, fall back to HEAD (`MAIN...')."
         (split-string (buffer-string) "\0" t)))))
 
 (defun jira-todo--top-authors-for-changed-dirs (&optional limit)
-  "Return the top LIMIT git author strings for changed-file parent dirs.
+  "Return the top LIMIT git author strings for changed-file projects.
 
-LIMIT defaults to 5.  Calls `git-tools-authors-list' (default sort:
-lines changed, descending) on each common parent directory of files
-from `jira-todo--changed-files-against-main', sums line counts for
-authors seen in multiple directories, then returns the top LIMIT
-author strings in that default order."
+LIMIT defaults to 5.  Files from `jira-todo--changed-files-against-main'
+are grouped by nearest project directory (crate Cargo.toml, go.mod,
+package.json, ...).  When more than one project is touched, only the
+project(s) with the most changed files are used, so a one-file
+sidecar crate cannot rank authors from a sibling workspace.
+
+Calls `git-tools-authors-list' (default sort: lines changed,
+descending) on each kept directory, merges aliases of the same
+person, drops the current git user, then returns the top LIMIT
+author strings in that order."
   (let* ((limit (or limit 5))
           (default-directory (jira-todo--git-directory))
           (files (jira-todo--changed-files-against-main default-directory))
-          (dirs (jira-todo--common-parent-directories files))
+          (dirs (jira-todo--author-directories-for-files
+                  files default-directory))
           (merged (make-hash-table :test #'equal)))
     (dolist (dir dirs)
       (when-let* ((abs (jira-todo--existing-authors-directory
@@ -895,6 +1082,10 @@ author strings in that default order."
       (maphash (lambda (author lines)
                  (push (cons author lines) alist))
         merged)
+      (setq alist
+        (jira-todo--exclude-self-authors
+          (jira-todo--merge-author-line-counts alist)
+          default-directory))
       (setq alist
         (sort alist
           (lambda (a b)
@@ -1023,8 +1214,8 @@ Replace <PR-TBD> patterns in the current TODO when present.  An
 already-filled PR URL in the heading is reused and is not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
-usernames from `git-tools-authors-list' (default order: lines
-changed) called on each common parent directory of files from
+authors from `git-tools-authors-list' (default order: lines
+changed) called on the nearest project/crate of files from
 `git diff --name-only MAIN...BRANCH'.  BRANCH is the heading
 Branch field when present (local, else origin/BRANCH after fetch);
 otherwise HEAD.  Git Directory is optional: the heading field if
