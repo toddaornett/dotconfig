@@ -744,24 +744,58 @@ a git repository, or nil otherwise."
                 (git-tools--git-repo-p dir))))
       dir)))
 
-(defun git-tools--author-weights (&optional directory)
+(defun git-tools--repo-root (&optional directory)
+  "Return the git toplevel directory for DIRECTORY, or nil."
+  (when-let* ((dir (git-tools--resolve-directory directory)))
+    (file-name-as-directory
+      (or (vc-git-root dir)
+        (let ((default-directory dir))
+          (and (fboundp 'magit-toplevel)
+            (magit-toplevel)))
+        dir))))
+
+(defun git-tools--git-names (&rest args)
+  "Return repo-relative paths from git ARGS, split on NUL bytes."
+  (with-temp-buffer
+    (when (zerop (apply #'call-process "git" nil t nil args))
+      (split-string (buffer-string) "\0" t))))
+
+(defun git-tools--changed-files (&optional directory)
+  "Return unique repo-relative paths from DIRECTORY's git change list.
+Includes files on HEAD versus the main branch (see
+`git-tools-main-branch-name'), plus staged, unstaged, and untracked
+working-tree paths."
+  (when-let* ((root (git-tools--repo-root directory)))
+    (let* ((default-directory root)
+            (main (git-tools-main-branch-name default-directory))
+            (files (and main
+                     (git-tools--git-names "diff" "-z" "--name-only"
+                       (concat main "...HEAD")))))
+      (delete-dups
+        (append files
+          (git-tools--git-names "diff" "-z" "--name-only" "--cached")
+          (git-tools--working-changed-files))))))
+
+(defun git-tools--author-weights (&optional directory pathspec)
   "Return an alist of (EMAIL . PLIST) for DIRECTORY.
 EMAIL is the author's email address, deduplicated so each email
 appears once even when its commits use different display names.
-PLIST has keys `:lines' (sum of added+deleted lines from non-merge
-commits touching files within DIRECTORY, not the whole repo if
-DIRECTORY is a subdirectory of a larger repository), `:first'
-(author-date of the author's earliest such commit, a Unix timestamp
-or nil), `:last' (author-date of the latest such commit, or nil),
-and `:name' (the author's display name from the most recent such
-commit, or nil)."
+PATHSPEC is a git path relative to DIRECTORY, defaulting to \".\".
+PLIST has keys `:lines' \(sum of added+deleted lines from non-merge
+commits touching PATHSPEC, not the whole repo if DIRECTORY is a
+subdirectory of a larger repository), `:first' \(author-date of the
+author's earliest such commit, a Unix timestamp or nil), `:last'
+\(author-date of the latest such commit, or nil), and `:name'
+\(the author's display name from the most recent such commit, or
+nil)."
   (when-let* ((dir (git-tools--resolve-directory directory)))
     (let* ((default-directory dir)
+            (pathspec (or pathspec "."))
             (output (with-temp-buffer
                       (if (zerop (call-process "git" nil t nil
                                    "log" "--no-merges"
                                    "--format=@@@%aN%x09%aE%x09%at"
-                                   "--numstat" "--" "."))
+                                   "--numstat" "--" pathspec))
                         (buffer-string)
                         "")))
             (table (make-hash-table :test 'equal))
@@ -802,7 +836,7 @@ commit, or nil)."
       (let ((all-authors (with-temp-buffer
                            (when (zerop (call-process "git" nil t nil
                                           "log" "--format=%aN%x09%aE"
-                                          "--" "."))
+                                          "--" pathspec))
                              (buffer-string)))))
         (when all-authors
           (dolist (line (split-string all-authors "\n" t))
@@ -869,57 +903,232 @@ Accepts the symbols `lines', `name', `created-asc', `created-desc',
     ('updated-desc "last commit, newest first")
     (_ "lines changed, descending")))
 
-(defun git-tools--sorted-author-weights (&optional directory sort)
+(defconst git-tools-authors-top-n 5
+  "Number of authors kept per change-path prefix and in the merged result.")
+
+(defun git-tools--author-sort-predicate (sort-key)
+  "Return a comparing function for author-weight alists using SORT-KEY."
+  (pcase sort-key
+    ('name (lambda (a b) (string-lessp (plist-get (cdr a) :name)
+                         (plist-get (cdr b) :name))))
+    ('created-asc (lambda (a b) (git-tools--time-asc
+                                 (plist-get (cdr a) :first)
+                                 (plist-get (cdr b) :first))))
+    ('created-desc (lambda (a b) (git-tools--time-desc
+                                  (plist-get (cdr a) :first)
+                                  (plist-get (cdr b) :first))))
+    ('updated-asc (lambda (a b) (git-tools--time-asc
+                                 (plist-get (cdr a) :last)
+                                 (plist-get (cdr b) :last))))
+    ('updated-desc (lambda (a b) (git-tools--time-desc
+                                  (plist-get (cdr a) :last)
+                                  (plist-get (cdr b) :last))))
+    (_ (lambda (a b)
+         (if (= (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))
+           (string-lessp (plist-get (cdr a) :name)
+             (plist-get (cdr b) :name))
+           (> (plist-get (cdr a) :lines) (plist-get (cdr b) :lines)))))))
+
+(defun git-tools--sorted-author-weights (&optional directory sort pathspec)
   "Return author weights for DIRECTORY, sorted by SORT.
 SORT is a symbol selecting the sort key and direction; see
-`git-tools--normalize-sort'. Each element is (EMAIL . PLIST) with
+`git-tools--normalize-sort'. PATHSPEC is passed to
+`git-tools--author-weights'. Each element is (EMAIL . PLIST) with
 `:lines', `:first', `:last' and `:name' keys."
   (let* ((sort-key (git-tools--normalize-sort sort))
-         (alist (git-tools--author-weights directory))
-         (pred
-           (pcase sort-key
-             ('name (lambda (a b) (string-lessp (plist-get (cdr a) :name)
-                                                (plist-get (cdr b) :name))))
-             ('created-asc (lambda (a b) (git-tools--time-asc
-                                          (plist-get (cdr a) :first)
-                                          (plist-get (cdr b) :first))))
-             ('created-desc (lambda (a b) (git-tools--time-desc
-                                           (plist-get (cdr a) :first)
-                                           (plist-get (cdr b) :first))))
-             ('updated-asc (lambda (a b) (git-tools--time-asc
-                                          (plist-get (cdr a) :last)
-                                          (plist-get (cdr b) :last))))
-             ('updated-desc (lambda (a b) (git-tools--time-desc
-                                           (plist-get (cdr a) :last)
-                                           (plist-get (cdr b) :last))))
-             (_ (lambda (a b)
-                  (if (= (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))
-                    (string-lessp (plist-get (cdr a) :name)
-                      (plist-get (cdr b) :name))
-                    (> (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))))))))
+          (alist (git-tools--author-weights directory pathspec))
+          (pred (git-tools--author-sort-predicate sort-key)))
     (sort alist pred)))
 
+(defun git-tools--common-prefix-components (lists)
+  "Return the shared leading components of LISTS of strings."
+  (when lists
+    (let* ((first (car lists))
+            (limit (apply #'min (mapcar #'length lists)))
+            (i 0)
+            (ok t))
+      (while (and ok (< i limit))
+        (let ((elt (nth i first)))
+          (setq ok (not (catch 'different
+                          (dolist (lst (cdr lists))
+                            (unless (string= (nth i lst) elt)
+                              (throw 'different t)))
+                          nil)))
+          (when ok
+            (setq i (1+ i)))))
+      (take i first))))
+
+(defun git-tools--change-path-prefixes (files)
+  "Return unique path prefixes covering FILES from a git change list.
+
+FILES are repo-relative paths.  Prefixes are one component past the
+longest prefix shared by every file: sibling directories after that
+fork are each kept, including a directory that contains only one
+changed file.  When every remaining component is a filename in the
+same directory, return that directory instead."
+  (let* ((files (delq nil
+                  (mapcar (lambda (f)
+                            (and (stringp f) (not (string-empty-p f)) f))
+                    files)))
+          (parts-list (mapcar (lambda (f) (split-string f "/" t)) files)))
+    (cond
+      ((null parts-list) nil)
+      ((= (length parts-list) 1)
+        (let* ((parts (car parts-list))
+                (dir-parts (if (> (length parts) 1) (butlast parts) parts)))
+          (list (if dir-parts (string-join dir-parts "/") "."))))
+      (t
+        (let* ((prefix (git-tools--common-prefix-components parts-list))
+                (prefix-len (length prefix))
+                (nexts nil)
+                (all-terminal t))
+          (dolist (parts parts-list)
+            (let ((rest-len (- (length parts) prefix-len)))
+              (when (> rest-len 0)
+                (when (> rest-len 1)
+                  (setq all-terminal nil))
+                (let ((next (nth prefix-len parts)))
+                  (unless (member next nexts)
+                    (push next nexts))))))
+          (cond
+            ((or (null nexts) all-terminal)
+              (list (if prefix (string-join prefix "/") ".")))
+            (t
+              (mapcar (lambda (next)
+                        (string-join (append prefix (list next)) "/"))
+                (nreverse nexts)))))))))
+
+(defun git-tools--directory-pathspec (directory)
+  "Return a repo-relative pathspec for DIRECTORY, or \".\"."
+  (let* ((root (git-tools--repo-root directory))
+          (dir (and directory (git-tools--resolve-directory directory))))
+    (cond
+      ((not (and root dir)) ".")
+      (t
+        (let ((rel (directory-file-name (file-relative-name dir root))))
+          (if (or (string-empty-p rel) (string= rel ".")
+                (string-prefix-p ".." rel))
+            "."
+            rel))))))
+
+(defun git-tools--merge-author-weight-alists (alists)
+  "Merge author-weight ALISTS by email, summing `:lines'.
+`:first' is the earliest timestamp, `:last' the latest, and `:name'
+comes from the latest commit."
+  (let ((table (make-hash-table :test 'equal)))
+    (dolist (alist alists)
+      (dolist (entry alist)
+        (let* ((email (car entry))
+                (plist (cdr entry))
+                (prev (gethash email table)))
+          (if (not prev)
+            (puthash email
+              (list :lines (plist-get plist :lines)
+                :first (plist-get plist :first)
+                :last (plist-get plist :last)
+                :name (plist-get plist :name))
+              table)
+            (let* ((lines (+ (or (plist-get prev :lines) 0)
+                            (or (plist-get plist :lines) 0)))
+                    (first-a (plist-get prev :first))
+                    (first-b (plist-get plist :first))
+                    (first (cond
+                             ((null first-a) first-b)
+                             ((null first-b) first-a)
+                             (t (min first-a first-b))))
+                    (last-a (plist-get prev :last))
+                    (last-b (plist-get plist :last))
+                    (name (cond
+                            ((and last-a last-b)
+                              (if (>= last-b last-a)
+                                (plist-get plist :name)
+                                (plist-get prev :name)))
+                            (last-b (plist-get plist :name))
+                            (t (plist-get prev :name))))
+                    (last (cond
+                            ((null last-a) last-b)
+                            ((null last-b) last-a)
+                            (t (max last-a last-b)))))
+              (puthash email
+                (list :lines lines :first first :last last :name name)
+                table))))))
+    (let (result)
+      (maphash (lambda (k v) (push (cons k v) result)) table)
+      result)))
+
+(defun git-tools--author-display-entries (weights)
+  "Map author WEIGHTS (EMAIL . PLIST) to (DISPLAY-STRING . LINES)."
+  (mapcar (lambda (entry)
+            (cons (git-tools--author-display (plist-get (cdr entry) :name)
+                    (car entry))
+              (plist-get (cdr entry) :lines)))
+    weights))
+
+(defun git-tools--change-prefixes-for-authors (&optional directory files)
+  "Return (ROOT . PREFIXES) covering FILES in DIRECTORY's repository.
+FILES defaults to `git-tools--changed-files'.  When that list is
+empty, PREFIXES is DIRECTORY itself relative to the repo root."
+  (when-let* ((root (git-tools--repo-root directory)))
+    (let* ((files (or files (git-tools--changed-files root)))
+            (prefixes (git-tools--change-path-prefixes files)))
+      (cons root
+        (or prefixes
+          (list (git-tools--directory-pathspec (or directory root))))))))
+
+(defun git-tools--merged-change-author-weights (&optional directory sort files)
+  "Return merged author weights for change-path prefixes in DIRECTORY.
+
+FILES defaults to `git-tools--changed-files' in DIRECTORY.  Each
+prefix contributes its top `git-tools-authors-top-n' authors
+sorted by SORT; those lists are merged by email with line counts
+summed.  The merged alist is sorted by SORT.  Returns nil when
+DIRECTORY is not in a git repository."
+  (when-let* ((pair (git-tools--change-prefixes-for-authors directory files))
+               (root (car pair))
+               (prefixes (cdr pair))
+               (sort-key (git-tools--normalize-sort sort))
+               (pred (git-tools--author-sort-predicate sort-key)))
+    (let (alists)
+      (dolist (prefix prefixes)
+        (let ((weights (git-tools--sorted-author-weights root sort-key prefix)))
+          (when weights
+            (push (take git-tools-authors-top-n weights) alists))))
+      (sort (git-tools--merge-author-weight-alists (nreverse alists)) pred))))
+
+(defun git-tools--authors-interactive-args ()
+  "Read interactive arguments for git authors commands."
+  (list (read-directory-name "Git repository directory: "
+          (git-tools--default-directory) nil t)
+    (if current-prefix-arg
+      (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
+             git-tools--author-sort-options))
+      'lines)))
+
 ;;;###autoload
-(defun git-tools-authors-insert (&optional directory sort)
-  "List all unique authors for DIRECTORY.
-Each email appears once (deduplicated by email), shown as
-\"email (name)\". Results are annotated with total lines changed
-(added+deleted) in commits touching files within DIRECTORY, and
-displayed in a new, uniquely-named buffer each time this is called.
+(defun git-tools-authors-insert (&optional directory sort files)
+  "Insert the top 5 merged authors for DIRECTORY's git change list.
+Changed files (FILES when supplied, otherwise the current change
+list) are grouped into unique path prefixes: one component past the
+longest prefix shared by every changed file.  A sibling directory
+that contains only one changed file is still kept.
+
+The top 5 authors of each prefix are merged by email, summing
+added and deleted line counts, and the top 5 of that combined list
+are shown as \"email (name)\" in a new, uniquely-named buffer.
 SORT is a symbol selecting the sort key and direction; see
 `git-tools--normalize-sort'."
-  (interactive
-    (list (read-directory-name "Git repository directory: "
-            (git-tools--default-directory) nil t)
-      (if current-prefix-arg
-          (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
-                      git-tools--author-sort-options))
-        'lines)))
+  (interactive (git-tools--authors-interactive-args))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
           (sort-key (git-tools--normalize-sort sort))
-          (entries (when resolved
-                     (git-tools--sorted-author-weights resolved sort-key))))
+          (pair (and resolved
+                  (git-tools--change-prefixes-for-authors resolved files)))
+          (prefixes (cdr pair))
+          (weights (and pair
+                     (git-tools--merged-change-author-weights
+                       resolved sort-key files)))
+          (entries (take git-tools-authors-top-n
+                     (git-tools--author-display-entries weights))))
     (if (null entries)
       (message "No authors found or not a git repository: %s" target-dir)
       (let ((buf (generate-new-buffer
@@ -927,36 +1136,48 @@ SORT is a symbol selecting the sort key and direction; see
                      (abbreviate-file-name resolved)))))
         (with-current-buffer buf
           (insert (format "Authors in: %s\n" (abbreviate-file-name resolved)))
-          (insert (format "(sorted by %s)\n" (git-tools--author-sort-label sort-key)))
+          (insert (format "Change path prefixes: %s\n"
+                    (mapconcat #'identity prefixes ", ")))
+          (insert (format "Top %d authors (sorted by %s)\n"
+                    git-tools-authors-top-n
+                    (git-tools--author-sort-label sort-key)))
           (insert (make-string 40 ?=) "\n")
           (dolist (entry entries)
             (insert (format "%-50s %6d lines\n"
-                      (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
-                      (plist-get (cdr entry) :lines))))
+                      (car entry) (cdr entry))))
           (goto-char (point-min))
           (read-only-mode 1)
           (pop-to-buffer buf))))))
 
 ;;;###autoload
-(defun git-tools-authors-list (&optional directory sort)
-  "Return a list of (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
+(defun git-tools-authors-list (&optional directory sort files)
+  "Return the top 5 authors as (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
 AUTHOR-STRING is \"email (name)\", with each author deduplicated by
-email (using the most recent display name). Sorted according to
-SORT, a symbol selecting the sort key and direction; see
-`git-tools--normalize-sort'. When called interactively, also prints
-the authors and summary in the echo area."
-  (interactive
-    (list (read-directory-name "Git repository directory: "
-            (git-tools--default-directory) nil t)
-      (if current-prefix-arg
-          (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
-                      git-tools--author-sort-options))
-        'lines)))
+email using the most recent display name.
+
+Changed files (FILES when supplied, otherwise the current git
+change list) are grouped into unique path prefixes: one component
+past the longest prefix shared by every changed file.  A sibling
+directory that contains only one changed file is still kept.
+
+The top 5 authors of each prefix, sorted by SORT, are merged by
+email, summing line counts, and the top 5 of that combined list
+are returned.  SORT is a symbol selecting the sort key and
+direction; see `git-tools--normalize-sort'.  When called
+interactively, also prints the authors and summary in the echo
+area."
+  (interactive (git-tools--authors-interactive-args))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
           (sort-key (git-tools--normalize-sort sort))
-          (entries (when resolved
-                     (git-tools--sorted-author-weights resolved sort-key))))
+          (pair (and resolved
+                  (git-tools--change-prefixes-for-authors resolved files)))
+          (prefixes (cdr pair))
+          (weights (and pair
+                     (git-tools--merged-change-author-weights
+                       resolved sort-key files)))
+          (entries (take git-tools-authors-top-n
+                     (git-tools--author-display-entries weights))))
     (if (null entries)
       (progn
         (message "No authors found or not a git repository: %s" target-dir)
@@ -964,19 +1185,15 @@ the authors and summary in the echo area."
       (when (called-interactively-p 'interactive)
         (let ((lines (mapconcat
                        (lambda (entry)
-                         (format "%-50s %6d lines"
-                           (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
-                           (plist-get (cdr entry) :lines)))
+                         (format "%-50s %6d lines" (car entry) (cdr entry)))
                        entries "\n")))
-          (message "Authors in %s (%d found, sorted by %s):\n%s"
+          (message "Authors in %s [%s] (%d found, sorted by %s):\n%s"
             (abbreviate-file-name resolved)
+            (mapconcat #'identity prefixes ", ")
             (length entries)
             (git-tools--author-sort-label sort-key)
             lines)))
-      (mapcar (lambda (entry)
-                (cons (git-tools--author-display (plist-get (cdr entry) :name) (car entry))
-                      (plist-get (cdr entry) :lines)))
-        entries))))
+      entries)))
 
 ;;;###autoload
 (defun git-tools-commit-amend-no-edit ()
