@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 11, 2026
+;; Modified: September 14, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -574,129 +574,6 @@ Works even when the subtree is folded."
       (jira-todo--replace-heading-text new))
     count))
 
-(defun jira-todo--file-parent-directory (file)
-  "Return FILE's parent directory relative to the repo, or \".\"."
-  (let ((dir (file-name-directory file)))
-    (if (or (null dir) (string-empty-p dir))
-      "."
-      (directory-file-name dir))))
-
-(defconst jira-todo--project-markers
-  '("Cargo.toml" "go.mod" "package.json" "pyproject.toml"
-     "pom.xml" "build.gradle" "build.gradle.kts" "mix.exs"
-     "Gemfile" "composer.json")
-  "Filenames that mark a project directory for PTAL author lookup.")
-
-(defun jira-todo--project-marker-in-directory-p (dir)
-  "Return non-nil if DIR contains a `jira-todo--project-markers' file."
-  (cl-some (lambda (name)
-             (file-exists-p (expand-file-name name dir)))
-    jira-todo--project-markers))
-
-(defun jira-todo--project-directory-for-file (file root)
-  "Return the repo-relative project directory for FILE under ROOT.
-
-Walks from FILE's parent toward ROOT and stops at the nearest
-directory that contains a `jira-todo--project-markers' file
-\(so a crate Cargo.toml wins over a workspace Cargo.toml).  When
-no marker is found, FILE's parent directory is used."
-  (let* ((root (file-name-as-directory (expand-file-name root)))
-          (full (expand-file-name file root))
-          (dir (file-name-directory full))
-          found)
-    (while (and dir (not found)
-             (string-prefix-p root
-               (file-name-as-directory (expand-file-name dir))))
-      (if (jira-todo--project-marker-in-directory-p dir)
-        (setq found dir)
-        (let ((parent (file-name-directory (directory-file-name dir))))
-          (setq dir (and parent
-                      (not (string= (file-name-as-directory parent)
-                             (file-name-as-directory dir)))
-                      parent)))))
-    (if (not found)
-      (jira-todo--file-parent-directory file)
-      (let ((rel (directory-file-name (file-relative-name found root))))
-        (if (or (string= rel ".") (string-empty-p rel)
-              (string-prefix-p ".." rel))
-          "."
-          rel)))))
-
-(defun jira-todo--author-directories-for-files (files root)
-  "Return project directories covering FILES under ROOT.
-
-Each file is assigned to `jira-todo--project-directory-for-file'.
-When several projects are touched, keep only those with the
-highest changed-file count so an incidental extra crate cannot
-dominate the PTAL ranking."
-  (let ((files (cl-remove-if (lambda (f)
-                               (or (not (stringp f)) (string-empty-p f)))
-                 files))
-         (counts (make-hash-table :test #'equal)))
-    (dolist (file files)
-      (let ((dir (jira-todo--project-directory-for-file file root)))
-        (puthash dir (1+ (or (gethash dir counts) 0)) counts)))
-    (let (alist)
-      (maphash (lambda (dir n) (push (cons dir n) alist)) counts)
-      (when alist
-        (let ((max-count (apply #'max (mapcar #'cdr alist))))
-          (mapcar #'car
-            (cl-remove-if-not (lambda (p) (= (cdr p) max-count)) alist)))))))
-
-(defun jira-todo--common-prefix-components (lists)
-  "Return the shared leading components of LISTS of strings."
-  (when lists
-    (let* ((min-len (apply #'min (mapcar #'length lists)))
-            (i 0)
-            (done nil))
-      (while (and (not done) (< i min-len))
-        (let ((elt (nth i (car lists))))
-          (if (cl-every (lambda (lst) (string= (nth i lst) elt)) (cdr lists))
-            (setq i (1+ i))
-            (setq done t))))
-      (cl-subseq (car lists) 0 i))))
-
-(defun jira-todo--group-files-by-first-component (files)
-  "Group FILES by their first path component."
-  (let ((table (make-hash-table :test #'equal))
-         groups)
-    (dolist (file files)
-      (let ((key (or (car (split-string file "/" t)) ".")))
-        (puthash key (cons file (gethash key table)) table)))
-    (maphash (lambda (_key grouped)
-               (push (nreverse grouped) groups))
-      table)
-    groups))
-
-(defun jira-todo--common-parent-directories (files)
-  "Return common parent directories covering FILES.
-
-If FILES share a directory prefix, return that directory.  Otherwise
-split by first path component and recurse so each cluster is passed
-to `git-tools-authors-list' independently."
-  (let ((files (cl-remove-if (lambda (f)
-                               (or (not (stringp f)) (string-empty-p f)))
-                 files)))
-    (cond
-      ((null files) nil)
-      ((= (length files) 1)
-        (list (jira-todo--file-parent-directory (car files))))
-      (t
-        (let* ((parts (mapcar (lambda (f) (split-string f "/" t)) files))
-                (prefix (jira-todo--common-prefix-components parts)))
-          (cond
-            ((and prefix
-               (cl-some (lambda (p) (> (length p) (length prefix))) parts))
-              (list (string-join prefix "/")))
-            ((and prefix
-               (cl-every (lambda (p) (= (length p) (length prefix))) parts))
-              (list (jira-todo--file-parent-directory (car files))))
-            (t
-              (cl-delete-duplicates
-                (mapcan #'jira-todo--common-parent-directories
-                  (jira-todo--group-files-by-first-component files))
-                :test #'string=))))))))
-
 (defun jira-todo--username-from-email (email)
   "Return a git/GitHub username derived from EMAIL."
   (let ((local (car (split-string email "@"))))
@@ -994,10 +871,11 @@ ignored)."
 (defun jira-todo--ptal-reviewer-line ()
   "Return the merged PTAL reviewer line, or nil if none.
 
-Top 5 git authors for the project (crate) with the most changed
-files come first, formatted via `jira-todo--format-ptal-mention'.
-Display names from `jira-todo-pr-reviewers' are appended when
-they are not already present."
+Top 5 git authors from the change-path prefixes of files changed
+versus main come first, formatted via
+`jira-todo--format-ptal-mention'.  Display names from
+`jira-todo-pr-reviewers' are appended when they are not already
+present."
   (let* ((authors (condition-case err
                     (jira-todo--top-authors-for-changed-dirs 5)
                     (error
@@ -1010,21 +888,6 @@ they are not already present."
     (when merged
       (jira-todo--apply-email-map-to-text
         (mapconcat #'identity merged " ")))))
-
-(defun jira-todo--existing-authors-directory (dir root)
-  "Return DIR under ROOT if it exists, else the nearest existing ancestor."
-  (let* ((root (file-name-as-directory (expand-file-name root)))
-          (dir (if (string= dir ".")
-                 root
-                 (file-name-as-directory (expand-file-name dir root)))))
-    (while (and dir
-             (not (file-directory-p dir))
-             (not (string= dir root))
-             (string-prefix-p root dir))
-      (setq dir (file-name-as-directory
-                  (file-name-directory (directory-file-name dir)))))
-    (when (file-directory-p dir)
-      dir)))
 
 (defun jira-todo--changed-files-against-main (&optional root branch)
   "Return files changed on BRANCH versus the main-branch merge-base.
@@ -1051,48 +914,34 @@ resolved, fall back to HEAD (`MAIN...')."
         (split-string (buffer-string) "\0" t)))))
 
 (defun jira-todo--top-authors-for-changed-dirs (&optional limit)
-  "Return the top LIMIT git author strings for changed-file projects.
+  "Return the top LIMIT git author strings for changed-file path prefixes.
 
 LIMIT defaults to 5.  Files from `jira-todo--changed-files-against-main'
-are grouped by nearest project directory (crate Cargo.toml, go.mod,
-package.json, ...).  When more than one project is touched, only the
-project(s) with the most changed files are used, so a one-file
-sidecar crate cannot rank authors from a sibling workspace.
+are grouped by `git-tools--change-path-prefixes': one component past
+the longest prefix shared by every changed file, including a sibling
+directory that contains only one changed file.
 
-Calls `git-tools-authors-list' (default sort: lines changed,
-descending) on each kept directory, merges aliases of the same
-person, drops the current git user, then returns the top LIMIT
-author strings in that order."
+`git-tools--merged-change-author-weights' takes the top 5 authors of
+each prefix, merges those lists by email and line count, then this
+function merges aliases of the same person, drops the current git
+user, and returns the top LIMIT author strings in that order."
   (let* ((limit (or limit 5))
           (default-directory (jira-todo--git-directory))
           (files (jira-todo--changed-files-against-main default-directory))
-          (dirs (jira-todo--author-directories-for-files
-                  files default-directory))
-          (merged (make-hash-table :test #'equal)))
-    (dolist (dir dirs)
-      (when-let* ((abs (jira-todo--existing-authors-directory
-                         dir default-directory))
-                   (dir-authors (git-tools-authors-list abs)))
-        (dolist (entry dir-authors)
-          (let* ((author (car entry))
-                  (lines (cdr entry))
-                  (prev (gethash author merged)))
-            (puthash author (+ lines (or prev 0)) merged)))))
-    (let (alist)
-      (maphash (lambda (author lines)
-                 (push (cons author lines) alist))
-        merged)
-      (setq alist
-        (jira-todo--exclude-self-authors
-          (jira-todo--merge-author-line-counts alist)
-          default-directory))
-      (setq alist
-        (sort alist
-          (lambda (a b)
-            (if (= (cdr a) (cdr b))
-              (string-lessp (car a) (car b))
-              (> (cdr a) (cdr b))))))
-      (mapcar #'car (cl-subseq alist 0 (min limit (length alist)))))))
+          (entries (git-tools--author-display-entries
+                     (git-tools--merged-change-author-weights
+                       default-directory 'lines files))))
+    (setq entries
+      (jira-todo--exclude-self-authors
+        (jira-todo--merge-author-line-counts entries)
+        default-directory))
+    (setq entries
+      (sort entries
+        (lambda (a b)
+          (if (= (cdr a) (cdr b))
+            (string-lessp (car a) (car b))
+            (> (cdr a) (cdr b))))))
+    (mapcar #'car (cl-subseq entries 0 (min limit (length entries))))))
 
 (defun jira-todo--ptal-replacement-line (line reviewers)
   "Return LINE rewritten with REVIEWERS, or nil to leave LINE unchanged."
@@ -1215,7 +1064,7 @@ already-filled PR URL in the heading is reused and is not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
 authors from `git-tools-authors-list' (default order: lines
-changed) called on the nearest project/crate of files from
+changed), merged across unique change-path prefixes of files from
 `git diff --name-only MAIN...BRANCH'.  BRANCH is the heading
 Branch field when present (local, else origin/BRANCH after fetch);
 otherwise HEAD.  Git Directory is optional: the heading field if
