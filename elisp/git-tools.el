@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: September 9, 2026
+;; Modified: September 14, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -40,7 +40,12 @@
 ;; Cache: (ROOT . (NAME . EMAIL))
 (defvar git-tools-git-identity-cache (make-hash-table :test #'equal))
 
-(defvar git-tools-review-home nil)
+(defvar git-tools-review-home nil
+  "Override directory for review commands, or nil for the current git project.
+When set to a non-empty string, `git-tools-review-directory' and
+`git-tools-review-start' use this path instead of
+`git-tools--project-root'.  Typically set from the
+GIT_TOOLS_REVIEW_HOME environment variable.")
 
 (defun git-tools--project-root ()
   "Return the root directory of the current git project, or nil if none.
@@ -236,6 +241,41 @@ When called interactively, also display the result in the echo area."
                  (format "Main branch: %s" branch)
                  "No main branch found")))
     branch))
+
+;;;###autoload
+(defun git-tools-commits-ahead-of-main (&optional dir branch)
+  "Return how many commits BRANCH is ahead of the main branch in DIR.
+DIR defaults to `default-directory'.  BRANCH defaults to the current
+branch in DIR.  The comparison base is `git-tools-main-branch-name'
+\(typically `main' or `master').
+Return 0 if BRANCH is the main branch, or if the count cannot be
+determined.
+When called interactively, also display the result in the echo area."
+  (interactive)
+  (let* ((default-directory (file-name-as-directory
+                              (or dir default-directory)))
+          (main (git-tools-main-branch-name default-directory))
+          (branch (or branch
+                    (git-tools-current-branch-name default-directory)))
+          (git (executable-find "git"))
+          (count
+            (cond
+              ((not (and git main branch)) nil)
+              ((string= main branch) 0)
+              (t
+                (with-temp-buffer
+                  (when (zerop (call-process git nil t nil
+                                 "rev-list" "--count"
+                                 (format "%s..%s" main branch)))
+                    (string-to-number (string-trim (buffer-string)))))))))
+    (when (called-interactively-p 'interactive)
+      (cond
+        ((and count main branch)
+          (message "%s is %d commit%s ahead of %s"
+            branch count (if (= count 1) "" "s") main))
+        (t
+          (message "Could not determine commits ahead of main"))))
+    (or count 0)))
 
 ;;;###autoload
 (defun git-tools-branch-p (branch &optional dir)
@@ -953,7 +993,11 @@ the authors and summary in the echo area."
 
 ;;;###autoload
 (defun git-tools-review-directory ()
-  "Return the effective git working directory for review."
+  "Return the effective git working directory for review commands.
+If `git-tools-review-home' is a non-empty string, expand and use
+that path.  Otherwise use `git-tools--project-root', falling back
+to `default-directory'.
+When called interactively, also display the result in the echo area."
   (interactive)
   (let ((dir (file-name-as-directory
                (or (and (stringp git-tools-review-home)
