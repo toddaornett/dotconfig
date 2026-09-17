@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 14, 2026
+;; Modified: September 18, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -65,6 +65,18 @@
 (defcustom jira-todo-git-directory
   (or (getenv "JIRA_TODO_GIT_DIRECTORY") "~/Projects")
   "Directory for creating git branch from todo."
+  :type 'string
+  :group 'jira-todo)
+
+(defcustom jira-todo-peer-code-review-home
+  (or (getenv "JIRA_TODO_PEER_CODE_REVIEW_HOME") "~/Review")
+  "Directory for creating peer code review git branch from todo."
+  :type 'string
+  :group 'jira-todo)
+
+(defcustom jira-todo-peer-code-review-prefix
+  (or (getenv "JIRA_TODO_PEER_CODE_REVIEW_PREFIX") "")
+  "Prefix to append after TODO text for a peer code review task."
   :type 'string
   :group 'jira-todo)
 
@@ -268,21 +280,29 @@ once, the first occurrence wins."
             (push (cons label value) fields)))))
     (nreverse fields)))
 
+(defun jira-todo--insert-todo-entry (text)
+  "Insert TEXT as a new TODO entry above the first sibling TODO.
+
+Leave point on the inserted heading.  Signal unless the current
+buffer is in `org-mode', because TEXT is inserted as a heading."
+  (unless (derived-mode-p 'org-mode)
+    (user-error "Must be called from an org-mode TODO"))
+  (jira-todo--smart-open-line-above)
+  (let ((start (point)))
+    (insert text)
+    (goto-char start)
+    (org-back-to-heading t))
+  (when (fboundp 'evil-force-normal-state)
+    (evil-force-normal-state))
+  text)
+
 (defun jira-todo--insert-output (data)
   "Insert formatted `org-mode' TODO for JIRA DATA at point in the current buffer."
-  (let ((output (jira-todo--format-output data))
-         (buf (current-buffer)))
-    (with-current-buffer buf
-      (jira-todo--smart-open-line-above)
-      (let ((start (point)))
-        (insert output)
-        (goto-char start)
-        (org-back-to-heading t)))
+  (let ((output (jira-todo--format-output data)))
+    (jira-todo--insert-todo-entry output)
     (let* ((fields (jira-todo--parse-labeled-fields output))
             (branch (cdr (assoc "Branch" fields)))
             (title (cdr (assoc "Title" fields))))
-      (when (fboundp 'evil-force-normal-state)
-        (evil-force-normal-state))
       (cond
         ((or (null branch) (string-empty-p branch))
           (message "You must manually create branch, could not identify name."))
@@ -727,7 +747,7 @@ next `@' so names such as \"@Xin Tang\" stay intact."
   "Split REVIEWERS into display-name tokens.
 
 REVIEWERS defaults to `jira-todo--effective-pr-reviewers'
-(`PULL_REQUEST_REVIEWERS' / `GITHUB_PULL_REQUEST_REVIEWERS').
+\(`PULL_REQUEST_REVIEWERS' / `GITHUB_PULL_REQUEST_REVIEWERS').
 Names may be separated by commas and/or `@' mentions.  Each
 token is trimmed.  Emails are rewritten via
 `jira-todo-github-user-map' when present."
@@ -814,7 +834,7 @@ and the email local-part (plus-tags and case ignored)."
   (cl-some (lambda (k) (member k b)) a))
 
 (defun jira-todo--choose-author-string (a a-lines b b-lines)
-  "Pick a representative author string from A and B.
+  "Pick a representative author string from A A-LINES and B B-LINES.
 Prefer a mapped PTAL email; otherwise the string with more lines."
   (let ((a-mapped (jira-todo--mapped-display-name (jira-todo--author-email a)))
          (b-mapped (jira-todo--mapped-display-name (jira-todo--author-email b))))
@@ -1003,7 +1023,7 @@ included.  Prompt and PR Text blocks are ignored."
       (mapconcat #'identity (nreverse body) "\n"))))
 
 (defun jira-todo--copy-messaging-section (&optional text)
-  "Copy the Teams/Slack `--begin--'/`--end--' body to the kill ring.
+  "Copy the Teams/Slack `--begin--'/`--end--' and optional TEXT to kill ring.
 Return the copied text, or nil if no such section exists."
   (when-let* ((body (jira-todo--messaging-section-body text)))
     (kill-new body)
@@ -1043,14 +1063,21 @@ If INPUT is not provided, prompt interactively."
                   (and (not (called-interactively-p 'any)) nil)
                   (read-string "JIRA issue (URL, key, or number): ")))
           (key (jira-todo--parse-input input))
-          (rest-url (jira-todo--key-to-rest-url key)))
+          (rest-url (jira-todo--key-to-rest-url key))
+          ;; The response callback runs in whichever buffer is current
+          ;; when it fires, so pin the buffer the TODO belongs to.
+          (buf (current-buffer)))
     (request rest-url
       :headers `(("Accept"        . "application/json")
                   ("Authorization" . ,(jira-todo--auth-header)))
       :parser #'json-read
       :success (cl-function
                  (lambda (&key data &allow-other-keys)
-                   (jira-todo--insert-output data)))
+                   (if (buffer-live-p buf)
+                     (with-current-buffer buf
+                       (jira-todo--insert-output data))
+                     (message "JIRA %s fetched, but buffer %s no longer exists"
+                       key buf))))
       :error (cl-function
                (lambda (&key error-thrown &allow-other-keys)
                  (message "Error fetching JIRA ticket: %S" error-thrown))))))
@@ -1088,6 +1115,36 @@ text between `--begin--' and `--end--' to the kill ring."
       (if (zerop ptal-count) " (heading not rewritten)" "")
       (if copied " (copied Teams/Slack message)" ""))
     count))
+
+;;;###autoload
+(defun jira-todo-insert-peer-code-review-task ()
+  "Insert a TODO for a peer code review task, then start the review.
+
+The pull request URL is taken from the system clipboard and must be
+a non-JIRA http(s) GitHub pull request URL; otherwise nothing is
+inserted and this signals.  `jira-todo-peer-code-review-home' must
+name an existing directory; otherwise this signals.
+
+`git-tools-review-home' is then set to
+`jira-todo-peer-code-review-home' and `git-tools-review-start'
+resets and cleans that working tree, checks out the pull request's
+head branch, and replaces the kill ring with the review prompt."
+  (interactive)
+  (let ((url (or (jira-todo--clipboard-pr-url)
+               (user-error "Clipboard does not hold a pull request URL")))
+         (home (and (stringp jira-todo-peer-code-review-home)
+                 (not (string-empty-p jira-todo-peer-code-review-home))
+                 (expand-file-name jira-todo-peer-code-review-home))))
+    (unless (git-tools--github-pr-number url)
+      (user-error "Not a GitHub pull request URL: %s" url))
+    (unless home
+      (user-error "Please set jira-todo-peer-code-review-home"))
+    (unless (file-directory-p home)
+      (user-error "Review directory does not exist: %s" home))
+    (jira-todo--insert-todo-entry
+      (format "*** TODO %s: %s" jira-todo-peer-code-review-prefix url)))
+  (setq git-tools-review-home jira-todo-peer-code-review-home)
+  (git-tools-review-start))
 
 (provide 'jira-todo)
 ;;; jira-todo.el ends here
