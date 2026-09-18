@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: September 18, 2026
+;; Modified: September 19, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -1359,7 +1359,8 @@ In that repo:
                       (format "to be merged into %s " (git-tools-main-branch-name default-directory))
                       (format "and start with a simple Approve 'Yes' or 'No' and ")
                       (format "if not approved, provide concise list of critical problems. ")
-                      (format "Also provide a short list of a few comments for improvement if applicable."))))
+                      (format "Also provide a short list of a few comments for improvement if applicable. ")
+                      (format "If possible, include filenames and line numbers for the problem and improvement lists."))))
       (magit-run-git "fetch" "origin"
         (format "pull/%s/head:%s" pr-number review-branch))
       (magit-run-git "checkout" review-branch)

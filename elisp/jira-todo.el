@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 18, 2026
+;; Modified: September 19, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -1142,7 +1142,7 @@ head branch, and replaces the kill ring with the review prompt."
     (unless (file-directory-p home)
       (user-error "Review directory does not exist: %s" home))
     (jira-todo--insert-todo-entry
-      (format "*** TODO %s: %s" jira-todo-peer-code-review-prefix url))
+      (format "*** TODO %s: Review PR %s" jira-todo-peer-code-review-prefix url))
     (unwind-protect
       (progn
         (setq git-tools-review-home jira-todo-peer-code-review-home)
