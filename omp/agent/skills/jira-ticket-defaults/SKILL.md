@@ -2,11 +2,12 @@
 name: jira-ticket-defaults
 description: >-
   Apply the Phoenix ENG ticket defaults that are required on every newly created
-  Jira issue — Story Points set to the agent's estimate, Sprint defaulted to the
-  current active sprint, and RnD Lead set to the team's configured lead. Use
-  whenever creating, filing, or drafting a Jira ticket / ENG issue, after
-  /draft-jira-tickets or atlassian jira-create.ts, and when backfilling missing
-  Story Points, Sprint, or RnD Lead on an existing ENG ticket.
+  Jira issue — Story Points set to the agent's estimate, Assignee set to the
+  authenticated Jira user, Sprint defaulted to the current active sprint, and RnD
+  Lead set to the team's configured lead. Use whenever creating, filing, or
+  drafting a Jira ticket / ENG issue, after /draft-jira-tickets or atlassian
+  jira-create.ts, and when backfilling a missing Assignee, Story Points, Sprint,
+  or RnD Lead on an existing ENG ticket.
 allowed-tools:
   - Bash
   - Read
@@ -18,16 +19,21 @@ Supplement to `/jira-issues` and `/draft-jira-tickets`: those cover **content** 
 **lifecycle**. This skill covers the **fields** that must be populated at creation
 time and are easy to forget.
 
-Three defaults are mandatory on every ticket an agent creates or files:
+Four defaults are mandatory on every ticket an agent creates or files:
 
 1. **Story Points** — the agent's own estimate. Never left empty, never `TBD`, never `0`.
-2. **Sprint** — the current active sprint (by default). Overridable, never silently skipped.
-3. **RnD Lead** — the team's lead (`leadName` / `leadAccountId` in `config.json`),
+2. **Assignee** — the authenticated Jira user. Resolved live as `me`, never configured.
+3. **Sprint** — the current active sprint (by default). Overridable, never silently skipped.
+4. **RnD Lead** — the team's lead (`leadName` / `leadAccountId` in `config.json`),
    unless a team or the user names someone else.
 
-`jira-create.ts` from the `atlassian` skill cannot set custom fields, so creation is
-two steps: **create, then finalize**. Run the finalize step in the same turn as the
-create — a ticket left without points/sprint/lead is an unfinished task.
+`jira-create.ts` from the `atlassian` skill cannot set custom fields or an assignee, so
+creation is two steps: **create, then finalize**. Run the finalize step in the same turn
+as the create — a ticket left without points/assignee/sprint/lead is an unfinished task.
+
+Assignment is the rule agents drop most often, because it looks like a manual step and no
+error surfaces when it is missed. It is not a manual step: `--assignee me` is the default
+of the finalize command below.
 
 ## Configuration — `config.json` (machine-local, gitignored)
 
@@ -62,6 +68,11 @@ resolves every configured id back to a live field name via `/rest/api/3/field` a
 **refuses to run** if a name does not match `expectedNames`, so a silent mis-write
 is impossible.
 
+**The assignee is deliberately not in `config.json`.** Its default is `me`, which the
+script resolves with `GET /rest/api/3/myself` — the account behind the API token in
+`~/.local/secrets/atlassian.env`. Your own name and accountId never belong in a config
+file; rotating the token moves the default with it.
+
 ## Workflow
 
 ```bash
@@ -74,18 +85,20 @@ bun run ~/.config/omp/agent/skills/jira-ticket-defaults/scripts/finalize-ticket.
   ENG-16527 --points 2
 ```
 
-Step 2 is required for **every** issue type, including Bug: the ENG Bug create
-screen has no Sprint / Story Points / RnD Lead fields, so those are only settable
-after creation (they are editable post-create; the script checks `editmeta` first).
+Step 2 is required for **every** issue type, including Bug: `jira-create.ts` sets
+neither custom fields nor the assignee, so Story Points, Sprint and RnD Lead are
+only settable after creation (they are editable post-create; the script checks
+`editmeta` first).
 
-Backfill uses the same command — an existing ticket created without points or
-sprint is fixed the same way.
+Backfill uses the same command — an existing ticket created without points, an
+assignee, or a sprint is fixed the same way.
 
 ### Options
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--points <n>` | **required** | Story points estimate; refuses to run without it |
+| `--assignee <v>` | `me` | `me` = the authenticated Jira user, resolved live from the token; `<accountId>` = someone else; `none` = leave alone |
 | `--sprint <v>` | `current` | `current` = active sprint of `--board`; `<sprintId>` = explicit; `none` = leave alone |
 | `--lead <v>` | `default` | `default` = `leadName` from config; `<accountId>` = someone else; `none` = leave alone |
 | `--board <id>` | `boardId` from config | Board whose active sprint counts as "the current sprint" |
@@ -94,10 +107,13 @@ sprint is fixed the same way.
 The script writes once, then **reads the issue back and compares**. It exits
 non-zero if a field it attempted did not land. Fields absent from that issue's
 edit screen (for example Story Points on a Sub-task) are reported as skipped
-rather than failed; Story Points, being mandatory, are a hard failure.
+rather than failed; Story Points and the Assignee, being mandatory, are hard
+failures — an unassignable account stops the run instead of leaving the ticket
+unassigned. Pass `--assignee none` for a ticket that must keep its current assignee.
 
 Report the resulting id → name mapping table in your answer (e.g.
-`customfield_XXXXX → "Story Points"`) so the user can verify nothing drifted.
+`customfield_XXXXX → "Story Points"`, plus `assignee → "Assignee"`) so the user can
+verify nothing drifted.
 
 ## Estimation rubric
 
@@ -116,6 +132,8 @@ so keep the two in sync:
 
 Rules:
 
+- Assign the ticket to me. That is `--assignee me`, the default of the finalize
+  command — it is applied by the script, not by a manual Jira edit afterwards.
 - Estimate in the same turn as filing; state the number and a one-line rationale.
 - Between two values, take the **higher** and say so.
 - If the honest estimate is `8` or more, say that the ticket should be split rather
@@ -138,6 +156,10 @@ Default source: the single `state=active` sprint of the `boardId` board in
 
 - Filing a ticket and "adding points later" — they never get added; the board's
   capacity math depends on them.
+- Filing a ticket and assigning it later, or "in the UI" — nothing surfaces the gap;
+  the assignee is part of the finalize step, and `jira-create.ts` never sets it.
+- Storing your own display name or accountId in `config.json`: `me` is resolved from
+  the API token, so the default follows the token instead of drifting from it.
 - Passing a sprint id guessed from an old ticket: sprint ids roll over, and a stale
   id puts the work in a closed sprint.
 - Setting RnD Lead to a reactivated or renamed account without resolving the
