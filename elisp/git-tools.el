@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: September 14, 2026
+;; Modified: September 18, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -287,6 +287,17 @@ the corresponding origin remote-tracking branch."
     (or (magit-branch-p branch)
       (magit-branch-p (concat "origin/" branch)))))
 
+(defun git-tools-normalize-branch-name (branch)
+  "Return BRANCH with every `_' followed by dashes collapsed to `_'.
+
+Branch names built by joining a ticket key and a summary with `_'
+keep a leading `-' from the summary when it begins with a
+non-alphanumeric character, as bracketed ticket prefixes do
+(\"[ENG-1234] Fix thing\" yields \"ENG-1234_-fix-thing\").
+Collapsing the `_-+' run gives \"ENG-1234_fix-thing\".  BRANCH is
+otherwise returned unchanged."
+  (replace-regexp-in-string "_-+" "_" branch))
+
 ;;;###autoload
 (defun git-tools-branch-create-from-main (branch &optional dir)
   "Create BRANCH with starting point at main for repo in DIR.
@@ -294,6 +305,10 @@ DIR defaults to `default-directory' when nil.  If the
 resulting directory is not a git repository, prompt for one
 via `git-tools--ensure-project-directory' (see that function
 for caching behavior).
+
+BRANCH is passed through `git-tools-normalize-branch-name', so a
+branch whose name carries a `_'-`-' run is created with `_'
+separators instead.
 
 If BRANCH already exists locally or as origin/BRANCH, do not
 create it again; return nil after messaging.  Otherwise return
@@ -304,25 +319,33 @@ unstaged changes.  Otherwise, update the local main branch
 from \"origin\", create BRANCH from it, and check out BRANCH."
   (interactive "sBranch name: ")
   (let* ((default-directory (git-tools--ensure-project-directory dir))
+          (requested branch)
+          (branch (git-tools-normalize-branch-name requested))
           (main-branch (git-tools-main-branch-name default-directory)))
     (unless main-branch
       (user-error "Could not determine main branch for repo in %s"
         default-directory))
-    (if (git-tools-branch-p branch default-directory)
-      (progn
+    (cond
+      ;; A branch created before normalization existed keeps the
+      ;; requested spelling; skip it rather than create a second one.
+      ((git-tools-branch-p requested default-directory)
+        (message "Branch `%s' already exists; skipping create" requested)
+        nil)
+      ((git-tools-branch-p branch default-directory)
         (message "Branch `%s' already exists; skipping create" branch)
         nil)
-      (when (magit-anything-modified-p)
+      ((magit-anything-modified-p)
         (user-error
           "Repository is not clean; commit or stash changes first"))
-      (if (equal (magit-get-current-branch) main-branch)
-        (magit-run-git "pull" "origin" main-branch)
-        (magit-run-git "fetch" "origin"
-          (format "%s:%s" main-branch main-branch)))
-      (magit-run-git "checkout" "-b" branch main-branch)
-      (message "Created and checked out `%s' from `%s'"
-        branch main-branch)
-      t)))
+      (t
+        (if (equal (magit-get-current-branch) main-branch)
+          (magit-run-git "pull" "origin" main-branch)
+          (magit-run-git "fetch" "origin"
+            (format "%s:%s" main-branch main-branch)))
+        (magit-run-git "checkout" "-b" branch main-branch)
+        (message "Created and checked out `%s' from `%s'"
+          branch main-branch)
+        t))))
 
 ;;;###autoload
 (defun git-tools-empty-commit-message (&optional message dir)
