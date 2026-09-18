@@ -288,15 +288,15 @@ the corresponding origin remote-tracking branch."
       (magit-branch-p (concat "origin/" branch)))))
 
 (defun git-tools-normalize-branch-name (branch)
-  "Return BRANCH with every `_' followed by dashes collapsed to `_'.
+  "Return BRANCH with every `_-' sequence collapsed to `_'.
 
 Branch names built by joining a ticket key and a summary with `_'
 keep a leading `-' from the summary when it begins with a
 non-alphanumeric character, as bracketed ticket prefixes do
-(\"[ENG-1234] Fix thing\" yields \"ENG-1234_-fix-thing\").
-Collapsing the `_-+' run gives \"ENG-1234_fix-thing\".  BRANCH is
+\(\"[ENG-1234] Fix thing\" yields \"ENG-1234_-fix-thing\").
+Collapsing the `_-' run gives \"ENG-1234_fix-thing\".  BRANCH is
 otherwise returned unchanged."
-  (replace-regexp-in-string "_-+" "_" branch))
+  (replace-regexp-in-string "_-" "_" branch))
 
 ;;;###autoload
 (defun git-tools-branch-create-from-main (branch &optional dir)
@@ -828,32 +828,32 @@ nil)."
       (dolist (line (split-string output "\n"))
         (cond
           ((string-prefix-p "@@@" line)
-           (let ((fields (split-string (substring line 3) "\t")))
-             (setq current-name (nth 0 fields)
-                   current-email (nth 1 fields)
-                   current-time (and (nth 2 fields)
-                                     (string-to-number (nth 2 fields)))))
-           (when current-email
-             (let ((entry (or (gethash current-email table)
-                              (list :lines 0 :first nil :last nil :name nil))))
-               (when current-time
-                 (unless (and (plist-get entry :first)
-                              (< (plist-get entry :first) current-time))
-                   (setq entry (plist-put entry :first current-time)))
-                 (unless (and (plist-get entry :last)
-                              (> (plist-get entry :last) current-time))
-                   (setq entry (plist-put entry :last current-time))
-                   (setq entry (plist-put entry :name current-name))))
-               (puthash current-email entry table))))
+            (let ((fields (split-string (substring line 3) "\t")))
+              (setq current-name (nth 0 fields)
+                current-email (nth 1 fields)
+                current-time (and (nth 2 fields)
+                               (string-to-number (nth 2 fields)))))
+            (when current-email
+              (let ((entry (or (gethash current-email table)
+                             (list :lines 0 :first nil :last nil :name nil))))
+                (when current-time
+                  (unless (and (plist-get entry :first)
+                            (< (plist-get entry :first) current-time))
+                    (setq entry (plist-put entry :first current-time)))
+                  (unless (and (plist-get entry :last)
+                            (> (plist-get entry :last) current-time))
+                    (setq entry (plist-put entry :last current-time))
+                    (setq entry (plist-put entry :name current-name))))
+                (puthash current-email entry table))))
           ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
-           (when current-email
-             (let* ((entry (or (gethash current-email table)
-                               (list :lines 0 :first nil :last nil :name nil)))
-                    (added (string-to-number (match-string 1 line)))
-                    (deleted (string-to-number (match-string 2 line))))
-               (puthash current-email
-                 (plist-put entry :lines (+ (plist-get entry :lines) added deleted))
-                 table))))))
+            (when current-email
+              (let* ((entry (or (gethash current-email table)
+                              (list :lines 0 :first nil :last nil :name nil)))
+                      (added (string-to-number (match-string 1 line)))
+                      (deleted (string-to-number (match-string 2 line))))
+                (puthash current-email
+                  (plist-put entry :lines (+ (plist-get entry :lines) added deleted))
+                  table))))))
       ;; Make sure authors with zero countable lines (e.g. only touched
       ;; binary files, or only made merge commits) still show up.
       (let ((all-authors (with-temp-buffer
@@ -864,8 +864,8 @@ nil)."
         (when all-authors
           (dolist (line (split-string all-authors "\n" t))
             (let* ((fields (split-string line "\t"))
-                   (name (nth 0 fields))
-                   (email (nth 1 fields)))
+                    (name (nth 0 fields))
+                    (email (nth 1 fields)))
               (unless (gethash email table)
                 (puthash email (list :lines 0 :first nil :last nil :name name) table))))))
       (let (result)
@@ -910,11 +910,11 @@ Accepts the symbols `lines', `name', `created-asc', `created-desc',
 
 (defconst git-tools--author-sort-options
   '(("lines changed (descending)" . lines)
-    ("author name (ascending)" . name)
-    ("first commit, oldest first" . created-asc)
-    ("first commit, newest first" . created-desc)
-    ("last commit, oldest first" . updated-asc)
-    ("last commit, newest first" . updated-desc)))
+     ("author name (ascending)" . name)
+     ("first commit, oldest first" . created-asc)
+     ("first commit, newest first" . created-desc)
+     ("last commit, oldest first" . updated-asc)
+     ("last commit, newest first" . updated-desc)))
 
 (defun git-tools--author-sort-label (sort-key)
   "Return a human-readable label for SORT-KEY."
@@ -933,19 +933,19 @@ Accepts the symbols `lines', `name', `created-asc', `created-desc',
   "Return a comparing function for author-weight alists using SORT-KEY."
   (pcase sort-key
     ('name (lambda (a b) (string-lessp (plist-get (cdr a) :name)
-                         (plist-get (cdr b) :name))))
+                           (plist-get (cdr b) :name))))
     ('created-asc (lambda (a b) (git-tools--time-asc
-                                 (plist-get (cdr a) :first)
-                                 (plist-get (cdr b) :first))))
-    ('created-desc (lambda (a b) (git-tools--time-desc
                                   (plist-get (cdr a) :first)
                                   (plist-get (cdr b) :first))))
+    ('created-desc (lambda (a b) (git-tools--time-desc
+                                   (plist-get (cdr a) :first)
+                                   (plist-get (cdr b) :first))))
     ('updated-asc (lambda (a b) (git-tools--time-asc
-                                 (plist-get (cdr a) :last)
-                                 (plist-get (cdr b) :last))))
-    ('updated-desc (lambda (a b) (git-tools--time-desc
                                   (plist-get (cdr a) :last)
                                   (plist-get (cdr b) :last))))
+    ('updated-desc (lambda (a b) (git-tools--time-desc
+                                   (plist-get (cdr a) :last)
+                                   (plist-get (cdr b) :last))))
     (_ (lambda (a b)
          (if (= (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))
            (string-lessp (plist-get (cdr a) :name)

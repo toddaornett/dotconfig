@@ -208,7 +208,7 @@ immediately above the first sibling TODO under the parent heading."
     (format "Slack:\n")
     (format "--begin--\n")
     (format ":pull_request: PTAL %s\n" jira-todo-pr-reviewers)
-    (format "PR <PR-TBD>\n")
+    (format "<PR-TBD>\n")
     (format "%s\n" summary)
     (format "--end--\n")))
 
@@ -217,9 +217,8 @@ immediately above the first sibling TODO under the parent heading."
   (concat
     (format "Teams:\n")
     (format "--begin--\n")
-    (format "PTAL PR \n")
     (format "PTAL %s\n" jira-todo-pr-reviewers)
-    (format "PR <PR-TBD>\n")
+    (format "<PR-TBD>\n")
     (format "%s\n" summary)
     (format "--end--\n")))
 
@@ -1130,8 +1129,9 @@ name an existing directory; otherwise this signals.
 resets and cleans that working tree, checks out the pull request's
 head branch, and replaces the kill ring with the review prompt."
   (interactive)
-  (let ((url (or (jira-todo--clipboard-pr-url)
-               (user-error "Clipboard does not hold a pull request URL")))
+  (let ((original-git-tools-review-home git-tools-review-home)
+         (url (or (jira-todo--clipboard-pr-url)
+                (user-error "Clipboard does not hold a pull request URL")))
          (home (and (stringp jira-todo-peer-code-review-home)
                  (not (string-empty-p jira-todo-peer-code-review-home))
                  (expand-file-name jira-todo-peer-code-review-home))))
@@ -1142,9 +1142,12 @@ head branch, and replaces the kill ring with the review prompt."
     (unless (file-directory-p home)
       (user-error "Review directory does not exist: %s" home))
     (jira-todo--insert-todo-entry
-      (format "*** TODO %s: %s" jira-todo-peer-code-review-prefix url)))
-  (setq git-tools-review-home jira-todo-peer-code-review-home)
-  (git-tools-review-start))
+      (format "*** TODO %s: %s" jira-todo-peer-code-review-prefix url))
+    (unwind-protect
+      (progn
+        (setq git-tools-review-home jira-todo-peer-code-review-home)
+        (git-tools-review-start))
+      (setq git-tools-review-home original-git-tools-review-home))))
 
 (provide 'jira-todo)
 ;;; jira-todo.el ends here
