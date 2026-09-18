@@ -285,6 +285,191 @@ EOF
   echo "  Added mise activation to $ZSH_BOOTSTRAP"
 }
 
+# --- oh-my-pi (omp) ---------------------------------------------------------
+# Config root is ~/.config/omp. PI_CONFIG_DIR is a directory name under $HOME;
+# omp relocates state/logs/caches under $XDG_*_HOME/omp only when that directory
+# already exists, which is what keeps ~/.omp from being created at all.
+OMP_CONFIG_ROOT="$HOME/.config/omp"
+OMP_AGENT_DIR="$OMP_CONFIG_ROOT/agent"
+OMP_DATA_DIR="$HOME/.local/share/omp"
+OMP_STATE_DIR="$HOME/.local/state/omp"
+OMP_CACHE_DIR="$HOME/.cache/omp"
+OMP_MARKER="oh-my-pi (omp)"
+
+ensure_omp_env_in_zshenv() {
+  # XDG_CACHE_HOME is normally exported by the same file; add it if missing,
+  # since omp needs all three XDG homes to stay out of ~/.omp.
+  grep -Fq 'export XDG_CACHE_HOME=' "$ZSHENV" 2>/dev/null ||
+    echo 'export XDG_CACHE_HOME="$HOME/.cache"' >>"$ZSHENV"
+
+  grep -Fq "$OMP_MARKER" "$ZSHENV" 2>/dev/null && return 0
+  echo "  Adding omp config root exports to $ZSHENV"
+  cat >>"$ZSHENV" <<'EOF'
+
+# oh-my-pi (omp)
+# PI_CONFIG_DIR is a directory name under $HOME: the omp config root becomes
+# ~/.config/omp (settings, models.yml, skills, rules, commands, prompts).
+# omp only honours $XDG_DATA_HOME/$XDG_STATE_HOME/$XDG_CACHE_HOME when the
+# matching "$XDG_*_HOME/omp" directory already exists, so exporting them keeps
+# state (agent.db, sessions), logs, and the native-addon cache out of ~/.omp —
+# which is why ~/.omp no longer needs to exist at all.
+# Managed by ~/.config/bootstrap.sh (omp section).
+export PI_CONFIG_DIR=".config/omp"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+EOF
+}
+
+# Move one entry into directory $2. Directory trees merge: identical files are
+# dropped, and a clashing name whose contents differ is parked as
+# <name>.legacy-<timestamp> so nothing omp wrote is ever destroyed.
+move_omp_entry() {
+  local src="$1" dst="$2" name target keep
+  name="$(basename "$src")"
+  target="$dst/$name"
+  mkdir -p "$dst"
+  if [[ ! -e "$target" ]]; then
+    if mv "$src" "$dst/"; then
+      echo "    ${src#"$HOME"/} -> ${dst#"$HOME"/}"
+    else
+      echo "  ⚠️  could not move ${src#"$HOME"/} — left in place"
+    fi
+  elif [[ -d "$src" && -d "$target" ]]; then
+    merge_omp_dir "$src" "$target"
+    rmdir "$src" 2>/dev/null || true
+  elif [[ -f "$src" && -f "$target" ]] && cmp -s "$src" "$target"; then
+    rm -f "$src"
+  else
+    keep="$dst/$name.legacy-$(date +%Y%m%d-%H%M%S)"
+    mv "$src" "$keep"
+    echo "  ⚠️  parked ${keep#"$HOME"/} (differs from ${target#"$HOME"/})"
+  fi
+}
+
+merge_omp_dir() {
+  local src="$1" dst="$2" child
+  shopt -s nullglob dotglob
+  for child in "$src"/*; do
+    move_omp_entry "$child" "$dst"
+  done
+  shopt -u nullglob dotglob
+}
+
+# One-time relocation of a legacy ~/.omp tree into the XDG-rooted layout.
+# Destinations mirror what omp resolves at runtime (packages/utils/src/dirs.ts).
+# A "<dir>/*" entry merges that directory's contents instead of nesting it.
+# Anything omp does not manage is left behind and reported.
+adopt_legacy_omp_dir() {
+  [[ -d "$HOME/.omp" ]] || return 0
+  echo "🚚 Adopting legacy ~/.omp into the XDG-rooted omp layout ..."
+
+  local legacy_map=(
+    "install-id|$OMP_CONFIG_ROOT"
+    "marketplaces.json|$OMP_DATA_DIR"
+    "plugins|$OMP_DATA_DIR"
+    "natives|$OMP_DATA_DIR"
+    "wt|$OMP_DATA_DIR"
+    "remote|$OMP_DATA_DIR"
+    "remote-host|$OMP_DATA_DIR"
+    "python-env|$OMP_DATA_DIR"
+    "browser-relay|$OMP_DATA_DIR"
+    "stats.db|$OMP_DATA_DIR"
+    "autoqa.db|$OMP_DATA_DIR"
+    "logs|$OMP_STATE_DIR"
+    "run/daemons/global|$OMP_CONFIG_ROOT/run/daemons"
+    "run/collab-hosts|$OMP_CONFIG_ROOT/run"
+    "run/daemons|$OMP_STATE_DIR/run"
+    "run/tiny|$OMP_STATE_DIR/run"
+    "run/provider-inflight|$OMP_STATE_DIR/run"
+    "security|$OMP_STATE_DIR"
+    "memories|$OMP_STATE_DIR"
+    "autoresearch|$OMP_STATE_DIR"
+    "reports|$OMP_STATE_DIR"
+    "ssh-control|$OMP_STATE_DIR"
+    "cache/*|$OMP_CACHE_DIR/cache"
+    "gpu_cache.json|$OMP_CACHE_DIR"
+    "puppeteer|$OMP_CACHE_DIR"
+    "browser-profiles|$OMP_CACHE_DIR"
+    "webcache|$OMP_CACHE_DIR"
+    "agent/config.yml|$OMP_AGENT_DIR"
+    "agent/config.yaml|$OMP_AGENT_DIR"
+    "agent/config.yml.lock|$OMP_AGENT_DIR"
+    "agent/models.yml|$OMP_AGENT_DIR"
+    "agent/.env|$OMP_AGENT_DIR"
+    "agent/mcp.json|$OMP_AGENT_DIR"
+    "agent/ssh.json|$OMP_AGENT_DIR"
+    "agent/lsp.json|$OMP_AGENT_DIR"
+    "agent/themes|$OMP_AGENT_DIR"
+    "agent/tools|$OMP_AGENT_DIR"
+    "agent/commands|$OMP_AGENT_DIR"
+    "agent/prompts|$OMP_AGENT_DIR"
+    "agent/modules|$OMP_AGENT_DIR"
+    "agent/skills|$OMP_AGENT_DIR"
+    "agent/rules|$OMP_AGENT_DIR"
+    "agent/hooks|$OMP_AGENT_DIR"
+    "agent/agent.db|$OMP_DATA_DIR"
+    "agent/agent.db-shm|$OMP_DATA_DIR"
+    "agent/agent.db-wal|$OMP_DATA_DIR"
+    "agent/history.db|$OMP_DATA_DIR"
+    "agent/history.db-shm|$OMP_DATA_DIR"
+    "agent/history.db-wal|$OMP_DATA_DIR"
+    "agent/models.db|$OMP_DATA_DIR"
+    "agent/models.db-shm|$OMP_DATA_DIR"
+    "agent/models.db-wal|$OMP_DATA_DIR"
+    "agent/sessions|$OMP_DATA_DIR"
+    "agent/blobs|$OMP_DATA_DIR"
+    "agent/cache/*|$OMP_CACHE_DIR/cache"
+    "agent/last-changelog-version|$OMP_STATE_DIR"
+    "agent/terminal-sessions|$OMP_STATE_DIR"
+    "agent/secret-placeholder.key|$OMP_STATE_DIR"
+    "agent/custom-session-files|$OMP_STATE_DIR"
+    "agent/memories|$OMP_STATE_DIR"
+    "agent/python-gateway|$OMP_STATE_DIR"
+    "agent/omp-crash.log|$OMP_STATE_DIR"
+    "agent/omp-debug.log|$OMP_STATE_DIR"
+  )
+
+  local entry src dst
+  for entry in "${legacy_map[@]}"; do
+    src="$HOME/.omp/${entry%%|*}"
+    dst="${entry#*|}"
+    if [[ "$src" == *'/*' ]]; then
+      merge_omp_dir "${src%/\*}" "$dst"
+      continue
+    fi
+    [[ -e "$src" ]] || continue
+    move_omp_entry "$src" "$dst"
+  done
+
+  # Drop directories emptied by the moves (agent/, run/, cache/, ...).
+  find "$HOME/.omp" -mindepth 1 -type d -empty -delete 2>/dev/null || true
+
+  local leftovers=()
+  shopt -s nullglob dotglob
+  leftovers=("$HOME/.omp"/*)
+  shopt -u nullglob dotglob
+
+  if ((${#leftovers[@]} > 0)); then
+    echo "  ⚠️  $HOME/.omp still holds entries omp does not manage — review, then remove it"
+  else
+    rmdir "$HOME/.omp"
+    echo "  Removed empty $HOME/.omp"
+  fi
+}
+
+ensure_omp_layout() {
+  echo "🧠 Ensuring oh-my-pi (omp) config root at $OMP_CONFIG_ROOT ..."
+  ensure_omp_env_in_zshenv
+  mkdir -p "$OMP_AGENT_DIR" "$OMP_DATA_DIR" "$OMP_STATE_DIR" "$OMP_CACHE_DIR"
+  # Adopt a legacy tree BEFORE seeding config.yml — otherwise the seeded file
+  # would already exist and the real settings would be left behind.
+  adopt_legacy_omp_dir
+  if [ ! -f "$OMP_AGENT_DIR/config.yml" ]; then
+    echo "📄 Creating oh-my-pi settings file ..."
+    printf '{}\n' >"$OMP_AGENT_DIR/config.yml"
+  fi
+}
+
 #################################
 # Detect Homebrew prefix (ARM / Intel safe)
 #################################
@@ -1126,15 +1311,11 @@ echo "🦀 Ensuring rustup rust-analyzer..."
 "$HOME/.config/todd/zsh/setup_rust.sh" --ensure
 
 #################################
-# omp configuration
+# oh-my-pi (omp) configuration
+#   Config root: ~/.config/omp   State: ~/.local/share/omp, ~/.local/state/omp
+#   Cache: ~/.cache/omp          ~/.omp is no longer used or created
 #################################
-OMP_CONFIG="$HOME/.omp/agent/config.yml"
-if [ ! -f "$OMP_CONFIG" ]; then
-  echo "📁 Creating oh-my-pi config directory ..."
-  mkdir -p "$(dirname "$OMP_CONFIG")"
-  echo "📄 Creating oh-my-pi config file ..."
-  echo "{}" >>"$OMP_CONFIG"
-fi
+ensure_omp_layout
 
 #################################
 # Install Krew if missing

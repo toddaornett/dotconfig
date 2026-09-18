@@ -17,3 +17,19 @@ doom-emacs/
 emacs
 .venv/
 homebrew/trust.json.lock
+
+# oh-my-pi (omp). Config root is ~/.config/omp; omp's state, logs, and caches
+# resolve under $XDG_*_HOME/omp (~/.local/share/omp, ~/.local/state/omp,
+# ~/.cache/omp) and never appear here. Below: artifacts omp generates on its
+# own. agent/config.yml (settings) and agent/models.yml are tracked.
+omp/install-id
+omp/.env
+omp/run/
+omp/agent/.env
+omp/agent/config.yml.lock
+omp/agent/config.yml.broken-*
+omp/agent/managed-skills/
+# Local Jira instance/team config for the jira-ticket-defaults skill. Machine
+# specific (field ids, board, lead accountId) — the skill regenerates a neutral
+# template when the file is missing, so this never needs to be committed.
+omp/agent/skills/jira-ticket-defaults/config.json
