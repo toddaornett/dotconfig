@@ -233,9 +233,9 @@ immediately above the first sibling TODO under the parent heading."
           (branch-words       (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
           (branch-compact     (replace-regexp-in-string "-+" "-" branch-words))
           (branch-trimmed     (replace-regexp-in-string "-+$" "" branch-compact))
-          (branch-normalized  (replace-regexp-in-string "_-+" "_" branch-trimmed))
-          (branch-summ        (downcase branch-normalized))
-          (branch             (format "%s_%s" key branch-summ)))
+          (branch-summ        (downcase branch-trimmed))
+          (branch             (git-tools-normalize-branch-name
+                                (format "%s_%s" key branch-summ))))
     (concat
       (format "*** TODO CR: %s %s\n" key clean-summary)
       (format "JIRA: [[%s][%s]]\n" url key)
