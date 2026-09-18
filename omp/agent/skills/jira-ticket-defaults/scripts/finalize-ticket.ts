@@ -4,6 +4,7 @@
  *
  * Sets, then verifies by read-back:
  *   - Story Points   — the agent's estimate, mandatory
+ *   - Assignee       — the authenticated caller by default (resolved live, never configured)
  *   - Sprint         — active sprint of the configured board by default
  *   - RnD Lead       — the configured lead by default
  *
@@ -12,6 +13,7 @@
  *
  * Options:
  *   --points <n>      Story points estimate (required, > 0)
+ *   --assignee <v>    me (default) | <accountId> | none
  *   --sprint <v>      current (default) | <sprintId> | none
  *   --lead <v>        config.json lead (default) | <accountId> | none
  *   --board <id>      Board used to resolve the current sprint (default: config.json)
@@ -72,6 +74,7 @@ const USAGE = `Usage: bun run scripts/finalize-ticket.ts <ISSUE-KEY> --points <n
 
 Options:
   --points <n>      Story points estimate (required, > 0; scale from config.json)
+  --assignee <v>    me (default) | <accountId> | none
   --sprint <v>      current (default) | <sprintId> | none
   --lead <v>        config.json lead (default) | <accountId> | none
   --board <id>      Board for the "current sprint" lookup (default: config.json boardId)
@@ -293,6 +296,8 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 interface Args {
   issueKey: string;
   points: number;
+  /** "me" = the authenticated caller; otherwise an accountId. */
+  assignee: string;
   sprint: string;
   lead: string;
   /** null = use config.json boardId */
@@ -359,9 +364,15 @@ function parseArgs(argv: string[]): Args {
     fail(`--sprint must be "current", "none", or a numeric sprint id (got "${sprint}")`);
   }
 
+  const assignee = flags.assignee ?? "me";
+  if (assignee.length === 0) {
+    fail(`--assignee must be "me", "none", or an accountId (got "${assignee}")`);
+  }
+
   return {
     issueKey,
     points,
+    assignee,
     sprint,
     lead: flags.lead ?? "default",
     boardId,
@@ -432,6 +443,13 @@ function describe(value: unknown): string {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+/** accountId of an actor-shaped field value (assignee, RnD Lead), or null when unset. */
+function accountIdOf(value: unknown): string | null {
+  return value !== null && typeof value === "object" && "accountId" in value
+    ? String(value.accountId)
+    : null;
 }
 
 /** Resolve a configured field id to its live name, refusing a stale or mismatched mapping. */
@@ -512,6 +530,24 @@ async function resolveLead(leadArg: string, config: SkillConfig): Promise<Actor 
   return lead;
 }
 
+/**
+ * Resolve the assignee. "me" asks Jira who the authenticated caller is, so the account
+ * is never stored in config and follows the token when it is rotated.
+ */
+async function resolveAssignee(assigneeArg: string): Promise<Actor | null> {
+  if (assigneeArg === "none") return null;
+  if (assigneeArg !== "me") return { accountId: assigneeArg };
+
+  const me = await api<Actor>("/rest/api/3/myself");
+  if (!me.accountId) {
+    fail("Jira /myself returned no accountId; pass --assignee <accountId> explicitly.");
+  }
+  if (me.active === false) {
+    fail("The authenticated Jira user is deactivated; pass --assignee <accountId> explicitly.");
+  }
+  return me;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -545,11 +581,12 @@ async function main(): Promise<void> {
   );
   const issuePath = `/rest/api/3/issue/${encodeURIComponent(args.issueKey)}`;
 
-  const issue = await api<Issue>(`${issuePath}?fields=${fieldList},summary,issuetype`);
+  const issue = await api<Issue>(`${issuePath}?fields=${fieldList},summary,issuetype,assignee`);
   const editMeta = await api<{ fields?: Record<string, unknown> }>(`${issuePath}/editmeta`);
 
   const sprint = await resolveSprint(args.sprint, boardId, args.issueKey);
   const lead = await resolveLead(args.lead, config);
+  const assignee = await resolveAssignee(args.assignee);
 
   if (!config.pointScale.includes(args.points)) {
     process.stderr.write(
@@ -560,14 +597,23 @@ async function main(): Promise<void> {
   const update: Record<string, unknown> = { [config.fields.storyPoints]: args.points };
   if (sprint) update[config.fields.sprint] = sprint.id;
   if (lead) update[config.fields.rndLead] = { accountId: lead.accountId };
+  if (assignee) update.assignee = { accountId: assignee.accountId };
 
   const editable = new Set(Object.keys(editMeta.fields ?? {}));
   const skippedIds = new Set<string>();
   for (const id of Object.keys(update)) {
-    if (!editable.has(id)) {
-      skippedIds.add(id);
-      delete update[id];
+    if (editable.has(id)) continue;
+    // The assignee is requested explicitly (by default: the caller), so it never disappears
+    // silently — an unassignable account is a configuration problem the caller must see.
+    if (id === "assignee") {
+      fail(
+        `Assignee is not editable on ${args.issueKey}: the account behind the API token lacks ` +
+          '"Assign Issues" in this project, or is not assignable there. Re-run with ' +
+          "--assignee none to skip assignment.",
+      );
     }
+    skippedIds.add(id);
+    delete update[id];
   }
 
   if (!(config.fields.storyPoints in update)) {
@@ -580,14 +626,11 @@ async function main(): Promise<void> {
 
   await api(issuePath, { method: "PUT", body: JSON.stringify({ fields: update }) });
 
-  const after = await api<Issue>(`${issuePath}?fields=${fieldList}`);
+  const after = await api<Issue>(`${issuePath}?fields=${fieldList},assignee`);
 
   const sprintAfter = describe(after.fields[config.fields.sprint]);
-  const leadAfterValue = after.fields[config.fields.rndLead];
-  const leadAfterId =
-    leadAfterValue !== null && typeof leadAfterValue === "object" && "accountId" in leadAfterValue
-      ? String(leadAfterValue.accountId)
-      : null;
+  const leadAfterId = accountIdOf(after.fields[config.fields.rndLead]);
+  const assigneeAfterId = accountIdOf(after.fields.assignee);
 
   const resolved: ResolvedField[] = [
     {
@@ -596,6 +639,13 @@ async function main(): Promise<void> {
       current: describe(issue.fields[config.fields.storyPoints]),
       next: String(args.points),
       applied: Number(after.fields[config.fields.storyPoints]) === args.points,
+    },
+    {
+      id: "assignee",
+      name: "Assignee",
+      current: describe(issue.fields.assignee),
+      next: assignee === null ? null : (assignee.displayName ?? assignee.accountId),
+      applied: assignee === null || assigneeAfterId === assignee.accountId,
     },
     {
       id: config.fields.sprint,
