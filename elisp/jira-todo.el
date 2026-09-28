@@ -576,18 +576,116 @@ When the current heading already has a PR URL, do not prompt."
              (user-error "No PR URL provided"))
            typed)))))
 
+(defun jira-todo--pr-title-via-gh (owner repo number)
+  "Return PR NUMBER's title in OWNER/REPO via the `gh' CLI, or nil."
+  (when (executable-find "gh")
+    (with-temp-buffer
+      (when (zerop (ignore-errors
+                     (call-process "gh" nil t nil
+                       "pr" "view" (format "%s" number)
+                       "--repo" (format "%s/%s" owner repo)
+                       "--json" "title"
+                       "-q" ".title")))
+        (let ((title (string-trim (buffer-string))))
+          (unless (string-empty-p title) title))))))
+
+(defun jira-todo--pr-title-via-api (owner repo number)
+  "Return PR NUMBER's title in OWNER/REPO via the GitHub REST API, or nil."
+  (condition-case nil
+    (let (result)
+      (with-current-buffer
+        (url-retrieve-synchronously
+          (format "https://api.github.com/repos/%s/%s/pulls/%s"
+            owner repo number)
+          t t 10)
+        (goto-char (point-min))
+        (when (re-search-forward "\n\n" nil t)
+          (let* ((json-object-type 'alist)
+                  (data (json-read))
+                  (title (alist-get 'title data)))
+            (when (stringp title) (setq result title))))
+        (kill-buffer))
+      result)
+    (error nil)))
+
+(defconst jira-todo--ticket-prefix-regexp
+  (concat "\\`\\(?:"
+          "\\[[A-Za-z][A-Za-z0-9 _-]*\\][ \t]*"           ; "[ENG-1234] "
+          "\\|[A-Za-z][A-Za-z0-9]*-[0-9]+[ \t]*:[ \t]*"   ; "ENG-1234: "
+          "\\)")
+  "Regexp matching one leading ticket prefix in a title or summary.
+
+Prefixes are the bracketed form (\"[ENG-1234] \") and the ticket
+key with a colon (\"ENG-1234: \"), either of which may appear more
+than once.")
+
+(defconst jira-todo--commit-type-prefix-regexp
+  (concat "\\`\\(?:"
+          "build\\|chore\\|ci\\|docs\\|feat\\|fix\\|perf\\|refactor"
+          "\\|revert\\|style\\|test"
+          "\\)\\(?:([^)]+)\\)?!?:[ \t]*")   ; "feat: ", "fix(api)!: "
+  "Regexp matching one leading conventional-commit prefix in a title.
+
+Matches a conventional-commit type followed by an optional
+parenthesised scope, an optional `!', and the `\": \"' separator,
+for example \"feat: \" or \"fix(api)!: \".")
+
+(defun jira-todo--strip-title-prefix (text)
+  "Return TEXT with any leading ticket or commit-type prefix removed.
+
+Strips every leading prefix matched by
+`jira-todo--ticket-prefix-regexp' or
+`jira-todo--commit-type-prefix-regexp', including the `\": \"'
+that separates a ticket key or commit type from the summary, and
+repeats until no prefix remains.  Surrounding whitespace is
+trimmed.  TEXT without a prefix is returned trimmed."
+  (if (not (stringp text))
+    text
+    (let ((prev nil)
+           (text (string-trim text))
+           (regexps (list jira-todo--ticket-prefix-regexp
+                          jira-todo--commit-type-prefix-regexp)))
+      (while (not (equal prev text))
+        (setq prev text)
+        (dolist (regexp regexps)
+          (setq text (replace-regexp-in-string regexp "" text))))
+      (string-trim text))))
+
+(defun jira-todo--pr-title (url)
+  "Return the summary of the pull request at URL, or nil.
+
+Tries the `gh' CLI first, then the GitHub REST API.  The PR title
+is returned with any leading ticket or conventional-commit prefix
+removed.  Returns nil when URL is not a GitHub pull-request URL,
+both lookups fail, or only a prefix was found."
+  (when-let* ((number (git-tools--github-pr-number url))
+               (owner-repo (jira-todo--pr-url-owner-repo url))
+               (owner (car owner-repo))
+               (repo (cdr owner-repo))
+               (title (or (jira-todo--pr-title-via-gh owner repo number)
+                        (jira-todo--pr-title-via-api owner repo number)))
+               (summary (jira-todo--strip-title-prefix title))
+               ((not (string-empty-p summary))))
+    summary))
+
 (defun jira-todo--replace-pr-placeholders (url)
   "Replace <PR-TBD> and <TBD> placeholders in the current org heading with URL.
+
+Each <PR-TBD> gets URL with the pull request title summary
+(ticket and conventional-commit prefixes removed) inserted on the
+next line when one can be retrieved; a bare <TBD> gets URL only.
 Return the number of replacements, which may be zero when the PR
 URL is already filled in.  Signal if point is not in an org heading.
 Works even when the subtree is folded."
   (let* ((text (jira-todo--heading-text))
+          (title (jira-todo--pr-title url))
+          (replacement (if title (concat url "\n" title) url))
           (count 0)
           (new (replace-regexp-in-string
                  "<\\(PR-\\)?TBD>"
-                 (lambda (_)
+                 (lambda (match)
                    (setq count (1+ count))
-                   url)
+                   (if (string-prefix-p "<PR-" match) replacement url))
                  text t t)))
     (when (> count 0)
       (jira-todo--replace-heading-text new))
@@ -1085,8 +1183,12 @@ If INPUT is not provided, prompt interactively."
 (defun jira-todo-update-with-pr (&optional url)
   "Update the current TODO with URL, clipboard, or then prompt for it.
 
-Replace <PR-TBD> patterns in the current TODO when present.  An
-already-filled PR URL in the heading is reused and is not an error.
+Replace <PR-TBD> patterns in the current TODO when present, with
+the pull request title summary on the line under the URL.  The
+title is looked up via `gh' or the GitHub REST API and has any
+leading ticket prefix (bracketed, or a ticket key with its `\": \"')
+removed.  An already-filled PR URL in the heading is reused and is
+not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
 authors from `git-tools-authors-list' (default order: lines
