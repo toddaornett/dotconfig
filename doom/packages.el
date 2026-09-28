@@ -111,6 +111,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("datetime.el")))
 
+(package! caveman
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("caveman.el")))
+
 ;; Prefer project.el-based ibuffer grouping over Doom's default
 ;; ibuffer-projectile (which the :emacs ibuffer module would install).
 (package! ibuffer-projectile :disable t)
