@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 19, 2026
+;; Modified: September 29, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -610,9 +610,9 @@ When the current heading already has a PR URL, do not prompt."
 
 (defconst jira-todo--ticket-prefix-regexp
   (concat "\\`\\(?:"
-          "\\[[A-Za-z][A-Za-z0-9 _-]*\\][ \t]*"           ; "[ENG-1234] "
-          "\\|[A-Za-z][A-Za-z0-9]*-[0-9]+[ \t]*:[ \t]*"   ; "ENG-1234: "
-          "\\)")
+    "\\[[A-Za-z][A-Za-z0-9 _-]*\\][ \t]*"           ; "[ENG-1234] "
+    "\\|[A-Za-z][A-Za-z0-9]*-[0-9]+[ \t]*:[ \t]*"   ; "ENG-1234: "
+    "\\)")
   "Regexp matching one leading ticket prefix in a title or summary.
 
 Prefixes are the bracketed form (\"[ENG-1234] \") and the ticket
@@ -621,9 +621,9 @@ than once.")
 
 (defconst jira-todo--commit-type-prefix-regexp
   (concat "\\`\\(?:"
-          "build\\|chore\\|ci\\|docs\\|feat\\|fix\\|perf\\|refactor"
-          "\\|revert\\|style\\|test"
-          "\\)\\(?:([^)]+)\\)?!?:[ \t]*")   ; "feat: ", "fix(api)!: "
+    "build\\|chore\\|ci\\|docs\\|feat\\|fix\\|perf\\|refactor"
+    "\\|revert\\|style\\|test"
+    "\\)\\(?:([^)]+)\\)?!?:[ \t]*")   ; "feat: ", "fix(api)!: "
   "Regexp matching one leading conventional-commit prefix in a title.
 
 Matches a conventional-commit type followed by an optional
@@ -644,7 +644,7 @@ trimmed.  TEXT without a prefix is returned trimmed."
     (let ((prev nil)
            (text (string-trim text))
            (regexps (list jira-todo--ticket-prefix-regexp
-                          jira-todo--commit-type-prefix-regexp)))
+                      jira-todo--commit-type-prefix-regexp)))
       (while (not (equal prev text))
         (setq prev text)
         (dolist (regexp regexps)
@@ -1219,21 +1219,31 @@ text between `--begin--' and `--end--' to the kill ring."
 
 ;;;###autoload
 (defun jira-todo-insert-peer-code-review-task ()
-  "Insert a TODO for a peer code review task, then start the review.
+  "Start a peer code review and insert a TODO describing it.
 
 The pull request URL is taken from the system clipboard and must be
 a non-JIRA http(s) GitHub pull request URL; otherwise nothing is
 inserted and this signals.  `jira-todo-peer-code-review-home' must
-name an existing directory; otherwise this signals.
+name an existing directory; otherwise this signals.  Point must be
+in an `org-mode' buffer, because the TODO is inserted as a heading.
 
-`git-tools-review-home' is then set to
-`jira-todo-peer-code-review-home' and `git-tools-review-start'
-resets and cleans that working tree, checks out the pull request's
-head branch, and replaces the kill ring with the review prompt."
+`git-tools-review-home' is temporarily set to
+`jira-todo-peer-code-review-home', so `git-tools-review-start'
+resets and cleans that working tree and checks out the pull
+request's head branch.  Only then is the TODO inserted, above the
+TODO point was on, with the Branch the review ended up on, that
+review directory, and the review prompt `git-tools-review-start'
+leaves on the kill ring.  That ordering matters: inserted before
+the review, the Branch would name the pre-review branch and the
+Prompt would be the previous kill, not the review prompt.
+
+`git-tools-review-start' reports a failed fetch or checkout only in
+its process buffer, so the branch is re-read afterwards.  When the
+review did not leave the pull request's head branch, nothing is
+inserted and this signals."
   (interactive)
-  (let ((original-git-tools-review-home git-tools-review-home)
-         (url (or (jira-todo--clipboard-pr-url)
-                (user-error "Clipboard does not hold a pull request URL")))
+  (let ((url (or (jira-todo--clipboard-pr-url)
+               (user-error "Clipboard does not hold a pull request URL")))
          (home (and (stringp jira-todo-peer-code-review-home)
                  (not (string-empty-p jira-todo-peer-code-review-home))
                  (expand-file-name jira-todo-peer-code-review-home))))
@@ -1243,13 +1253,38 @@ head branch, and replaces the kill ring with the review prompt."
       (user-error "Please set jira-todo-peer-code-review-home"))
     (unless (file-directory-p home)
       (user-error "Review directory does not exist: %s" home))
-    (jira-todo--insert-todo-entry
-      (format "*** TODO %s: Review PR %s" jira-todo-peer-code-review-prefix url))
-    (unwind-protect
-      (progn
-        (setq git-tools-review-home jira-todo-peer-code-review-home)
-        (git-tools-review-start))
-      (setq git-tools-review-home original-git-tools-review-home))))
+    (unless (derived-mode-p 'org-mode)
+      (user-error "Must be called from an org-mode TODO"))
+    (let ((original-git-tools-review-home git-tools-review-home)
+           (buf (current-buffer))
+           (position (copy-marker (point))))
+      (unwind-protect
+        (progn
+          (unwind-protect
+            (save-window-excursion
+              (setq git-tools-review-home jira-todo-peer-code-review-home)
+              (git-tools-review-start))
+            (setq git-tools-review-home original-git-tools-review-home))
+          (let ((branch (git-tools-current-branch-name home)))
+            (when (or (null branch)
+                    (equal branch (git-tools-main-branch-name home)))
+              (user-error
+                "Review left %s on %s; no TODO inserted"
+                home (or branch "a detached HEAD")))
+            (when (buffer-live-p buf)
+              (with-current-buffer buf
+                (goto-char position)
+                (jira-todo--insert-todo-entry
+                  (concat
+                    (format "*** TODO %s: Review PR %s\n"
+                      jira-todo-peer-code-review-prefix url)
+                    (format "Branch: %s\n" branch)
+                    (format "Git Directory: %s\n" home)
+                    (format "Prompt:\n")
+                    (format "--begin--\n")
+                    (format "%s\n" (or (current-kill 0 t) ""))
+                    (format "--end--")))))))
+        (set-marker position nil)))))
 
 (provide 'jira-todo)
 ;;; jira-todo.el ends here
