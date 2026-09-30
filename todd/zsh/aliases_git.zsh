@@ -84,29 +84,56 @@ function _git_log_prettily() {
   fi
 }
 
-function git_cleanup_branches() {
-  local main_branch
+git_cleanup_branches() {
+  local main_branch branches
   main_branch="$(git_main_branch)"
+  [ -n "$main_branch" ] || return 1
 
-  git checkout "$main_branch"
+  git checkout "$main_branch" || return 1
   git fetch origin --prune
-  git branch --merged "$main_branch" |
-    sed 's/^[* ]*//' |
-    grep -vFx "$main_branch" |
-    grep -vE '^release.*$' |
-    xargs -r git branch -d
+
+  branches="$(
+    git branch --merged "$main_branch" |
+      sed 's/^[*+ ]*//' |
+      grep -vFx "$main_branch" |
+      grep -vE '^release'
+  )"
+
+  if [ -n "$branches" ]; then
+    printf '%s\n' "$branches" | xargs git branch -d
+  else
+    echo "No merged branches to delete."
+  fi
 }
 
-function git_nuke_branches() {
-  local main_branch
+git_nuke_branches() {
+  local main_branch branches reply
   main_branch="$(git_main_branch)"
-  git checkout "$main_branch"
+  [ -n "$main_branch" ] || return 1
+
+  git checkout "$main_branch" || return 1
   git fetch origin --prune
-  git branch |
-    sed 's/^[* ]*//' |
-    grep -vFx "$main_branch" |
-    grep -vE '^release.*$' |
-    xargs -r git branch -D
+
+  branches="$(
+    git branch |
+      sed 's/^[*+ ]*//' |
+      grep -vFx "$main_branch" |
+      grep -vE '^release'
+  )"
+
+  if [ -z "$branches" ]; then
+    echo "No branches to delete."
+    return 0
+  fi
+
+  echo "About to force-delete these branches:"
+  printf '%s\n' "$branches"
+  printf 'Continue? [y/N] '
+  read -r reply
+  case "$reply" in
+  [yY]*) printf '%s\n' "$branches" | xargs git branch -D ;;
+  *) echo "Aborted." ;;
+  esac
 }
 
 function gstA {
@@ -610,12 +637,6 @@ function pclean {
       done
     fi
   done
-}
-
-function gpurge {
-  git checkout main
-  git branch | grep -v "main" | xargs git branch -D
-
 }
 
 function gForceSsh {
