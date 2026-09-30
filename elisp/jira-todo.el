@@ -137,6 +137,26 @@ Return nil when the map is unset or KEY is not present."
                        (cdr cell)))
             jira-todo-github-user-map))))))
 
+(defun jira-todo--author-suppressed-p (author-string)
+  "Return non-nil if AUTHOR-STRING is mapped to an empty display name.
+
+A `jira-todo-github-user-map' entry such as
+\(\"daniel.hay@cybereason.com\" . \"\") means the person must never
+be listed or counted as a PTAL reviewer.  AUTHOR-STRING is anything
+`jira-todo--author-email' accepts.  Matching uses the same rules as
+`jira-todo-github-user-map-get'."
+  (when-let* ((email (jira-todo--author-email
+                       (if (consp author-string) (car author-string) author-string)))
+               (mapped (jira-todo-github-user-map-get email)))
+    (and (stringp mapped)
+      (string-empty-p (string-trim mapped)))))
+
+(defun jira-todo--remove-suppressed-authors (entries)
+  "Drop ENTRIES (AUTHOR-STRING . LINES) whose author is mapped to \"\"."
+  (cl-remove-if (lambda (entry)
+                  (jira-todo--author-suppressed-p (car entry)))
+    entries))
+
 (defun jira-todo-github-user-map-set (key display-name)
   "Set DISPLAY-NAME for KEY in the mapping, adding or updating."
   (setf (alist-get key
@@ -1040,9 +1060,11 @@ the longest prefix shared by every changed file, including a sibling
 directory that contains only one changed file.
 
 `git-tools--merged-change-author-weights' takes the top 5 authors of
-each prefix, merges those lists by email and line count, then this
-function merges aliases of the same person, drops the current git
-user, and returns the top LIMIT author strings in that order."
+each prefix, merges those lists by email and line count.  Authors
+mapped to an empty string in `jira-todo-github-user-map' are then
+removed, aliases of the same person are merged, the current git user
+is dropped, and the top LIMIT author strings are returned in that
+order.  Suppressed authors never count toward LIMIT."
   (let* ((limit (or limit 5))
           (default-directory (jira-todo--git-directory))
           (files (jira-todo--changed-files-against-main default-directory))
@@ -1050,9 +1072,12 @@ user, and returns the top LIMIT author strings in that order."
                      (git-tools--merged-change-author-weights
                        default-directory 'lines files))))
     (setq entries
-      (jira-todo--exclude-self-authors
-        (jira-todo--merge-author-line-counts entries)
-        default-directory))
+      (jira-todo--remove-suppressed-authors entries))
+    (setq entries
+      (jira-todo--remove-suppressed-authors
+        (jira-todo--exclude-self-authors
+          (jira-todo--merge-author-line-counts entries)
+          default-directory)))
     (setq entries
       (sort entries
         (lambda (a b)
