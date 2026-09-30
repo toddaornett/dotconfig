@@ -1,11 +1,11 @@
-;;; jira-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
+;;; JIRA-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
 ;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 29, 2026
+;; Modified: September 30, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -26,6 +26,7 @@
 (require 'cl-lib)
 (require 'org)
 (require 'git-tools)
+(require 'caveman)
 
 (defgroup jira-todo nil
   "Generate `org-mode' TODOs from JIRA tickets."
@@ -1237,6 +1238,9 @@ leaves on the kill ring.  That ordering matters: inserted before
 the review, the Branch would name the pre-review branch and the
 Prompt would be the previous kill, not the review prompt.
 
+The text between the --begin-- and --end-- lines is then passed
+through `caveman-region'.
+
 `git-tools-review-start' reports a failed fetch or checkout only in
 its process buffer, so the branch is re-read afterwards.  When the
 review did not leave the pull request's head branch, nothing is
@@ -1283,7 +1287,19 @@ inserted and this signals."
                     (format "Prompt:\n")
                     (format "--begin--\n")
                     (format "%s\n" (or (current-kill 0 t) ""))
-                    (format "--end--")))))))
+                    (format "--end--")))
+                ;; Transform only the text between --begin-- and --end--.
+                (save-excursion
+                  (goto-char (point-min))
+                  (when (search-forward
+                          (format "Review PR %s\nBranch: %s\n" url branch)
+                          nil t)
+                    (when (re-search-forward "^--begin--\n" nil t)
+                      (let ((start (point)))
+                        (when (re-search-forward "^--end--" nil t)
+                          (let ((end (copy-marker (match-beginning 0))))
+                            (caveman-copy-region start end)
+                            (set-marker end nil)))))))))))
         (set-marker position nil)))))
 
 (provide 'jira-todo)
