@@ -280,3 +280,88 @@ Debounce is handled by cancelling any existing timer before scheduling a new one
   (let ((sidebar-buf (get-buffer tao/erc-members-buffer)))
     (when sidebar-buf
       (kill-buffer sidebar-buf))))
+
+;;; Reconnect discipline
+;; ERC clears its reconnect bookkeeping as soon as a session registers
+;; (`erc-connection-established' resets `erc-server-reconnect-count'), so a
+;; connection that registers and then immediately drops is re-established
+;; forever.  Every one of those reconnects re-runs `erc-after-connect', which
+;; re-JOINs every autojoin channel: to everyone else the client looks like a
+;; flapping bouncer.  Every automatic reconnect goes through
+;; `erc-schedule-reconnect', so the backoff and the flap limit live there.
+
+(defcustom tao/erc-reconnect-base-delay 15
+  "Seconds to wait before the first automatic reconnect.
+Libera throttles clients that reconnect within a few seconds, so this must
+not be ERC's one-second default."
+  :type 'number)
+
+(defcustom tao/erc-reconnect-max-delay 600
+  "Upper bound in seconds for the reconnect backoff."
+  :type 'number)
+
+(defcustom tao/erc-reconnect-max-flaps 5
+  "Give up on auto-reconnecting after this many consecutive failures.
+One failure is counted per dropped session and per failed connectivity
+probe.  A session that stays up for `tao/erc-reconnect-stable-seconds'
+starts counting from zero again."
+  :type 'integer)
+
+(defcustom tao/erc-reconnect-stable-seconds 300
+  "Seconds a session must survive for its loss to count as a new disconnect."
+  :type 'number)
+
+(defvar-local tao/erc--reconnect-failures 0
+  "Consecutive automatic reconnect failures for this server buffer.")
+
+(defvar-local tao/erc--reconnect-delay nil
+  "Delay in seconds for the next automatic reconnect.
+Doubles after each failure, capped at `tao/erc-reconnect-max-delay'.")
+
+(defvar-local tao/erc--registered-at nil
+  "Time of this session's last successful registration, as from `float-time'.")
+
+(defvar-local tao/erc--gave-up nil
+  "Non-nil once the flap limit stopped automatic reconnection.
+The next successful registration clears the counters and rearms it.")
+
+(defun tao/erc--note-connection (_server _nick)
+  "Record a successful registration and clear a spent flap limit.
+Runs in the server buffer, via `erc-after-connect'."
+  (setq tao/erc--registered-at (float-time))
+  (when tao/erc--gave-up
+    (setq tao/erc--gave-up nil
+      tao/erc--reconnect-failures 0
+      tao/erc--reconnect-delay nil)))
+
+(defun tao/erc--reconnect-backoff (orig buffer &optional incr)
+  "Reconnect BUFFER with exponential backoff, giving up after too many flaps.
+ORIG is `erc-schedule-reconnect', the only place ERC arms a reconnect timer.
+INCR is ERC's own attempt increment; 0 means a failed connectivity probe
+rather than a dropped session."
+  (with-current-buffer buffer
+    (when (and tao/erc--registered-at
+            (>= (- (float-time) tao/erc--registered-at)
+              tao/erc-reconnect-stable-seconds))
+      ;; The session was healthy, so its loss starts a fresh run.
+      (setq tao/erc--reconnect-failures 0
+        tao/erc--reconnect-delay nil))
+    (setq tao/erc--registered-at nil)
+    (setq tao/erc--reconnect-delay
+      (min tao/erc-reconnect-max-delay
+        (if tao/erc--reconnect-delay
+          (* 2 tao/erc--reconnect-delay)
+          tao/erc-reconnect-base-delay)))
+    (setq tao/erc--reconnect-failures (1+ tao/erc--reconnect-failures))
+    (if (> tao/erc--reconnect-failures tao/erc-reconnect-max-flaps)
+      (progn
+        (setq tao/erc--gave-up t)
+        (erc-display-message nil 'error (current-buffer)
+          (format "Gave up reconnecting (%d failures in a row); M-x +irc/connect when the network is back."
+            tao/erc--reconnect-failures)))
+      (let ((erc-server-reconnect-timeout tao/erc--reconnect-delay))
+        (funcall orig buffer incr)))))
+
+(after! erc
+  (add-hook 'erc-after-connect #'tao/erc--note-connection)
+  (advice-add 'erc-schedule-reconnect :around #'tao/erc--reconnect-backoff))
