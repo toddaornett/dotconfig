@@ -14,7 +14,9 @@
 ;; This file is not part of GNU Emacs.
 ;;
 ;;; Commentary:
-;; Fetches a JIRA ticket and generates an org-mode TODO entry and Slack message.
+;; Fetches a JIRA ticket and generates an org-mode TODO entry with a Slack
+;; message and an org-babel source block that posts to Microsoft Teams.
+;; Teams messages are sent with `xteams' (https://github.com/boazy/xteams-cli).
 ;; Requires the `request` package and the following variables to be set:
 ;;   jira-base-url, jira-issue-key-prefix, jira-username, jira-token
 ;;
@@ -60,6 +62,15 @@
   (or (getenv "MESSAGING_PROVIDER") "slack")
   "Determine the format of message format.
 `slack' or `teams' (Microsoft Teams)"
+  :type 'string
+  :group 'jira-todo)
+
+(defcustom jira-todo-microsoft-teams-channel "Private"
+  "Microsoft Teams channel the generated `xteams' block posts to.
+The value is passed to `xteams message new' as its conversation
+argument, so it can be a channel name, a Teams conversation id
+`(59:...@thread.somethingcool), or a Teams link (`xteams channel list'
+prints ids for the channels you follow)."
   :type 'string
   :group 'jira-todo)
 
@@ -223,6 +234,56 @@ immediately above the first sibling TODO under the parent heading."
     (forward-line -1)
     (indent-according-to-mode)))
 
+(defconst jira-todo--teams-heredoc-delimiter "JIRA-TODO-MSG"
+  "Here-document delimiter used by generated Teams `xteams' blocks.")
+
+(defun jira-todo--autolink-urls (text)
+  "Wrap the bare URLs in TEXT as CommonMark autolinks, `<URL>'.
+
+`xteams' builds the Teams HTML from CommonMark, which does not
+autolink bare URLs (its `pulldown-cmark' pass enables only tables,
+strikethrough, and task lists), so Teams would store them as plain
+text.  URLs already inside `<>' are left alone.  Return
+\(NEW-TEXT . COUNT)."
+  (let ((count 0))
+    (cons
+      (replace-regexp-in-string
+        "\\(^\\|[^<]\\)\\(https?://[^[:space:]<>]+\\)"
+        (lambda (m)
+          (setq count (1+ count))
+          (concat (match-string 1 m) "<" (match-string 2 m) ">"))
+        (or text ""))
+      count)))
+
+(defun jira-todo--teams-mention (name)
+  "Return NAME as a Microsoft Teams mention token, `@{NAME}'.
+
+A leading `@' is dropped, and NAME already in `@{...}' form is
+returned unchanged.  `xteams' turns these tokens into both the
+mention markup and the `properties.mentions' metadata Teams needs
+for the mention to highlight and notify."
+  (let ((name (string-trim (or name ""))))
+    (cond
+      ((string-empty-p name) "")
+      ((string-match-p "\\`@{[^}]*}\\'" name) name)
+      (t (format "@{%s}" (replace-regexp-in-string "\\`@+" "" name))))))
+
+(defun jira-todo--teams-mention-string (&optional reviewers)
+  "Return REVIEWERS as space-separated Teams `@{NAME}' mentions.
+
+REVIEWERS defaults to `jira-todo-pr-reviewers'.  It is split into
+names by `jira-todo--split-pr-reviewer-names', so names separated
+by commas and/or `@' are encoded one by one and multi-word names
+stay intact."
+  (mapconcat #'jira-todo--teams-mention
+    (jira-todo--split-pr-reviewer-names
+      (or reviewers jira-todo-pr-reviewers))
+    " "))
+
+(defun jira-todo--teams-mention-names (names)
+  "Return NAMES (\"@Ada Lovelace\") as space-separated `@{...}' mentions."
+  (mapconcat #'jira-todo--teams-mention names " "))
+
 (defun jira-todo--format-slack-message (summary)
   "Format message with SUMMARY for Slack."
   (concat
@@ -234,14 +295,25 @@ immediately above the first sibling TODO under the parent heading."
     (format "--end--\n")))
 
 (defun jira-todo--format-teams-message (summary)
-  "Format message with SUMMARY for Microsoft Teams."
+  "Format an org-babel block that posts SUMMARY to Microsoft Teams.
+
+The block feeds the message body to `xteams message new' on
+standard input, so evaluating it (\\[org-ctrl-c-ctrl-c] inside the
+block) sends the message to `jira-todo-microsoft-teams-channel'.
+Reviewer names are encoded as `@{NAME}' mention tokens and URLs in
+SUMMARY are wrapped as CommonMark autolinks by
+`jira-todo--autolink-urls'."
   (concat
     (format "Teams:\n")
-    (format "--begin--\n")
-    (format "PTAL %s\n" jira-todo-pr-reviewers)
+    (format "#+begin_src sh :results none\n")
+    (format "xteams message new %s <<'%s'\n"
+      (shell-quote-argument jira-todo-microsoft-teams-channel)
+      jira-todo--teams-heredoc-delimiter)
+    (format "PTAL %s\n" (jira-todo--teams-mention-string))
     (format "<PR-TBD>\n")
-    (format "%s\n" summary)
-    (format "--end--\n")))
+    (format "%s\n" (car (jira-todo--autolink-urls summary)))
+    (format "%s\n" jira-todo--teams-heredoc-delimiter)
+    (format "#+end_src\n")))
 
 (defun jira-todo--format-output (data)
   "Format `org-mode' TODO and message from parsed JIRA DATA."
@@ -1006,14 +1078,15 @@ ignored)."
             (jira-todo--author-identity-keys (car entry)) self))
         entries))))
 
-(defun jira-todo--ptal-reviewer-line ()
-  "Return the merged PTAL reviewer line, or nil if none.
+(defun jira-todo--ptal-reviewer-names ()
+  "Return the merged PTAL reviewer names, or nil if none.
 
 Top 5 git authors from the change-path prefixes of files changed
 versus main come first, formatted via
 `jira-todo--format-ptal-mention'.  Display names from
 `jira-todo-pr-reviewers' are appended when they are not already
-present."
+present.  Each name carries a leading `@' and has mapped git
+author emails rewritten by `jira-todo-github-user-map'."
   (let* ((authors (condition-case err
                     (jira-todo--top-authors-for-changed-dirs 5)
                     (error
@@ -1024,8 +1097,12 @@ present."
           (extra (jira-todo--split-pr-reviewer-names))
           (merged (jira-todo--merge-ptal-names auto extra)))
     (when merged
-      (jira-todo--apply-email-map-to-text
-        (mapconcat #'identity merged " ")))))
+      (mapcar #'jira-todo--apply-email-map-to-text merged))))
+
+(defun jira-todo--ptal-reviewer-line ()
+  "Return the merged PTAL reviewer names as one space-separated line."
+  (when-let* ((names (jira-todo--ptal-reviewer-names)))
+    (mapconcat #'identity names " ")))
 
 (defun jira-todo--changed-files-against-main (&optional root branch)
   "Return files changed on BRANCH versus the main-branch merge-base.
@@ -1097,18 +1174,30 @@ order.  Suppressed authors never count toward LIMIT."
       (unless (string-match-p "\\`PR[ \t]*\\'" rest)
         (concat indent prefix "PTAL " reviewers)))))
 
-(defun jira-todo--insert-ptal-in-message-block (text reviewers)
+(defun jira-todo--insert-ptal-in-message-block (text reviewers teams-reviewers)
   "Insert a PTAL line with REVIEWERS into the Teams/Slack block in TEXT.
-Return (NEW-TEXT . COUNT)."
+
+TEAMS-REVIEWERS is the same list encoded as Teams `@{NAME}' mention
+tokens and defaults to REVIEWERS.  A Teams `xteams' block gets it
+after the here-document opener; a Slack block gets REVIEWERS after
+`--begin--'.  Return (NEW-TEXT . COUNT)."
   (let ((count 0)
          (new text))
     (setq new
       (replace-regexp-in-string
-        "\\(\\(?:Teams\\|Slack\\):\n--begin--\n\\)"
+        "\\(Teams:\n\\(?:#\\+begin_src[^\n]*\n\\)?[^\n]*<<'[A-Za-z0-9_-]+'\n\\)"
         (lambda (m)
           (setq count (1+ count))
-          (concat m "PTAL " reviewers "\n"))
+          (concat m "PTAL " (or teams-reviewers reviewers) "\n"))
         new t t))
+    (when (zerop count)
+      (setq new
+        (replace-regexp-in-string
+          "\\(Slack:\n--begin--\n\\)"
+          (lambda (m)
+            (setq count (1+ count))
+            (concat m "PTAL " reviewers "\n"))
+          new t t)))
     (when (zerop count)
       (setq new
         (replace-regexp-in-string
@@ -1119,57 +1208,138 @@ Return (NEW-TEXT . COUNT)."
           new t t)))
     (cons new count)))
 
+(defun jira-todo--messaging-body-bounds (&optional text only-provider)
+  "Return (PROVIDER START . END) offsets of the first message body in TEXT.
+
+PROVIDER is `teams' or `slack'.  A `Teams:' section holds an
+org-babel `xteams' block, so its body is the here-document contents
+up to the delimiter line.  A `Slack:' section's body is the lines
+between `--begin--' and `--end--'.  Marker lines are excluded.
+Prompt and PR Text blocks are ignored.  When both bodies are
+present the first one wins, unless ONLY-PROVIDER (`teams' or
+`slack') restricts the search.  TEXT defaults to the current org
+heading; nil when it holds no such body."
+  (let ((text (or text (jira-todo--heading-text)))
+         (provider nil)
+         (delimiter nil)
+         (in-body nil)
+         (start nil)
+         (offset 0)
+         bounds)
+    (dolist (line (split-string text "\n" nil))
+      (let ((next (1+ (+ offset (length line)))))
+        (cond
+          (bounds nil)
+          ((and (not in-body)
+             (or (null only-provider) (eq only-provider 'teams))
+             (string-match-p "\\`[ \t]*Teams:[ \t]*\\'" line))
+            (setq provider 'teams))
+          ((and (not in-body)
+             (or (null only-provider) (eq only-provider 'slack))
+             (string-match-p "\\`[ \t]*Slack:[ \t]*\\'" line))
+            (setq provider 'slack))
+          ((and (eq provider 'teams) (not in-body)
+             (string-match "\\`[ \t]*.*<<'\\([A-Za-z0-9_-]+\\)'[ \t]*\\'" line))
+            (setq delimiter (match-string 1 line)
+              in-body t
+              start next))
+          ((and in-body (eq provider 'teams)
+             (string= (string-trim line) delimiter))
+            (setq bounds (cons 'teams (cons start (max start (1- offset))))
+              in-body nil
+              provider nil))
+          ((and in-body (eq provider 'slack)
+             (string-match-p "\\`[ \t]*--end--[ \t]*\\'" line))
+            (setq bounds (cons 'slack (cons start (max start (1- offset))))
+              in-body nil
+              provider nil))
+          ((and (eq provider 'slack) (not in-body)
+             (string-match-p "\\`[ \t]*--begin--[ \t]*\\'" line))
+            (setq in-body t
+              start next)))
+        (setq offset next)))
+    bounds))
+
 (defun jira-todo--messaging-section-body (&optional text)
   "Return the Teams/Slack message body from TEXT or the current heading.
 
-The body is the lines between the first `--begin--' and `--end--'
-under a `Teams:' or `Slack:' label.  Those marker lines are not
-included.  Prompt and PR Text blocks are ignored."
-  (let ((in-section nil)
-         (in-body nil)
-         body)
-    (dolist (line (split-string (or text (jira-todo--heading-text)) "\n" nil))
-      (cond
-        ((and (not in-body)
-           (string-match-p "\\`[ \t]*\\(?:Teams\\|Slack\\):[ \t]*\\'" line))
-          (setq in-section t))
-        ((and in-section (not in-body)
-           (string-match-p "\\`[ \t]*--begin--[ \t]*\\'" line))
-          (setq in-body t))
-        ((and in-body
-           (string-match-p "\\`[ \t]*--end--[ \t]*\\'" line))
-          (setq in-body nil
-            in-section nil))
-        (in-body
-          (push line body))))
-    (when body
-      (mapconcat #'identity (nreverse body) "\n"))))
+A `Teams:' section holds an org-babel `xteams' block, so its body
+is the here-document contents up to the delimiter line.  A
+`Slack:' section's body is the lines between `--begin--' and
+`--end--'.  Marker lines are not included.  Prompt and PR Text
+blocks are ignored."
+  (let* ((text (or text (jira-todo--heading-text)))
+          (bounds (jira-todo--messaging-body-bounds text))
+          (body (and bounds (substring text (cadr bounds) (cddr bounds)))))
+    (unless (or (null body) (string-empty-p body))
+      body)))
 
 (defun jira-todo--copy-messaging-section (&optional text)
-  "Copy the Teams/Slack `--begin--'/`--end--' and optional TEXT to kill ring.
+  "Copy the Teams/Slack message body and optional TEXT to the kill ring.
 Return the copied text, or nil if no such section exists."
   (when-let* ((body (jira-todo--messaging-section-body text)))
     (kill-new body)
     body))
 
-(defun jira-todo--replace-ptal-reviewers (reviewers)
-  "Replace PTAL reviewer lists in the current org heading with REVIEWERS.
-Leaves the Teams \"PTAL PR\" line unchanged.  If no PTAL line exists,
-insert one under the Teams/Slack --begin-- marker.  Works when the
-subtree is folded.  Return the number of replacements."
+(defun jira-todo--linkify-teams-body ()
+  "Turn the bare URLs of the Teams message body into CommonMark autolinks.
+
+`xteams' builds the Teams HTML from CommonMark, which does not
+autolink bare URLs, so Teams would otherwise store them as plain
+text.  Slack bodies and already-wrapped URLs are left alone.
+Return the number of URLs wrapped."
   (let* ((text (jira-todo--heading-text))
+          (bounds (jira-todo--messaging-body-bounds text 'teams)))
+    (if (not bounds)
+      0
+      (let* ((start (cadr bounds))
+              (end (cddr bounds))
+              (autolinked (jira-todo--autolink-urls (substring text start end)))
+              (count (cdr autolinked)))
+        (when (> count 0)
+          (jira-todo--replace-heading-text
+            (concat (substring text 0 start) (car autolinked) (substring text end))))
+        count))))
+
+(defun jira-todo--replace-ptal-reviewers (reviewers &optional teams-reviewers)
+  "Replace PTAL reviewer lists in the current org heading with REVIEWERS.
+
+TEAMS-REVIEWERS is REVIEWERS encoded as Teams `@{NAME}' mention
+tokens and defaults to REVIEWERS; lines inside a Teams `xteams'
+block use it.  Leaves a Teams \"PTAL PR\" line unchanged.  If no
+PTAL line exists, insert one into the Teams block or under the
+Slack --begin-- marker.  Works when the subtree is folded.  Return
+the number of replacements."
+  (let* ((text (jira-todo--heading-text))
+          (teams-reviewers (or teams-reviewers reviewers))
+          (in-teams nil)
           (count 0)
           (new
             (mapconcat
               (lambda (line)
-                (let ((rewritten (jira-todo--ptal-replacement-line line reviewers)))
-                  (if rewritten
-                    (progn (setq count (1+ count)) rewritten)
-                    line)))
+                (cond
+                  ((string-match-p "\\`[ \t]*Teams:[ \t]*\\'" line)
+                    (setq in-teams t)
+                    line)
+                  ((string-match-p
+                     "\\`[ \t]*\\(?:Slack\\|Prompt\\|PR Text\\):[ \t]*\\'" line)
+                    (setq in-teams nil)
+                    line)
+                  ((string-match-p "\\`[ \t]*#\\+end_src[ \t]*\\'" line)
+                    (setq in-teams nil)
+                    line)
+                  (t
+                    (let ((rewritten
+                            (jira-todo--ptal-replacement-line
+                              line (if in-teams teams-reviewers reviewers))))
+                      (if rewritten
+                        (progn (setq count (1+ count)) rewritten)
+                        line)))))
               (split-string text "\n" nil)
               "\n")))
     (when (zerop count)
-      (let ((inserted (jira-todo--insert-ptal-in-message-block text reviewers)))
+      (let ((inserted (jira-todo--insert-ptal-in-message-block
+                        text reviewers teams-reviewers)))
         (setq new (car inserted)
           count (cdr inserted))))
     (when (> count 0)
@@ -1225,20 +1395,25 @@ otherwise HEAD.  Git Directory is optional: the heading field if
 present, else a local clone matching the PR URL repo and/or the
 remote Branch name, else `jira-todo-git-directory'.  Names from
 `jira-todo-pr-reviewers' that are not already on the line are
-appended.  After the heading is updated, copy the Teams/Slack
-text between `--begin--' and `--end--' to the kill ring."
+appended.  Names inside a Teams block are encoded as `@{Name}'
+mention tokens.  Bare URLs in a Teams block body are wrapped as
+CommonMark autolinks so Teams stores them clickable.  After the
+heading is updated, copy the Teams/Slack message body to the kill
+ring."
   (interactive)
   (let* ((search-invisible t)
           (url (jira-todo--resolve-pr-url url))
           (count (jira-todo--replace-pr-placeholders url))
-          (ptal (or (jira-todo--apply-email-map-to-text
-                      (jira-todo--ptal-reviewer-line))
-                  (user-error
-                    "Could not build a PTAL reviewer list (no authors and no PULL_REQUEST_REVIEWERS)")))
-          (ptal-count (jira-todo--replace-ptal-reviewers ptal))
+          (links (jira-todo--linkify-teams-body))
+          (reviewers (or (jira-todo--ptal-reviewer-names)
+                       (user-error
+                         "Could not build a PTAL reviewer list (no authors and no PULL_REQUEST_REVIEWERS)")))
+          (ptal (mapconcat #'identity reviewers " "))
+          (teams-ptal (jira-todo--teams-mention-names reviewers))
+          (ptal-count (jira-todo--replace-ptal-reviewers ptal teams-ptal))
           (copied (jira-todo--copy-messaging-section)))
-    (message "Updated %d PR placeholder(s), PTAL %s%s%s"
-      count ptal
+    (message "Updated %d PR placeholder(s), %d URL(s) autolinked, PTAL %s%s%s"
+      count links ptal
       (if (zerop ptal-count) " (heading not rewritten)" "")
       (if copied " (copied Teams/Slack message)" ""))
     count))

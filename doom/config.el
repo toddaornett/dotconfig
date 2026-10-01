@@ -14,6 +14,24 @@
     (when (member font (font-family-list))
       (set-fontset-font t 'symbol (font-spec :family font) nil 'append))))
 
+;; unicode-fonts (the `unicode' module) ships an outdated per-block font table:
+;; "Supplemental Symbols and Pictographs" (U+1F900-1F9FF: 🧠🧪🦀🦙🦬) is mapped to
+;; Symbola alone, which does not cover it, and "Symbols and Pictographs
+;; Extended-A" (U+1FA70-1FAFF) is not in the table at all — those characters
+;; render as empty boxes. unicode-fonts cannot prepend on the Cocoa backend
+;; (`unicode-fonts-use-prepend' is nil there) and installs its fontsets from
+;; `after-init-hook', so Apple Color Emoji has to be appended afterwards —
+;; `emacs-startup-hook' is the first hook guaranteed to run later.
+(defun tao/setup-emoji-fonts ()
+  "Give the emoji blocks Apple Color Emoji as a fallback font."
+  (dolist (range '((#x1F300 . #x1FAFF)  ; pictographs through pictographs extended-A
+                   (#x2600 . #x27BF)    ; Miscellaneous Symbols, Dingbats
+                   (#x2B00 . #x2BFF)    ; Miscellaneous Symbols and Arrows
+                   (#xFE00 . #xFE0F)))  ; variation selectors
+    (set-fontset-font "fontset-default" range "Apple Color Emoji" nil 'append)))
+
+(add-hook 'emacs-startup-hook #'tao/setup-emoji-fonts)
+
 (defun tao/install-nerd-font ()
   "Install Fira Code Nerd Font using system package manager."
   (cond

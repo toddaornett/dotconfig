@@ -3,32 +3,42 @@ dev:
   autoqaConsent: denied
 modelRoles:
   default: deepseek/deepseek-v4-flash:high
-providers:
-  webSearchOrder:
-    - gemini
-    - perplexity
-    - anthropic
-    - codex
-    - xai
-    - zai
-    - exa
-    - tinyfish
-    - jina
-    - kagi
-    - tavily
-    - firecrawl
-    - brave
-    - kimi
-    - parallel
-    - synthetic
-    - searxng
-    - startpage
-    - duckduckgo
-    - ecosia
-    - google
-    - mojeek
-    - public
+  web: google-gemini-cli/gemini-2.5-flash
 setupVersion: 2
 symbolPreset: unicode
 composer:
   shape: band
+retry:
+  fallbackChains:
+    web:
+      - google-antigravity/gemini-2.5-flash
+      - google/gemini-2.5-flash
+      - web/perplexity
+      - anthropic/claude-haiku-4-5
+      - openai-codex/gpt-5.6-luna
+      - xai/grok-4.5
+      - web/zai
+      - web/exa
+      - web/tinyfish
+      - web/jina
+      - web/kagi
+      - web/tavily
+      - web/firecrawl
+      - web/brave
+      - web/kimi
+      - web/parallel
+      - web/synthetic
+      - web/searxng
+      - web/startpage
+      - web/duckduckgo
+      - web/ecosia
+      - web/google
+      - web/mojeek
+      - web/public
+      - openai-codex/gpt-6-luna
+      - openai-codex/gpt-5.6
+      - openai-codex/gpt-5.5
+      - openai/gpt-6-luna
+      - openai/gpt-5.6-luna
+      - xai-oauth/grok-4.5
+      - web/ollama
