@@ -5,6 +5,7 @@ export LANG=en_US.UTF-8
 export LANGUAGE=en_US.UTF-8
 export LC_TIME=ja_JP
 export OPENPROJECTS_PATH=${OPENPROJECTS_PATH:-~/Projects}
+export PI_CONFIG_FILES="$HOME/.config/omp/agent/local-config.yml"
 
 # bootstrap-managed machine setup (see ~/.config/bootstrap.sh)
 [[ -f "$HOME/.config/todd/zsh/bootstrap.zsh" ]] && source "$HOME/.config/todd/zsh/bootstrap.zsh"
