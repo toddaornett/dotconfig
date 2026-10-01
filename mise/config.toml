@@ -1,2 +1,3 @@
 [tools]
+"github:boazy/xteams-cli" = "latest"
 go = "latest"

@@ -7,13 +7,121 @@ ZSH_BOOTSTRAP="$HOME/.config/todd/zsh/bootstrap.zsh"
 HOME_ZSHRC="$HOME/.zshrc"
 ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
+MIGRATED_ZSHRC_MARKER="home .zshrc migration (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
 EMACS_PACKAGE="emacs-plus@31"
 EDITOR_CONFIG="$HOME/.editorconfig"
 
+check_and_install_xcode() {
+  echo "🔍 Checking Xcode Command Line Tools status..."
+  if xcode-select -p >/dev/null 2>&1; then
+    if pkgutil --pkg-info com.apple.pkg.CLTools_Executables >/dev/null 2>&1; then
+      echo "✅ Xcode Command Line Tools are already installed and linked properly."
+      return 0
+    else
+      echo "⚠️  Path exists but package receipt is missing. Your CLT might be corrupted."
+    fi
+  else
+    echo "❌ Xcode Command Line Tools are missing entirely."
+  fi
+  echo "🚀 Launching Xcode Command Line Tools installer..."
+  xcode-select --install
+}
+check_and_install_xcode
+
+# Where a Homebrew installation may live, in preference order. Used to find a
+# brew that is installed but off PATH, and to verify a fresh installation.
+HOMEBREW_PREFIX_CANDIDATES=(/opt/homebrew /usr/local)
+
 note_shell_init_for_builds() {
   echo "   Update $ZSH_BOOTSTRAP with SDKROOT and Homebrew include/lib paths,"
   echo "   then restart your shell: source ~/.config/zsh/.zshrc"
+}
+
+# Load the user's shell environment into this bash process. bootstrap.sh runs
+# under bash, which never reads ~/.zshenv, so without this the first `brew` call
+# below fails on a clean login, cron job, or CI runner that has no Homebrew on
+# PATH yet.
+#
+# Only ~/.zshenv is sourced: it is the authoritative env file (PATH, XDG homes,
+# tool env). ~/.zprofile and ~/.zshrc are interactive zsh config (mise
+# activation, compinit, fzf key bindings) and cannot be sourced by bash.
+load_shell_env() {
+  if [[ -f "$ZSHENV" ]]; then
+    # ~/.zshenv is a zsh file. Read it quietly: zsh-only lines (e.g. the
+    # `typeset -U path PATH` this script seeds on a fresh machine) are harmless
+    # here, and zsh itself reports any genuine error to the user.
+    # shellcheck disable=SC1090,SC1091
+    source "$ZSHENV" 2>/dev/null || true
+  fi
+
+  # Seed the standard Homebrew prefixes only when ~/.zshenv is absent or did not
+  # put a working `brew` on PATH, so a fresh machine still resolves it.
+  if ! command -v brew >/dev/null 2>&1; then
+    local prefix
+    for prefix in "${HOMEBREW_PREFIX_CANDIDATES[@]}"; do
+      if [[ -x "$prefix/bin/brew" ]]; then
+        PATH="$prefix/bin:$PATH"
+        break
+      fi
+    done
+  fi
+
+  # Sourcing ~/.zshenv prepends unconditionally, and bash (unlike zsh's
+  # `typeset -U path`) does not de-duplicate PATH. Collapse duplicates, keeping
+  # the first occurrence, so repeated loads leave PATH stable.
+  local deduped
+  deduped="$(printf '%s' "$PATH" | tr ':' '\n' | awk '!seen[$0]++' | paste -sd: -)"
+  PATH="$deduped"
+  export PATH
+}
+
+# Homebrew must exist before BREW_PREFIX is resolved; a clean machine has no
+# brew at all, so install it here instead of letting `brew --prefix` abort under
+# `set -e`. An existing install that is merely off PATH is reused, not
+# reinstalled (load_shell_env normally already fixed that case).
+ensure_homebrew_installed() {
+  if command -v brew >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local prefix
+  for prefix in "${HOMEBREW_PREFIX_CANDIDATES[@]}"; do
+    if [[ -x "$prefix/bin/brew" ]]; then
+      PATH="$prefix/bin:$PATH"
+      export PATH
+      echo "🍺 Found Homebrew at $prefix (added to PATH)"
+      return 0
+    fi
+  done
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "❌ Homebrew is missing and curl is unavailable to install it."
+    exit 1
+  fi
+
+  echo "🍺 Installing Homebrew (this takes a while)..."
+  local installer
+  if ! installer="$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; then
+    echo "❌ Could not download the Homebrew installer."
+    exit 1
+  fi
+  if ! NONINTERACTIVE=1 /bin/bash -c "$installer"; then
+    echo "❌ Homebrew installation failed."
+    exit 1
+  fi
+
+  for prefix in "${HOMEBREW_PREFIX_CANDIDATES[@]}"; do
+    if [[ -x "$prefix/bin/brew" ]]; then
+      PATH="$prefix/bin:$PATH"
+      export PATH
+      echo "🍺 Homebrew installed at $prefix"
+      return 0
+    fi
+  done
+
+  echo "❌ Homebrew installed but no brew executable was found."
+  exit 1
 }
 
 ensure_zdotdir_in_zshenv() {
@@ -131,90 +239,6 @@ indent_size = 2
 EOF
 }
 
-# Old ~/.zlogin ran `sudo rm -rf` on every login shell. macOS terminals are login
-# shells, so that prompted on every new window. Replace with once-per-boot cleanup.
-ensure_teams_cleanup() {
-  local script="$HOME/.config/todd/zsh/teams_cleanup.zsh"
-  local zlogin="$HOME/.zlogin"
-  local version_marker="teams-cleanup-version: 1"
-  local source_line='[[ -f "$HOME/.config/todd/zsh/teams_cleanup.zsh" ]] && source "$HOME/.config/todd/zsh/teams_cleanup.zsh"'
-
-  echo "🧹 Ensuring Teams cache cleanup is once-per-boot (no unconditional sudo)..."
-
-  if [[ -f "$zlogin" ]] && grep -qE '^sudo rm -rf .*microsoft\.teams' "$zlogin"; then
-    sed -i '' -e '/^sudo rm -rf .*microsoft\.teams/d' "$zlogin"
-    echo "  Removed unconditional Teams sudo from $zlogin"
-  fi
-
-  mkdir -p "$(dirname "$script")"
-  if [[ ! -f "$script" ]] || ! grep -Fq "$version_marker" "$script"; then
-    cat >"$script" <<'EOF'
-# teams-cleanup-version: 1
-# Microsoft Teams leftover caches can crash the app. Clean them once per boot.
-# macOS terminals start login shells, so ~/.zlogin runs on every new window —
-# do not call sudo there unconditionally.
-
-todd_teams_cleanup_once_per_boot() {
-  [[ -o interactive ]] || return 0
-
-  local stamp_dir="${XDG_CACHE_HOME:-$HOME/.cache}/todd"
-  local stamp="$stamp_dir/teams-cache-cleanup.boot"
-  local boot_sec
-  boot_sec="$(sysctl -n kern.boottime 2>/dev/null | awk '{print $4}' | tr -d ',')"
-  [[ -n "$boot_sec" ]] || return 0
-
-  if [[ -f "$stamp" && "$(<"$stamp")" == "$boot_sec" ]]; then
-    return 0
-  fi
-
-  mkdir -p "$stamp_dir"
-  print -r -- "$boot_sec" >"$stamp"
-
-  local -a targets existing remaining
-  targets=(
-    "$HOME/Library/Group Containers/UBF8T346G9.com.microsoft.teams"
-    "$HOME/Library/Containers/com.microsoft.teams2"
-  )
-
-  local t
-  for t in "${targets[@]}"; do
-    [[ -e "$t" ]] && existing+=("$t")
-  done
-  (( ${#existing[@]} )) || return 0
-
-  echo "Cleaning Microsoft Teams caches (once since last restart):"
-  for t in "${existing[@]}"; do
-    if rm -rf "$t" 2>/dev/null; then
-      echo "  removed: $t"
-    else
-      remaining+=("$t")
-    fi
-  done
-  (( ${#remaining[@]} )) || return 0
-
-  echo "Some Teams cache dirs need elevated permissions:"
-  for t in "${remaining[@]}"; do
-    echo "  $t"
-  done
-  echo "About to run: sudo rm -rf <those paths>"
-  echo "This is requested at most once per reboot. Ctrl-C skips until the next restart."
-  sudo rm -rf "${remaining[@]}"
-}
-
-todd_teams_cleanup_once_per_boot
-EOF
-    echo "  Wrote $script"
-  fi
-
-  if [[ ! -f "$zlogin" ]] || ! grep -Fq "teams_cleanup.zsh" "$zlogin"; then
-    {
-      echo "# Microsoft Teams cache cleanup (once per boot). Managed by ~/.config/bootstrap.sh"
-      echo "$source_line"
-    } >>"$zlogin"
-    echo "  Ensured $zlogin sources teams_cleanup.zsh"
-  fi
-}
-
 ensure_no_sdkroot_in_zshenv() {
   [[ -f "$ZSHENV" ]] || return 0
   if grep -qE '^export SDKROOT=|^export CFLAGS=.*isysroot|^export LDFLAGS=.*isysroot' "$ZSHENV" 2>/dev/null; then
@@ -248,13 +272,20 @@ migrate_home_zshrc_to_bootstrap() {
   if ! grep -qE 'bootstrap|Homebrew/macOS build flags|Homebrew build flags' "$HOME_ZSHRC" 2>/dev/null; then
     return 0
   fi
-  if ! grep -Fq "$BUILD_FLAGS_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null; then
+  if ! grep -Fq "$MIGRATED_ZSHRC_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null; then
     echo "📦 Migrating shell config from ~/.zshrc to $ZSH_BOOTSTRAP ..."
     mkdir -p "$(dirname "$ZSH_BOOTSTRAP")"
     {
       echo "# bootstrap-managed shell config"
-      echo "# Migrated from ~/.zshrc by bootstrap.sh"
-      cat "$HOME_ZSHRC"
+      echo "# $MIGRATED_ZSHRC_MARKER"
+      # Drop the ZDOTDIR→~/.zshrc bridge stub. bootstrap.zsh is itself sourced
+      # from the ZDOTDIR chain (.zshrc -> todd/zsh/zshrc -> bootstrap.zsh), so
+      # copying the stub back in makes that chain re-source .zshrc and recurse.
+      awk '
+        /^# New shells with ZDOTDIR set read/ { skip = 1 }
+        skip { if ($0 == "fi") skip = 0; next }
+        { print }
+      ' "$HOME_ZSHRC"
     } >>"$ZSH_BOOTSTRAP"
     cat >"$HOME_ZSHRC" <<'EOF'
 # Shell config lives under ~/.config/todd/zsh/ (ZDOTDIR=~/.config/zsh in ~/.zshenv).
@@ -471,6 +502,34 @@ ensure_omp_layout() {
 }
 
 #################################
+# Seed ~/.zshenv before the first Homebrew call
+#################################
+if [ ! -f "$ZSHENV" ]; then
+  echo "typeset -U path PATH" >>$ZSHENV
+fi
+
+# Machine-wide env written to ~/.zshenv so it is present in every shell *and*
+# in this bootstrap process — including the very first run, before any
+# interactive shell has loaded the config.
+HOMEBREW_ENV_LINES=(
+  'export XDG_CONFIG_HOME="$HOME/.config"'
+  'export XDG_CACHE_HOME="$HOME/.cache"'
+  'export HOMEBREW_CACHE="$XDG_CACHE_HOME/Homebrew"'
+  'export HOMEBREW_NO_AUTO_UPDATE=1'
+  'export HOMEBREW_API_DOMAIN="https://formulae.brew.sh/api"'
+)
+
+for line in "${HOMEBREW_ENV_LINES[@]}"; do
+  grep -Fqx "$line" "$ZSHENV" || echo "$line" >>"$ZSHENV"
+done
+
+# Load the seeded env (and PATH) now, so every `brew` command below sees it.
+load_shell_env
+
+# Install Homebrew on a brand-new machine, then resolve its prefix below.
+ensure_homebrew_installed
+
+#################################
 # Detect Homebrew prefix (ARM / Intel safe)
 #################################
 BREW_PREFIX="$(brew --prefix)"
@@ -479,34 +538,20 @@ echo "🍺 Homebrew prefix: $BREW_PREFIX"
 #################################
 # Setup and load zshenv
 #################################
-if [ ! -f "$ZSHENV" ]; then
-  echo "typeset -U path PATH" >>$ZSHENV
-fi
-
 echo "🛣️  Ensuring Homebrew is first in PATH and configuring Homebrew..."
 if ! grep -Fqs "$BREW_PREFIX/bin" "$ZSHENV" 2>/dev/null; then
   echo "export PATH=\"$BREW_PREFIX/bin:\$PATH\"" >>"$ZSHENV"
 fi
 
-lines=(
-  'export XDG_CONFIG_HOME="$HOME/.config"'
-  'export XDG_CACHE_HOME="$HOME/.cache"'
-  'export HOMEBREW_CACHE="$XDG_CACHE_HOME/Homebrew"'
-)
-
-for line in "${lines[@]}"; do
-  grep -Fqx "$line" "$ZSHENV" || echo "$line" >>"$ZSHENV"
-done
-
 ensure_zdotdir_in_zshenv
 ensure_zdotdir_startup_files
 ensure_editor_config_file
-ensure_teams_cleanup
 ensure_no_sdkroot_in_zshenv
 migrate_home_zshrc_to_bootstrap
 ensure_bootstrap_sourced_in_zshrc
 
-source "$ZSHENV"
+# Re-load so the PATH/XDG lines appended to ~/.zshenv above take effect here.
+load_shell_env
 
 resolve_macos_compiler() {
   local role="$1"
@@ -728,14 +773,6 @@ if command -v defaults >/dev/null 2>&1; then
   defaults write -g NSWindowShouldDragOnGesture -bool true || true
   defaults write -g NSAutomaticWindowAnimationsEnabled -bool false || true
   defaults write org.hammerspoon.Hammerspoon MJConfigFile "~/.config/todd/hammerspoon/init.lua" || true
-fi
-
-#################################
-# Install Homebrew if missing
-#################################
-if ! command -v brew >/dev/null 2>&1; then
-  echo "🍺 Installing Homebrew..."
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
 #################################
@@ -1276,6 +1313,20 @@ fi
 ensure_mise_in_shell
 
 #################################
+# Install xteams
+#################################
+TEAMS_PATH=$(mdfind "kMDItemCFBundleIdentifier == 'com.microsoft.teams2' || kMDItemCFBundleIdentifier == 'com.microsoft.teams'" | head -n 1)
+if [ -n "$TEAMS_PATH" ]; then
+  echo "✅ Microsoft Teams is installed at: $TEAMS_PATH"
+  if ! command -v xtreams >/dev/null 2>&1; then
+    echo "  Installing xteams ..."
+    mise use -g github:boazy/xteams-cli
+  fi
+else
+  echo "❌ Microsoft Teams not detected, so not installing xteams-cli."
+fi
+
+#################################
 # Install goimports
 #################################
 if ! command -v goimports >/dev/null 2>&1; then
@@ -1368,11 +1419,6 @@ if jq --arg path "$NEW_PATH" '
 else
   echo "❌ Failed to update Docker config."
 fi
-
-#################################
-# Microsoft Teams cache cleanup is handled by ensure_teams_cleanup
-# (once per boot; see ~/.config/todd/zsh/teams_cleanup.zsh)
-#################################
 
 #################################
 # Configure Boost / native build env
