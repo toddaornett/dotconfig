@@ -26,6 +26,7 @@ omp/install-id
 omp/.env
 omp/run/
 omp/agent/.env
+omp/agent/local-config.yml
 omp/agent/config.yml.lock
 omp/agent/config.yml.broken-*
 omp/agent/managed-skills/

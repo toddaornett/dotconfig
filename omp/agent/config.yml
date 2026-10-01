@@ -1,9 +1,6 @@
 defaultThinkingLevel: medium
 dev:
   autoqaConsent: denied
-modelRoles:
-  default: deepseek/deepseek-v4-flash:high
-  web: google-gemini-cli/gemini-2.5-flash
 setupVersion: 2
 symbolPreset: unicode
 composer:
