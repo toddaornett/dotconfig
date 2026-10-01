@@ -29,6 +29,15 @@ omp/agent/.env
 omp/agent/config.yml.lock
 omp/agent/config.yml.broken-*
 omp/agent/managed-skills/
+
+# Ignore local prediction caches
+predict/
+
+# Ignore local AI agent skill databases and SQLite sidecars
+omp/agent/skill-descriptions.db
+omp/agent/skill-descriptions.db-shm
+omp/agent/skill-descriptions.db-wal
+
 # Local Jira instance/team config for the jira-ticket-defaults skill. Machine
 # specific (field ids, board, lead accountId) — the skill regenerates a neutral
 # template when the file is missing, so this never needs to be committed.
