@@ -794,22 +794,40 @@ echo "📦 Installing Homebrew packages..."
 brew bundle --file="./Brewfile" || true
 
 # Homebrew reports a keg "already linked" via opt/emacs-plus even when bin/emacs
-# still belongs to another emacs-plus@N keg. Unlink every other emacs-plus first.
+# still belongs to another emacs-plus@N keg. Homebrew's own linked-keg record is
+# $BREW_PREFIX/var/homebrew/linked/<formula>, a symlink to the linked keg, so it
+# is both the test and the fix: when $EMACS_PACKAGE is the recorded keg and no
+# other emacs-plus keg is recorded, there is nothing to unlink or link and this
+# stays silent.
 ensure_emacs_plus_linked() {
-  echo "🔗 Linking $EMACS_PACKAGE as the active Emacs..."
-
-  if ! brew list --versions "$EMACS_PACKAGE" &>/dev/null; then
+  local versions keg_dir linked_record linked_dir shadows keg
+  versions="$(brew list --versions "$EMACS_PACKAGE" 2>/dev/null || true)"
+  if [ -z "$versions" ]; then
     echo "❌ $EMACS_PACKAGE is not installed (brew bundle failed)."
     exit 1
   fi
 
-  local keg
+  linked_dir="$BREW_PREFIX/var/homebrew/linked"
+  linked_record="$linked_dir/$EMACS_PACKAGE"
+  # brew --cellar <formula> prints that formula's cellar dir, name included.
+  keg_dir="$(brew --cellar "$EMACS_PACKAGE")/$(echo "$versions" | awk '{print $2}')"
+
+  shadows=""
   while IFS= read -r keg; do
-    [ -z "$keg" ] && continue
-    [ "$keg" = "$EMACS_PACKAGE" ] && continue
+    if [ -n "$keg" ] && [ "$keg" != "$EMACS_PACKAGE" ] && [ -L "$linked_dir/$keg" ]; then
+      shadows="$shadows $keg"
+    fi
+  done < <(brew list --formula | grep '^emacs-plus' || true)
+
+  if [ -z "$shadows" ] && [ "$linked_record" -ef "$keg_dir" ]; then
+    return 0
+  fi
+
+  echo "🔗 Linking $EMACS_PACKAGE as the active Emacs..."
+  for keg in $shadows; do
     echo "  Unlinking $keg so it cannot shadow $EMACS_PACKAGE"
     brew unlink "$keg" || true
-  done < <(brew list --formula | grep '^emacs-plus' || true)
+  done
 
   brew unlink "$EMACS_PACKAGE" &>/dev/null || true
   if ! brew link --overwrite "$EMACS_PACKAGE"; then
@@ -818,6 +836,69 @@ ensure_emacs_plus_linked() {
   fi
 }
 
+# emacs-plus@N is versioned per Emacs major, so a newer Emacs arrives as a new
+# formula (emacs-plus@32) instead of an upgrade of the current keg: `brew
+# outdated` never reports it and $EMACS_PACKAGE is only a floor. Adopt the
+# newest installed emacs-plus@N so an upgrade accepted below sticks on later
+# runs without rewriting this script.
+adopt_newest_installed_emacs_plus() {
+  local pkg major best="$EMACS_PACKAGE" best_major="${EMACS_PACKAGE##*@}"
+  while IFS= read -r pkg; do
+    major="${pkg#emacs-plus@}"
+    case "$major" in ''|*[!0-9]*) continue ;; esac
+    if [ "$major" -gt "$best_major" ]; then
+      best="$pkg"
+      best_major="$major"
+    fi
+  done < <(brew list --formula 2>/dev/null | grep '^emacs-plus@' || true)
+  EMACS_PACKAGE="$best"
+}
+
+# Newest emacs-plus@N the tap ships, read from the tap checkout `brew update`
+# refreshed above. Prints nothing when that cannot be determined.
+newest_available_emacs_plus() {
+  local formula major best="" best_major=0
+  for formula in "$BREW_PREFIX"/Library/Taps/d12frosted/homebrew-emacs-plus/Formula/emacs-plus@*.rb; do
+    [ -f "$formula" ] || continue
+    formula="$(basename "$formula" .rb)"
+    major="${formula#emacs-plus@}"
+    case "$major" in ''|*[!0-9]*) continue ;; esac
+    if [ "$major" -gt "$best_major" ]; then
+      best="$formula"
+      best_major="$major"
+    fi
+  done
+  if [ -n "$best" ]; then
+    printf '%s\n' "$best"
+  fi
+}
+
+# Offer a newer Emacs major when the tap has one. Stays silent — no output, no
+# prompt, no action — when the installed Emacs is already the newest major or
+# this run is not interactive. The superseded keg is unlinked by
+# ensure_emacs_plus_linked below, which links $EMACS_PACKAGE in its place.
+maybe_upgrade_emacs_plus() {
+  local latest answer="n"
+  latest="$(newest_available_emacs_plus)"
+  [ -n "$latest" ] || return 0
+  [ "${latest##*@}" -gt "${EMACS_PACKAGE##*@}" ] || return 0
+
+  if [ -t 0 ]; then
+    echo "⬆️  $latest is available (running $EMACS_PACKAGE)."
+    read -rp "   Install $latest and make it the active Emacs? [y/N] " answer || true
+  fi
+  [[ "$answer" =~ ^[Yy]$ ]] || return 0
+
+  echo "📦 Installing $latest..."
+  if ! brew install "$latest"; then
+    echo "❌ Failed to install $latest; keeping $EMACS_PACKAGE"
+    return 0
+  fi
+  EMACS_PACKAGE="$latest"
+}
+
+adopt_newest_installed_emacs_plus
+maybe_upgrade_emacs_plus
 ensure_emacs_plus_linked
 
 #################################
@@ -961,14 +1042,21 @@ ensure_emacs_runtime_deps() {
 
 ensure_emacs_runtime_deps
 
-# Link Emacs.app into /Applications if missing (use full formula path for tap)
+# Link Emacs.app into /Applications if missing, and repoint it after an
+# emacs-plus upgrade. A real .app bundle in /Applications is left alone.
+# (use full formula path for tap)
 EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/$EMACS_PACKAGE 2>/dev/null || brew --prefix $EMACS_PACKAGE 2>/dev/null)"
 EMACS_APP_SRC="${EMACS_PREFIX}/Emacs.app"
 EMACS_APP_DST="/Applications/Emacs.app"
 
-if [ -n "$EMACS_PREFIX" ] && [ -d "$EMACS_APP_SRC" ] && [ ! -e "$EMACS_APP_DST" ]; then
-  echo "📎 Linking Emacs.app into /Applications..."
-  ln -s "$EMACS_APP_SRC" "$EMACS_APP_DST"
+if [ -n "$EMACS_PREFIX" ] && [ -d "$EMACS_APP_SRC" ]; then
+  if [ -L "$EMACS_APP_DST" ] && [ ! "$EMACS_APP_DST" -ef "$EMACS_APP_SRC" ]; then
+    echo "📎 Repointing /Applications/Emacs.app at $EMACS_PACKAGE..."
+    ln -sfn "$EMACS_APP_SRC" "$EMACS_APP_DST"
+  elif [ ! -e "$EMACS_APP_DST" ] && [ ! -L "$EMACS_APP_DST" ]; then
+    echo "📎 Linking Emacs.app into /Applications..."
+    ln -s "$EMACS_APP_SRC" "$EMACS_APP_DST"
+  fi
 fi
 
 #################################
