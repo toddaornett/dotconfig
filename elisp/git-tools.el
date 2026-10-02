@@ -814,73 +814,45 @@ working-tree paths."
 
 (defun git-tools--author-weights (&optional directory pathspec)
   "Return an alist of (EMAIL . PLIST) for DIRECTORY.
+
 EMAIL is the author's email address, deduplicated so each email
 appears once even when its commits use different display names.
 PATHSPEC is a git path relative to DIRECTORY, defaulting to \".\".
-PLIST has keys `:lines' \(sum of added+deleted lines from non-merge
-commits touching PATHSPEC, not the whole repo if DIRECTORY is a
-subdirectory of a larger repository), `:first' \(author-date of the
-author's earliest such commit, a Unix timestamp or nil), `:last'
-\(author-date of the latest such commit, or nil), and `:name'
-\(the author's display name from the most recent such commit, or
-nil)."
+PLIST has keys `:commits' \(commit count touching PATHSPEC, the
+same total as `git shortlog -s -n -- PATHSPEC' from DIRECTORY,
+not the whole repo if DIRECTORY is a subdirectory of a larger
+repository), `:first' \(author-date of the author's earliest such
+commit, a Unix timestamp or nil), `:last' \(author-date of the
+latest such commit, or nil), and `:name' \(the author's display
+name from the most recent such commit, or nil)."
   (when-let* ((dir (git-tools--resolve-directory directory)))
     (let* ((default-directory dir)
             (pathspec (or pathspec "."))
-            (output (with-temp-buffer
-                      (if (zerop (call-process "git" nil t nil
-                                   "log" "--no-merges"
-                                   "--format=@@@%aN%x09%aE%x09%at"
-                                   "--numstat" "--" pathspec))
-                        (buffer-string)
-                        "")))
-            (table (make-hash-table :test 'equal))
-            (current-name nil)
-            (current-email nil)
-            (current-time nil))
-      (dolist (line (split-string output "\n"))
-        (cond
-          ((string-prefix-p "@@@" line)
-            (let ((fields (split-string (substring line 3) "\t")))
-              (setq current-name (nth 0 fields)
-                current-email (nth 1 fields)
-                current-time (and (nth 2 fields)
-                               (string-to-number (nth 2 fields)))))
-            (when current-email
-              (let ((entry (or (gethash current-email table)
-                             (list :lines 0 :first nil :last nil :name nil))))
-                (when current-time
-                  (unless (and (plist-get entry :first)
-                            (< (plist-get entry :first) current-time))
-                    (setq entry (plist-put entry :first current-time)))
-                  (unless (and (plist-get entry :last)
-                            (> (plist-get entry :last) current-time))
-                    (setq entry (plist-put entry :last current-time))
-                    (setq entry (plist-put entry :name current-name))))
-                (puthash current-email entry table))))
-          ((string-match "\\`\\([0-9]+\\)\t\\([0-9]+\\)\t" line)
-            (when current-email
-              (let* ((entry (or (gethash current-email table)
-                              (list :lines 0 :first nil :last nil :name nil)))
-                      (added (string-to-number (match-string 1 line)))
-                      (deleted (string-to-number (match-string 2 line))))
-                (puthash current-email
-                  (plist-put entry :lines (+ (plist-get entry :lines) added deleted))
-                  table))))))
-      ;; Make sure authors with zero countable lines (e.g. only touched
-      ;; binary files, or only made merge commits) still show up.
-      (let ((all-authors (with-temp-buffer
-                           (when (zerop (call-process "git" nil t nil
-                                          "log" "--format=%aN%x09%aE"
-                                          "--" pathspec))
-                             (buffer-string)))))
-        (when all-authors
-          (dolist (line (split-string all-authors "\n" t))
+            (table (make-hash-table :test 'equal)))
+      (with-temp-buffer
+        (when (zerop (call-process "git" nil t nil
+                       "log" "--format=%aN%x09%aE%x09%at" "--" pathspec))
+          (dolist (line (split-string (buffer-string) "\n" t))
             (let* ((fields (split-string line "\t"))
                     (name (nth 0 fields))
-                    (email (nth 1 fields)))
-              (unless (gethash email table)
-                (puthash email (list :lines 0 :first nil :last nil :name name) table))))))
+                    (email (nth 1 fields))
+                    (time (and (nth 2 fields)
+                            (string-to-number (nth 2 fields)))))
+              (when email
+                (let ((entry (or (gethash email table)
+                               (list :commits 0 :first nil :last nil
+                                 :name nil))))
+                  (setq entry (plist-put entry :commits
+                                 (1+ (or (plist-get entry :commits) 0))))
+                  (when time
+                    (unless (and (plist-get entry :first)
+                              (< (plist-get entry :first) time))
+                      (setq entry (plist-put entry :first time)))
+                    (unless (and (plist-get entry :last)
+                              (> (plist-get entry :last) time))
+                      (setq entry (plist-put entry :last time)
+                        entry (plist-put entry :name name))))
+                  (puthash email entry table)))))))
       (let (result)
         (maphash (lambda (k v) (push (cons k v) result)) table)
         result))))
@@ -911,18 +883,19 @@ A nil (unknown) time always sorts last."
 
 (defun git-tools--normalize-sort (sort)
   "Return a canonical sort key from SORT.
-Accepts the symbols `lines', `name', `created-asc', `created-desc',
-`updated-asc' and `updated-desc'; the boolean t as `name' and nil as
-`lines' for backward compatibility."
+
+Accepts the symbols `commits', `name', `created-asc',
+`created-desc', `updated-asc' and `updated-desc'; the boolean t as
+`name' and nil as `commits'."
   (cond
     ((eq sort t) 'name)
-    ((null sort) 'lines)
-    ((memq sort '(lines name created-asc created-desc updated-asc updated-desc))
+    ((null sort) 'commits)
+    ((memq sort '(commits name created-asc created-desc updated-asc updated-desc))
       sort)
-    (t 'lines)))
+    (t 'commits)))
 
 (defconst git-tools--author-sort-options
-  '(("lines changed (descending)" . lines)
+  '(("commits (descending)" . commits)
      ("author name (ascending)" . name)
      ("first commit, oldest first" . created-asc)
      ("first commit, newest first" . created-desc)
@@ -937,7 +910,7 @@ Accepts the symbols `lines', `name', `created-asc', `created-desc',
     ('created-desc "first commit, newest first")
     ('updated-asc "last commit, oldest first")
     ('updated-desc "last commit, newest first")
-    (_ "lines changed, descending")))
+    (_ "commits, descending")))
 
 (defconst git-tools-authors-top-n 5
   "Number of authors kept per change-path prefix and in the merged result.")
@@ -960,17 +933,18 @@ Accepts the symbols `lines', `name', `created-asc', `created-desc',
                                    (plist-get (cdr a) :last)
                                    (plist-get (cdr b) :last))))
     (_ (lambda (a b)
-         (if (= (plist-get (cdr a) :lines) (plist-get (cdr b) :lines))
+         (if (= (plist-get (cdr a) :commits) (plist-get (cdr b) :commits))
            (string-lessp (plist-get (cdr a) :name)
              (plist-get (cdr b) :name))
-           (> (plist-get (cdr a) :lines) (plist-get (cdr b) :lines)))))))
+           (> (plist-get (cdr a) :commits)
+             (plist-get (cdr b) :commits)))))))
 
 (defun git-tools--sorted-author-weights (&optional directory sort pathspec)
   "Return author weights for DIRECTORY, sorted by SORT.
 SORT is a symbol selecting the sort key and direction; see
 `git-tools--normalize-sort'. PATHSPEC is passed to
 `git-tools--author-weights'. Each element is (EMAIL . PLIST) with
-`:lines', `:first', `:last' and `:name' keys."
+`:commits', `:first', `:last' and `:name' keys."
   (let* ((sort-key (git-tools--normalize-sort sort))
           (alist (git-tools--author-weights directory pathspec))
           (pred (git-tools--author-sort-predicate sort-key)))
@@ -1048,7 +1022,7 @@ same directory, return that directory instead."
             rel))))))
 
 (defun git-tools--merge-author-weight-alists (alists)
-  "Merge author-weight ALISTS by email, summing `:lines'.
+  "Merge author-weight ALISTS by email, summing `:commits'.
 `:first' is the earliest timestamp, `:last' the latest, and `:name'
 comes from the latest commit."
   (let ((table (make-hash-table :test 'equal)))
@@ -1059,13 +1033,13 @@ comes from the latest commit."
                 (prev (gethash email table)))
           (if (not prev)
             (puthash email
-              (list :lines (plist-get plist :lines)
+              (list :commits (plist-get plist :commits)
                 :first (plist-get plist :first)
                 :last (plist-get plist :last)
                 :name (plist-get plist :name))
               table)
-            (let* ((lines (+ (or (plist-get prev :lines) 0)
-                            (or (plist-get plist :lines) 0)))
+            (let* ((commits (+ (or (plist-get prev :commits) 0)
+                              (or (plist-get plist :commits) 0)))
                     (first-a (plist-get prev :first))
                     (first-b (plist-get plist :first))
                     (first (cond
@@ -1086,18 +1060,18 @@ comes from the latest commit."
                             ((null last-b) last-a)
                             (t (max last-a last-b)))))
               (puthash email
-                (list :lines lines :first first :last last :name name)
+                (list :commits commits :first first :last last :name name)
                 table))))))
     (let (result)
       (maphash (lambda (k v) (push (cons k v) result)) table)
       result)))
 
 (defun git-tools--author-display-entries (weights)
-  "Map author WEIGHTS (EMAIL . PLIST) to (DISPLAY-STRING . LINES)."
+  "Map author WEIGHTS (EMAIL . PLIST) to (DISPLAY-STRING . COMMITS)."
   (mapcar (lambda (entry)
             (cons (git-tools--author-display (plist-get (cdr entry) :name)
                     (car entry))
-              (plist-get (cdr entry) :lines)))
+              (plist-get (cdr entry) :commits)))
     weights))
 
 (defun git-tools--change-prefixes-for-authors (&optional directory files)
@@ -1116,9 +1090,9 @@ empty, PREFIXES is DIRECTORY itself relative to the repo root."
 
 FILES defaults to `git-tools--changed-files' in DIRECTORY.  Each
 prefix contributes its top `git-tools-authors-top-n' authors
-sorted by SORT; those lists are merged by email with line counts
-summed.  The merged alist is sorted by SORT.  Returns nil when
-DIRECTORY is not in a git repository."
+sorted by SORT; those lists are merged by email with commit
+counts summed.  The merged alist is sorted by SORT.  Returns nil
+when DIRECTORY is not in a git repository."
   (when-let* ((pair (git-tools--change-prefixes-for-authors directory files))
                (root (car pair))
                (prefixes (cdr pair))
@@ -1138,31 +1112,23 @@ DIRECTORY is not in a git repository."
     (if current-prefix-arg
       (cdr (assoc (completing-read "Sort by: " git-tools--author-sort-options)
              git-tools--author-sort-options))
-      'lines)))
+      'commits)))
 
 ;;;###autoload
-(defun git-tools-authors-insert (&optional directory sort files)
-  "Insert the top 5 merged authors for DIRECTORY's git change list.
-Changed files (FILES when supplied, otherwise the current change
-list) are grouped into unique path prefixes: one component past the
-longest prefix shared by every changed file.  A sibling directory
-that contains only one changed file is still kept.
+(defun git-tools-authors-insert (&optional directory sort)
+  "Insert the top 5 authors by commit count for DIRECTORY.
 
-The top 5 authors of each prefix are merged by email, summing
-added and deleted line counts, and the top 5 of that combined list
-are shown as \"email (name)\" in a new, uniquely-named buffer.
-SORT is a symbol selecting the sort key and direction; see
-`git-tools--normalize-sort'."
+Counts match `git shortlog -s -n -- .' run in DIRECTORY: every
+commit that touches that tree, not added and deleted line totals.
+Each line is \"email (name)\" plus the commit count in a new,
+uniquely-named buffer.  SORT is a symbol selecting the sort key
+and direction; see `git-tools--normalize-sort'."
   (interactive (git-tools--authors-interactive-args))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
           (sort-key (git-tools--normalize-sort sort))
-          (pair (and resolved
-                  (git-tools--change-prefixes-for-authors resolved files)))
-          (prefixes (cdr pair))
-          (weights (and pair
-                     (git-tools--merged-change-author-weights
-                       resolved sort-key files)))
+          (weights (and resolved
+                     (git-tools--sorted-author-weights resolved sort-key ".")))
           (entries (take git-tools-authors-top-n
                      (git-tools--author-display-entries weights))))
     (if (null entries)
@@ -1172,46 +1138,35 @@ SORT is a symbol selecting the sort key and direction; see
                      (abbreviate-file-name resolved)))))
         (with-current-buffer buf
           (insert (format "Authors in: %s\n" (abbreviate-file-name resolved)))
-          (insert (format "Change path prefixes: %s\n"
-                    (mapconcat #'identity prefixes ", ")))
           (insert (format "Top %d authors (sorted by %s)\n"
                     git-tools-authors-top-n
                     (git-tools--author-sort-label sort-key)))
           (insert (make-string 40 ?=) "\n")
           (dolist (entry entries)
-            (insert (format "%-50s %6d lines\n"
+            (insert (format "%-50s %6d commits\n"
                       (car entry) (cdr entry))))
           (goto-char (point-min))
           (read-only-mode 1)
           (pop-to-buffer buf))))))
 
 ;;;###autoload
-(defun git-tools-authors-list (&optional directory sort files)
-  "Return the top 5 authors as (AUTHOR-STRING . LINE-COUNT) for DIRECTORY.
+(defun git-tools-authors-list (&optional directory sort)
+  "Return the top 5 authors as (AUTHOR-STRING . COMMIT-COUNT) for DIRECTORY.
+
 AUTHOR-STRING is \"email (name)\", with each author deduplicated by
 email using the most recent display name.
 
-Changed files (FILES when supplied, otherwise the current git
-change list) are grouped into unique path prefixes: one component
-past the longest prefix shared by every changed file.  A sibling
-directory that contains only one changed file is still kept.
-
-The top 5 authors of each prefix, sorted by SORT, are merged by
-email, summing line counts, and the top 5 of that combined list
-are returned.  SORT is a symbol selecting the sort key and
-direction; see `git-tools--normalize-sort'.  When called
-interactively, also prints the authors and summary in the echo
-area."
+Counts match `git shortlog -s -n -- .' run in DIRECTORY: every
+commit that touches that tree.  SORT is a symbol selecting the
+sort key and direction; see `git-tools--normalize-sort'.  When
+called interactively, also prints the authors and summary in the
+echo area."
   (interactive (git-tools--authors-interactive-args))
   (let* ((target-dir (or directory (git-tools--default-directory)))
           (resolved (git-tools--resolve-directory target-dir))
           (sort-key (git-tools--normalize-sort sort))
-          (pair (and resolved
-                  (git-tools--change-prefixes-for-authors resolved files)))
-          (prefixes (cdr pair))
-          (weights (and pair
-                     (git-tools--merged-change-author-weights
-                       resolved sort-key files)))
+          (weights (and resolved
+                     (git-tools--sorted-author-weights resolved sort-key ".")))
           (entries (take git-tools-authors-top-n
                      (git-tools--author-display-entries weights))))
     (if (null entries)
@@ -1221,11 +1176,10 @@ area."
       (when (called-interactively-p 'interactive)
         (let ((lines (mapconcat
                        (lambda (entry)
-                         (format "%-50s %6d lines" (car entry) (cdr entry)))
+                         (format "%-50s %6d commits" (car entry) (cdr entry)))
                        entries "\n")))
-          (message "Authors in %s [%s] (%d found, sorted by %s):\n%s"
+          (message "Authors in %s (%d found, sorted by %s):\n%s"
             (abbreviate-file-name resolved)
-            (mapconcat #'identity prefixes ", ")
             (length entries)
             (git-tools--author-sort-label sort-key)
             lines)))
