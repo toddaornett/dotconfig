@@ -29,6 +29,9 @@
 ;; per-user file in `temporary-file-directory' so `nodoze-kill' and
 ;; `nodoze-status' keep working even across Emacs restarts.
 ;;
+;; caffeinate is started detached (via `nohup'), so quitting Emacs does
+;; not stop it.  Use `nodoze-kill' to terminate the tracked process.
+;;
 ;; Requires macOS `caffeinate`.
 ;;
 ;;; Code:
@@ -172,7 +175,7 @@ all recognized."
     (?h 3600.0)
     (?m 60.0)
     (?s 1.0)
-    (_ (user-error "nodoze: unrecognized duration unit %S" unit))))
+    (_ (user-error "Unrecognized by nodoze duration unit %S" unit))))
 
 (defun nodoze--parse-duration (input)
   "Parse INPUT into a whole number of seconds.
@@ -189,7 +192,7 @@ a number of hours, matching nodoze's original numeric-hours interface."
          (found-unit nil)
          (start 0))
     (when (zerop (length s))
-      (user-error "nodoze: empty duration"))
+      (user-error "Specify duration for nodoze"))
     (while (string-match nodoze--duration-unit-re s start)
       (let ((num (string-to-number (match-string 1 s)))
              (unit (match-string 2 s)))
@@ -199,7 +202,7 @@ a number of hours, matching nodoze's original numeric-hours interface."
     (unless found-unit
       (if (string-match-p "\\`[0-9]*\\.?[0-9]+\\'" s)
         (setq seconds (* (string-to-number s) 3600.0))
-        (user-error "nodoze: could not parse duration %S" input)))
+        (user-error "Duration '%S' unparseable by nodoze" input)))
     (round seconds)))
 
 (defun nodoze--format-duration (seconds)
@@ -224,11 +227,11 @@ a number of hours, matching nodoze's original numeric-hours interface."
   "Parse TIME-STR (\"HH:MM\") into a list (HOUR MINUTE)."
   (unless (and (stringp time-str)
             (string-match nodoze--clock-time-re time-str))
-    (user-error "nodoze: invalid clock time %S (expected HH:MM)" time-str))
+    (user-error "Invalid clock time '%S' (expected HH:MM) for nodoze" time-str))
   (let ((hour (string-to-number (match-string 1 time-str)))
          (minute (string-to-number (match-string 2 time-str))))
     (unless (and (<= 0 hour 23) (<= 0 minute 59))
-      (user-error "nodoze: invalid clock time %S" time-str))
+      (user-error "Invalid clock time '%S' for nodoze" time-str))
     (list hour minute)))
 
 (defun nodoze--seconds-until (time-str)
@@ -252,17 +255,41 @@ a number of hours, matching nodoze's original numeric-hours interface."
       (when (> seconds 0)
         (nodoze--format-duration seconds)))))
 
+(defun nodoze--start-detached (program options seconds)
+  "Start PROGRAM with OPTIONS for SECONDS, detached from Emacs.
+
+OPTIONS is a string of arguments.  SECONDS is appended as the last
+argument (the caffeinate `-t' duration).  The process is started
+with `nohup' so it is not an Emacs subprocess and is not killed
+when Emacs exits.  Return the new PID."
+  (let* ((args (append (split-string options)
+                 (list (number-to-string seconds))))
+          (cmd (mapconcat #'shell-quote-argument
+                 (cons program args) " "))
+          (nohup (or (executable-find "nohup") "/usr/bin/nohup"))
+          (pid
+            (with-temp-buffer
+              (let ((status
+                      (call-process
+                        "/bin/sh" nil t nil "-c"
+                        (format "%s %s </dev/null >/dev/null 2>&1 & echo $!"
+                          (shell-quote-argument nohup) cmd))))
+                (unless (and (integerp status) (zerop status))
+                  (user-error "Failed to start %s from nodoze" program))
+                (string-to-number (string-trim (buffer-string)))))))
+    (unless (and (integerp pid) (> pid 0))
+      (user-error "Failed to start %s from nodoze" program))
+    pid))
+
 (defun nodoze--launch (options seconds description)
   "Start `nodoze-command-program' with OPTIONS for SECONDS.
-DESCRIPTION is logged with the new PID."
+
+The process is detached from Emacs so it keeps running after
+Emacs exits.  DESCRIPTION is logged with the new PID."
   (let* ((buffer (get-buffer-create "*nodoze*"))
           (start-time (current-time))
-          (args (append (split-string options)
-                  (list (number-to-string seconds))))
-          (proc (apply #'start-process "nodoze-caffeinate" nil
-                  nodoze-command-program args))
-          (pid (process-id proc)))
-    (set-process-query-on-exit-flag proc nil)
+          (pid (nodoze--start-detached
+                 nodoze-command-program options seconds)))
     (nodoze--write-state pid start-time seconds)
     (nodoze--log-and-message
       buffer "Starting caffeinate (pid %s) %s (%s)"
@@ -296,7 +323,7 @@ PHASE is `idle' (then a full-awake follow-up) or `full'."
   "Start a kokoni-style schedule through `nodoze-until-time'."
   (let ((plan (nodoze--schedule-plan)))
     (unless plan
-      (user-error "nodoze: already past %s" nodoze-until-time))
+      (user-error "Already past %s so nodoze is skipping this schedule" nodoze-until-time))
     (nodoze--kill-tracked)
     (pcase plan
       (`(full ,until-end)
@@ -335,7 +362,7 @@ number of hours): ")
     (nodoze--start-schedule)
     (let ((seconds (nodoze--parse-duration duration)))
       (when (<= seconds 0)
-        (user-error "nodoze: duration must be greater than zero"))
+        (user-error "Duration must be greater than zero for nodoze"))
       ;; Stop the previous run nodoze itself was tracking, if it's still going,
       ;; so it doesn't keep running orphaned. Never touches other caffeinate
       ;; processes on the system.
