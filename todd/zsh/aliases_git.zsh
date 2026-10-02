@@ -84,29 +84,77 @@ function _git_log_prettily() {
   fi
 }
 
-git_cleanup_branches() {
-  local main_branch branches
+function git_cleanup_branches() {
+  local main_branch candidates branch choice answer failed=""
   main_branch="$(git_main_branch)"
   [ -n "$main_branch" ] || return 1
 
   git checkout "$main_branch" || return 1
-  git fetch origin --prune
+  git fetch origin --prune || return 1
+  git merge --ff-only "origin/$main_branch" || return 1
 
-  branches="$(
-    git branch --merged "$main_branch" |
-      sed 's/^[*+ ]*//' |
-      grep -vFx "$main_branch" |
-      grep -vE '^release'
+  # Branches merged into main, plus branches whose remote counterpart is gone
+  candidates="$(
+    {
+      git branch --merged "$main_branch" --format='%(refname:short)'
+      git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads |
+        awk '$2 == "[gone]" { print $1 }'
+    } | sort -u | grep -vFx "$main_branch" | grep -vE '^release'
   )"
 
-  if [ -n "$branches" ]; then
-    printf '%s\n' "$branches" | xargs git branch -d
-  else
+  if [ -z "$candidates" ]; then
     echo "No merged branches to delete."
+    return 0
   fi
+
+  # Safe delete first; collect whatever git refuses (e.g. squash-merged)
+  while IFS= read -r branch; do
+    git branch -d "$branch" || failed="${failed}${branch}"$'\n'
+  done <<<"$candidates"
+
+  failed="${failed%$'\n'}"
+  [ -n "$failed" ] || return 0
+
+  echo
+  echo "These branches were deleted on the remote, but git can't confirm they're"
+  echo "merged (likely squash-merged). They still have local commits:"
+  printf '%s\n' "$failed" | sed 's/^/  /'
+  echo
+
+  printf 'Force-delete? [a]ll / [i]nteractive / [n]one (Enter = none): '
+  read -r choice
+
+  case "$choice" in
+  a | A)
+    while IFS= read -r branch; do
+      git branch -D "$branch"
+    done <<<"$failed"
+    ;;
+  i | I)
+    # Read branches on fd 3 so prompts can read from the terminal on stdin
+    while IFS= read -r branch <&3; do
+      echo
+      echo "Branch: $branch"
+      git log -1 --format='  last commit: %h %s (%cr)' "$branch"
+      printf 'Delete? [y]es / [n]o / [q]uit: '
+      read -r answer
+      case "$answer" in
+      y | Y) git branch -D "$branch" ;;
+      q | Q)
+        echo "Stopping."
+        break
+        ;;
+      *) echo "Kept $branch." ;;
+      esac
+    done 3<<<"$failed"
+    ;;
+  *)
+    echo "No branches force-deleted."
+    ;;
+  esac
 }
 
-git_nuke_branches() {
+function git_nuke_branches() {
   local main_branch branches reply
   main_branch="$(git_main_branch)"
   [ -n "$main_branch" ] || return 1
