@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: September 19, 2026
+;; Modified: October 2, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -21,6 +21,7 @@
 
 (require 'magit)
 (require 'vc-git)
+(require 'subr-x)
 
 ;; Keep `user-full-name'/`user-mail-address' in sync with the current
 ;; repo's git config (falling back to Emacs' original values outside
@@ -40,12 +41,24 @@
 ;; Cache: (ROOT . (NAME . EMAIL))
 (defvar git-tools-git-identity-cache (make-hash-table :test #'equal))
 
-(defvar git-tools-review-home nil
-  "Override directory for review commands, or nil for the current git project.
-When set to a non-empty string, `git-tools-review-directory' and
-`git-tools-review-start' use this path instead of
-`git-tools--project-root'.  Typically set from the
-GIT_TOOLS_REVIEW_HOME environment variable.")
+(defgroup git-tools nil
+  "Git tools and workflows."
+  :group 'tools)
+
+(defcustom git-tools-review-home
+  (or (getenv "GIT_TOOLS_REVIEW_HOME") "~/code-review")
+  "Base directory for parallel code-review clones.
+Each review repository is cloned to HOME/OWNER/REPO, derived from
+the origin remote URL of the repository under review, so different
+repositories can be reviewed in parallel without sharing a working
+tree.  The clone is created on demand by
+`git-tools-review-directory' and `git-tools-review-start', and the
+source repository's project/user git settings (local config, hooks,
+`info/exclude') are copied into it; see
+`git-tools--copy-review-repo-settings'.  Set from the
+GIT_TOOLS_REVIEW_HOME environment variable when present."
+  :type 'directory
+  :group 'git-tools)
 
 (defun git-tools--project-root ()
   "Return the root directory of the current git project, or nil if none.
@@ -1231,37 +1244,224 @@ area."
         (when (eq (process-status process) 'exit)
           (magit-refresh-all))))))
 
+(defun git-tools--remote-url (&optional directory)
+  "Return the origin remote URL for the repository in DIRECTORY, or nil.
+DIRECTORY defaults to the current buffer's directory."
+  (let ((default-directory
+          (file-name-as-directory
+            (expand-file-name (or directory (git-tools--default-directory))))))
+    (let ((url (ignore-errors (magit-git-string "remote" "get-url" "origin"))))
+      (and (stringp url) (not (string-empty-p url)) url))))
+
+(defun git-tools-remote-identity (&optional directory)
+  "Parse the origin remote of the repository in DIRECTORY into (HOST OWNER REPO).
+
+DIRECTORY defaults to the current buffer's directory.  Handles
+HTTPS, git, and ssh URLs (\"https://github.com/owner/repo.git\",
+\"ssh://git@host:2222/owner/repo\") and the scp-like form
+\(\"git@github-lb:owner/repo.git\" where `github-lb` is a Host
+alias in ~/.ssh/config).  OWNER may itself contain `/` for hosts
+that group repositories, as GitLab subgroup paths do.  The `.git`
+suffix is stripped.  Return nil when there is no origin remote or
+it cannot be parsed."
+  (when-let* ((url (git-tools--remote-url directory)))
+    (let (host owner repo)
+      (cond
+        ((string-match
+           "\\`\\(?:https?\\|git\\|ssh\\)://\\(?:[^@/]+@\\)?\\([^:/]+\\)\\(?::[0-9]+\\)?/\\([^/]+\\)/\\(.+\\)\\'"
+           url)
+          (setq host (match-string 1 url)
+            owner (match-string 2 url)
+            repo (match-string 3 url)))
+        ((string-match
+           "\\`\\(?:[^@/]+@\\)?\\([^:/]+\\):\\([^/]+\\)/\\(.+\\)\\'" url)
+          (setq host (match-string 1 url)
+            owner (match-string 2 url)
+            repo (match-string 3 url))))
+      (when (and host owner repo)
+        (setq repo (string-remove-suffix "/" repo))
+        (setq repo (string-remove-suffix ".git" repo))
+        (unless (string-empty-p repo)
+          (list host owner repo))))))
+
+(defun git-tools-review-base-directory ()
+  "Return the expanded base directory for parallel review clones."
+  (file-name-as-directory
+    (expand-file-name
+      (if (and (stringp git-tools-review-home)
+            (not (string-empty-p git-tools-review-home)))
+        git-tools-review-home
+        "~/code-review"))))
+
+(defun git-tools-review-repo-path (owner repo)
+  "Return the review clone path for OWNER/REPO under the review base.
+The base is `git-tools-review-base-directory'.  The path is
+computed, not created."
+  (expand-file-name (concat owner "/" repo)
+    (git-tools-review-base-directory)))
+
+(defun git-tools-review-clone-candidates (owner repo)
+  "Return existing review clones for OWNER/REPO under the review base.
+Scans the layout created by `git-tools-review-repo-path' under
+`git-tools-review-base-directory', so the clone of a given
+repository can be found without knowing its remote host.  Returns
+a list of directory names, or nil."
+  (let ((base (git-tools-review-base-directory))
+         (names (delete-dups (list repo (capitalize repo) (upcase repo))))
+         dirs)
+    (when (and (file-directory-p base) (stringp owner)
+            (not (string-empty-p owner))
+            (stringp repo) (not (string-empty-p repo)))
+      (dolist (name names)
+        (let ((dir (expand-file-name (concat owner "/" name) base)))
+          (when (file-directory-p dir)
+            (push (directory-file-name dir) dirs)))))
+    dirs))
+
+(defconst git-tools--review-config-skip-regexp
+  (concat "\\`\\(?:remote\\|branch\\|submodule\\)\\."
+    "\\|\\`core\\.\\(?:repositoryformatversion\\|bare\\|worktree\\|"
+    "filemode\\|logallrefupdates\\|ignorecase\\|precomposeunicode\\|"
+    "symlinks\\|trustctime\\|checkstat\\)\\'")
+  "Local git config keys not copied into a review clone.
+These are the settings that `git clone' already establishes for the
+clone itself (remotes, branch tracking, submodules) or that describe
+the source checkout's on-disk layout, so copying them would be
+wrong.")
+
+(defun git-tools--local-config-alist (&optional directory)
+  "Return DIRECTORY's local git config as an alist of (KEY . VALUE)."
+  (let ((default-directory
+          (file-name-as-directory
+            (expand-file-name (or directory (git-tools--default-directory))))))
+    (mapcar (lambda (item)
+              (if (string-match "\n" item)
+                (cons (substring item 0 (match-beginning 0))
+                  (substring item (match-end 0)))
+                (cons item "")))
+      (magit-git-items "config" "--local" "--list" "-z"))))
+
+(defun git-tools--copy-local-config (source dest)
+  "Add SOURCE's local git config entries to DEST's local git config.
+Keys matching `git-tools--review-config-skip-regexp' are skipped, so
+the clone keeps the remotes and branch tracking that `git clone'
+set up.  Return the number of entries copied."
+  (let ((default-directory
+          (file-name-as-directory (expand-file-name dest)))
+         (count 0))
+    (dolist (pair (git-tools--local-config-alist source))
+      (let ((key (car pair)))
+        (unless (string-match-p git-tools--review-config-skip-regexp key)
+          (when (magit-git-success "config" "--local" "--add" key (cdr pair))
+            (setq count (1+ count))))))
+    count))
+
+(defun git-tools--copy-git-dir-files (source dest)
+  "Copy SOURCE's git-directory extras into DEST's git directory.
+Copies `info/exclude', plus the `hooks' directory unless
+`core.hooksPath' is set (in which case the hooks live at that path,
+inside the worktree or elsewhere, and are handled by the clone and
+the config copy).  Return the number of files copied."
+  (let ((src (magit-gitdir (file-name-as-directory (expand-file-name source))))
+         (dst (magit-gitdir (file-name-as-directory (expand-file-name dest))))
+         (count 0))
+    (when (and src dst)
+      (let ((exclude (expand-file-name "info/exclude" src)))
+        (when (file-exists-p exclude)
+          (let ((target (expand-file-name "info/exclude" dst)))
+            (make-directory (file-name-directory target) t)
+            (copy-file exclude target t t)
+            (setq count (1+ count)))))
+      (unless (git-tools-git-config-value "core.hooksPath")
+        (let ((hooks (expand-file-name "hooks" src)))
+          (when (file-directory-p hooks)
+            (dolist (file (directory-files hooks t "\\`[^.]"))
+              (when (file-regular-p file)
+                (let ((target (expand-file-name (file-name-nondirectory file)
+                                (expand-file-name "hooks" dst))))
+                  (make-directory (file-name-directory target) t)
+                  (copy-file file target t t)
+                  (setq count (1+ count)))))))))
+    count))
+
+(defun git-tools--copy-review-repo-settings (source dest)
+  "Copy SOURCE's project/user git settings into the fresh clone DEST.
+Copies DEST's local git config from SOURCE (minus the clone-owned
+keys), its `info/exclude', and its hooks.  SOURCE is expected to be
+the repository the review clone was cloned from.  Return the number
+of settings copied."
+  (let ((default-directory
+          (file-name-as-directory (expand-file-name source))))
+    (+ (git-tools--copy-local-config source dest)
+      (git-tools--copy-git-dir-files source dest))))
+
+(defun git-tools--ensure-review-repo (&optional directory)
+  "Return the parallel review clone for the repository in DIRECTORY.
+DIRECTORY defaults to the current buffer's directory.  The clone
+lives at `git-tools-review-repo-path' for the origin remote's
+OWNER/REPO.  When the clone is missing its parent directories
+are created and the repository is cloned from its origin, after
+which DIRECTORY's project/user git settings are copied into the
+clone (see `git-tools--copy-review-repo-settings').  Return nil when
+the repository has no parsable origin remote.  Signal a `user-error'
+when the computed path exists but is not a git repository, or when
+cloning fails."
+  (let* ((source (or directory (git-tools--default-directory)))
+          (identity (git-tools-remote-identity source)))
+    (when identity
+      (let* ((owner (nth 1 identity))
+              (repo (nth 2 identity))
+              (dest (directory-file-name
+                      (git-tools-review-repo-path owner repo))))
+        (cond
+          ((git-tools--git-repo-p (file-name-as-directory dest))
+            (file-name-as-directory dest))
+          ((file-exists-p dest)
+            (user-error "Review path exists but is not a git repository: %s"
+              dest))
+          (t
+            (let ((url (git-tools--remote-url source)))
+              (make-directory (file-name-directory dest) t)
+              (message "git-tools-review: cloning %s into %s" url dest)
+              (if (magit-git-success "clone" url dest)
+                (progn
+                  (git-tools--copy-review-repo-settings source dest)
+                  (message "git-tools-review: copied project git settings into %s"
+                    dest)
+                  (file-name-as-directory dest))
+                (ignore-errors (delete-directory dest t))
+                (user-error "The git clone failed: %s" url)))))))))
+
 ;;;###autoload
-(defun git-tools-review-directory ()
-  "Return the effective git working directory for review commands.
-If `git-tools-review-home' is a non-empty string, expand and use
-that path.  Otherwise use `git-tools--project-root', falling back
-to `default-directory'.
+(defun git-tools-review-directory (&optional directory)
+  "Return the git working directory to use for review commands.
+By default, the parallel review clone for the repository in
+DIRECTORY (or the current buffer's repository): the origin remote
+is parsed into OWNER/REPO and the clone lives under
+`git-tools-review-home', created on demand.  When that repository
+has no parsable origin remote, fall back to DIRECTORY, then
+`git-tools--project-root', then `default-directory'.
 When called interactively, also display the result in the echo area."
   (interactive)
-  (let ((dir (file-name-as-directory
-               (or (and (stringp git-tools-review-home)
-                     (not (string-empty-p git-tools-review-home))
-                     (expand-file-name git-tools-review-home))
-                 (git-tools--project-root)
-                 default-directory))))
+  (let* ((source (or directory (git-tools--default-directory)))
+          (dir (file-name-as-directory
+                 (or (git-tools--ensure-review-repo source)
+                   (and directory (expand-file-name directory))
+                   (git-tools--project-root)
+                   default-directory))))
     (when (called-interactively-p 'interactive)
       (message "Git review directory: %s" dir))
     dir))
 
 (defun git-tools--pr-owner-repo (directory)
   "Return (OWNER . REPO) parsed from origin's remote URL in DIRECTORY, or nil.
-Handles both HTTPS URLs (https://github.com/owner/repo.git) and
-SSH URLs, including SSH config host aliases
-`(e.g. git@github-lb:owner/repo.git where `github-lb' is a Host
-alias in ~/.ssh/config, not the literal github.com)."
-  (let* ((default-directory directory)
-          (url (magit-git-string "remote" "get-url" "origin")))
-    (when (and url
-            (string-match
-              "\\`\\(?:[[:alnum:]_.-]+@\\)?[^:/@]+[:/]\\([^/]+\\)/\\([^/.]+\\)\\(?:\\.git\\)?/?\\'"
-              url))
-      (cons (match-string 1 url) (match-string 2 url)))))
+Handles HTTPS URLs (https://github.com/owner/repo.git) and SSH
+URLs, including SSH config host aliases `(e.g.
+git@github-lb:owner/repo.git where `github-lb' is a Host alias in
+~/.ssh/config, not the literal github.com).  See
+`git-tools-remote-identity'."
+  (when-let* ((identity (git-tools-remote-identity directory)))
+    (cons (nth 1 identity) (nth 2 identity))))
 
 (defun git-tools--pr-head-branch-via-gh (owner repo pr-number)
   "Look up the head branch of PR-NUMBER in OWNER/REPO using the `gh' CLI, or nil."
@@ -1306,12 +1506,13 @@ Tries `gh' first, then the GitHub REST API. Returns nil if both fail."
         (git-tools--pr-head-branch-via-api owner repo pr-number)))))
 
 ;;;###Autoload
-(defun git-tools-review-start ()
-  "Start reviewing a GitHub pull request in a dedicated repo directory.
-Use `git-tools-review-home' as the repo directory if it is set to a
-non-empty string; otherwise fall back to `git-tools--project-root'
-`(based on the current buffer, like the rest of git-tools).
-In that repo:
+(defun git-tools-review-start (&optional directory)
+  "Start reviewing a GitHub pull request in a dedicated review clone.
+DIRECTORY is the repository whose origin remote selects the clone
+\(default: the current buffer's repository).  The clone lives under
+`git-tools-review-home' as OWNER/REPO and is created on demand
+by `git-tools-review-directory'.
+In that clone:
 1. Clean the working tree (`git reset --hard' + `git clean -fd',
    discarding local changes and untracked files).
 2. Check out the main branch, per `git-tools-main-branch-name'.
@@ -1326,13 +1527,7 @@ In that repo:
    fails.
 5. Add prompt to the kill ring."
   (interactive)
-  (let* ((default-directory
-           (file-name-as-directory
-             (or (and (stringp git-tools-review-home)
-                   (not (string-empty-p git-tools-review-home))
-                   (expand-file-name git-tools-review-home))
-               (git-tools--project-root)
-               (user-error "Could not determine a git repository directory"))))
+  (let* ((default-directory (git-tools-review-directory directory))
           (main-branch (or (git-tools-main-branch-name)
                          (user-error "Could not determine main branch for %s"
                            default-directory)))
@@ -1366,7 +1561,8 @@ In that repo:
       (magit-run-git "checkout" review-branch)
       (kill-new output)
       (message "git-tools-review: checked out PR #%s as `%s' in %s"
-        pr-number review-branch default-directory))))
+        pr-number review-branch default-directory)
+      (file-name-as-directory default-directory))))
 
 (defun git-tools--clipboard-string ()
   "Return the current system clipboard contents as a string, or nil."

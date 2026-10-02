@@ -1,11 +1,11 @@
-;;; JIRA-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
+;;; jira-todo.el --- Generate org-mode TODO a1d Slack message for JIRA tickets -*- lexical-binding: t -*-
 ;;
 ;; Copyright (C) 2026 Todd Ornett
 ;;
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: September 30, 2026
+;; Modified: October 1, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -77,12 +77,6 @@ prints ids for the channels you follow)."
 (defcustom jira-todo-git-directory
   (or (getenv "JIRA_TODO_GIT_DIRECTORY") "~/Projects")
   "Directory for creating git branch from todo."
-  :type 'string
-  :group 'jira-todo)
-
-(defcustom jira-todo-peer-code-review-home
-  (or (getenv "JIRA_TODO_PEER_CODE_REVIEW_HOME") "~/Review")
-  "Directory for creating peer code review git branch from todo."
   :type 'string
   :group 'jira-todo)
 
@@ -316,43 +310,54 @@ SUMMARY are wrapped as CommonMark autolinks by
     (format "#+end_src\n")))
 
 (defun jira-todo--format-output (data)
-  "Format `org-mode' TODO and message from parsed JIRA DATA."
-  (let* ((key                 (format "%s" (alist-get 'key data)))
-          (fields             (alist-get 'fields data))
-          (summary            (format "%s" (alist-get 'summary fields)))
-          (url                (jira-todo--key-to-browse-url key))
-          (clean-summary      (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
-          (branch-words       (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
-          (branch-compact     (replace-regexp-in-string "-+" "-" branch-words))
-          (branch-trimmed     (replace-regexp-in-string "-+$" "" branch-compact))
-          (branch-summ        (downcase branch-trimmed))
-          (branch             (git-tools-normalize-branch-name
-                                (format "%s_%s" key branch-summ))))
-    (concat
-      (format "*** TODO CR: %s %s\n" key clean-summary)
-      (format "JIRA: [[%s][%s]]\n" url key)
-      (format "Branch: %s\n" branch)
-      (format "Git Directory: %s\n" jira-todo-git-directory)
-      (format "Prompt:\n")
-      (format "--begin--\n")
-      (format "Under the %s directory in my current branch %s" jira-todo-git-directory branch)
-      (format " please implement the JIRA at %s\n" url)
-      (format "--end--\n")
-      (format "Title: %s: %s\n" key clean-summary)
-      (format "PR: <PR-TBD>\n")
-      (format "PR Text:\n")
-      (format "--begin--\n")
-      (format "## JIRA\n")
-      (format "[%s](%s)\n" key url)
-      (format "## Description\n")
-      (format "%s\n" clean-summary)
-      (format "--end--\n")
-      (pcase jira-todo-pr-messaging-provider
-        ("slack" (jira-todo--format-slack-message clean-summary))
-        ("teams" (jira-todo--format-teams-message clean-summary))
-        (_ ""))
-      (format ":LOGBOOK:\n")
-      (format ":END:"))))
+  "Format `org-mode' TODO and message from parsed JIRA DATA.
+Also copies the prompt block via `caveman-copy-region'."
+  (let* ((key             (format "%s" (alist-get 'key data)))
+          (fields          (alist-get 'fields data))
+          (summary         (format "%s" (alist-get 'summary fields)))
+          (url             (jira-todo--key-to-browse-url key))
+          (clean-summary   (replace-regexp-in-string "\\[[A-Z]+\\][ ]*" "" summary))
+          (branch-words    (replace-regexp-in-string "[^A-Za-z0-9]+" "-" clean-summary))
+          (branch-compact  (replace-regexp-in-string "-+" "-" branch-words))
+          (branch-trimmed  (replace-regexp-in-string "-+$" "" branch-compact))
+          (branch-summ     (downcase branch-trimmed))
+          (branch          (git-tools-normalize-branch-name
+                             (format "%s_%s" key branch-summ)))
+          (output
+            (concat
+              (format "*** TODO CR: %s %s\n" key clean-summary)
+              (format "JIRA: [[%s][%s]]\n" url key)
+              (format "Branch: %s\n" branch)
+              (format "Git Directory: %s\n" jira-todo-git-directory)
+              (format "Prompt:\n")
+              (format "--begin--\n")
+              (format "Under the %s directory in my current branch %s" jira-todo-git-directory branch)
+              (format " please implement the JIRA at %s " url)
+              (format "and amend commit the change to my existing commit with this same ticket.\n")
+              (format "--end--\n")
+              (format "Title: %s: %s\n" key clean-summary)
+              (format "PR: <PR-TBD>\n")
+              (format "PR Text:\n")
+              (format "--begin--\n")
+              (format "## JIRA\n")
+              (format "[%s](%s)\n" key url)
+              (format "## Description\n")
+              (format "%s\n" clean-summary)
+              (format "--end--\n")
+              (pcase jira-todo-pr-messaging-provider
+                ("slack" (jira-todo--format-slack-message clean-summary))
+                ("teams" (jira-todo--format-teams-message clean-summary))
+                (_ ""))
+              (format ":LOGBOOK:\n")
+              (format ":END:"))))
+    (with-temp-buffer
+      (insert output)
+      (goto-char (point-min))
+      (when (re-search-forward "^--begin--\n" nil t)
+        (let ((start (point)))
+          (when (re-search-forward "^--end--" nil t)
+            (caveman-copy-region start (match-beginning 0))))))
+    output))
 
 (defun jira-todo--parse-labeled-fields (text)
   "Parse TEXT for lines of the form \"Label: value\".
@@ -548,24 +553,20 @@ heading text (Teams/Slack message body)."
 (defun jira-todo--git-directory-search-roots ()
   "Return directories to search for a matching local clone.
 
-Only `jira-todo-git-directory' and `git-tools-review-home' are
-considered.  The current buffer directory is not searched, so a
-random repo (for example the org notes tree) cannot win over the
-configured project roots."
-  (let ((roots (delq nil
-                 (list (and (stringp jira-todo-git-directory)
-                         (not (string-empty-p jira-todo-git-directory))
-                         (expand-file-name jira-todo-git-directory))
-                   (and (boundp 'git-tools-review-home)
-                     (stringp git-tools-review-home)
-                     (not (string-empty-p git-tools-review-home))
-                     (expand-file-name git-tools-review-home))))))
-    (cl-delete-duplicates
-      (mapcar (lambda (d) (directory-file-name (expand-file-name d))) roots)
-      :test #'file-equal-p)))
+Only `jira-todo-git-directory' is searched directly.  The parallel
+review clones under `git-tools-review-home' are added by
+`jira-todo--directory-candidates' through
+`git-tools-review-clone-candidates'.  The current buffer directory
+is not searched, so a random repo (for example the org notes tree)
+cannot win over the configured project roots."
+  (let ((root (and (stringp jira-todo-git-directory)
+                (not (string-empty-p jira-todo-git-directory))
+                (expand-file-name jira-todo-git-directory))))
+    (when root
+      (list (directory-file-name root)))))
 
-(defun jira-todo--directory-candidates (repo)
-  "Return local directories that might be a clone of REPO."
+(defun jira-todo--directory-candidates (owner repo)
+  "Return local directories that might be a clone of OWNER/REPO."
   (let (candidates)
     (dolist (root (jira-todo--git-directory-search-roots))
       (when (file-directory-p root)
@@ -583,6 +584,8 @@ configured project roots."
           (dolist (child (directory-files root t "\\`[^.]"))
             (when (file-directory-p child)
               (push (directory-file-name child) candidates))))))
+    (dolist (dir (git-tools-review-clone-candidates owner repo))
+      (push dir candidates))
     (cl-delete-duplicates candidates :test #'file-equal-p)))
 
 (defun jira-todo--find-repo-from-remote (owner repo branch)
@@ -592,7 +595,7 @@ Prefers a directory whose origin is OWNER/REPO and that has
 BRANCH or origin/BRANCH.  Then origin only, then a repo that
 has the remote branch.  Returns nil when nothing matches."
   (let (both origin-match branch-match)
-    (dolist (dir (jira-todo--directory-candidates repo))
+    (dolist (dir (jira-todo--directory-candidates owner repo))
       (when (git-tools--git-repo-p dir)
         (let* ((origin-ok (and owner repo
                             (jira-todo--origin-matches-p dir owner repo)))
@@ -765,7 +768,7 @@ both lookups fail, or only a prefix was found."
   "Replace <PR-TBD> and <TBD> placeholders in the current org heading with URL.
 
 Each <PR-TBD> gets URL with the pull request title summary
-(ticket and conventional-commit prefixes removed) inserted on the
+`(ticket and conventional-commit prefixes removed) inserted on the
 next line when one can be retrieved; a bare <TBD> gets URL only.
 Return the number of replacements, which may be zero when the PR
 URL is already filled in.  Signal if point is not in an org heading.
@@ -1424,19 +1427,23 @@ ring."
 
 The pull request URL is taken from the system clipboard and must be
 a non-JIRA http(s) GitHub pull request URL; otherwise nothing is
-inserted and this signals.  `jira-todo-peer-code-review-home' must
-name an existing directory; otherwise this signals.  Point must be
-in an `org-mode' buffer, because the TODO is inserted as a heading.
+inserted and this signals.  A local clone whose origin matches the
+pull request's owner/repo must be discoverable (see
+`jira-todo--find-repo-from-remote': `jira-todo-git-directory' and
+the parallel review clones under `git-tools-review-home');
+otherwise this signals.  Point must be in an `org-mode' buffer,
+because the TODO is inserted as a heading.
 
-`git-tools-review-home' is temporarily set to
-`jira-todo-peer-code-review-home', so `git-tools-review-start'
-resets and cleans that working tree and checks out the pull
-request's head branch.  Only then is the TODO inserted, above the
-TODO point was on, with the Branch the review ended up on, that
-review directory, and the review prompt `git-tools-review-start'
-leaves on the kill ring.  That ordering matters: inserted before
-the review, the Branch would name the pre-review branch and the
-Prompt would be the previous kill, not the review prompt.
+The pull request is reviewed in a parallel clone under
+`git-tools-review-home', created from that local clone's origin by
+`git-tools-review-start', which resets and cleans the review clone
+and checks out the pull request's head branch.  Only then is the
+TODO inserted, above the TODO point was on, with the Branch the
+review ended up on, that review directory, and the review prompt
+`git-tools-review-start' leaves on the kill ring.  That ordering
+matters: inserted before the review, the Branch would name the
+pre-review branch and the Prompt would be the previous kill, not
+the review prompt.
 
 The text between the --begin-- and --end-- lines is then passed
 through `caveman-region'.
@@ -1447,59 +1454,54 @@ review did not leave the pull request's head branch, nothing is
 inserted and this signals."
   (interactive)
   (let ((url (or (jira-todo--clipboard-pr-url)
-               (user-error "Clipboard does not hold a pull request URL")))
-         (home (and (stringp jira-todo-peer-code-review-home)
-                 (not (string-empty-p jira-todo-peer-code-review-home))
-                 (expand-file-name jira-todo-peer-code-review-home))))
+               (user-error "Clipboard does not hold a pull request URL"))))
     (unless (git-tools--github-pr-number url)
       (user-error "Not a GitHub pull request URL: %s" url))
-    (unless home
-      (user-error "Please set jira-todo-peer-code-review-home"))
-    (unless (file-directory-p home)
-      (user-error "Review directory does not exist: %s" home))
     (unless (derived-mode-p 'org-mode)
       (user-error "Must be called from an org-mode TODO"))
-    (let ((original-git-tools-review-home git-tools-review-home)
-           (buf (current-buffer))
-           (position (copy-marker (point))))
+    (let* ((owner-repo (jira-todo--pr-url-owner-repo url))
+            (owner (car owner-repo))
+            (repo (cdr owner-repo))
+            (source (jira-todo--find-repo-from-remote owner repo nil))
+            (buf (current-buffer))
+            (position (copy-marker (point))))
+      (unless source
+        (user-error
+          "No local clone matching %s/%s found under %s or %s"
+          owner repo jira-todo-git-directory (git-tools-review-base-directory)))
       (unwind-protect
-        (progn
-          (unwind-protect
-            (save-window-excursion
-              (setq git-tools-review-home jira-todo-peer-code-review-home)
-              (git-tools-review-start))
-            (setq git-tools-review-home original-git-tools-review-home))
-          (let ((branch (git-tools-current-branch-name home)))
-            (when (or (null branch)
-                    (equal branch (git-tools-main-branch-name home)))
-              (user-error
-                "Review left %s on %s; no TODO inserted"
-                home (or branch "a detached HEAD")))
-            (when (buffer-live-p buf)
-              (with-current-buffer buf
-                (goto-char position)
-                (jira-todo--insert-todo-entry
-                  (concat
-                    (format "*** TODO %s: Review PR %s\n"
-                      jira-todo-peer-code-review-prefix url)
-                    (format "Branch: %s\n" branch)
-                    (format "Git Directory: %s\n" home)
-                    (format "Prompt:\n")
-                    (format "--begin--\n")
-                    (format "%s\n" (or (current-kill 0 t) ""))
-                    (format "--end--")))
-                ;; Transform only the text between --begin-- and --end--.
-                (save-excursion
-                  (goto-char (point-min))
-                  (when (search-forward
-                          (format "Review PR %s\nBranch: %s\n" url branch)
-                          nil t)
-                    (when (re-search-forward "^--begin--\n" nil t)
-                      (let ((start (point)))
-                        (when (re-search-forward "^--end--" nil t)
-                          (let ((end (copy-marker (match-beginning 0))))
-                            (caveman-copy-region start end)
-                            (set-marker end nil)))))))))))
+        (let* ((home (save-window-excursion (git-tools-review-start source)))
+                (branch (git-tools-current-branch-name home)))
+          (when (or (null branch)
+                  (equal branch (git-tools-main-branch-name home)))
+            (user-error
+              "Review left %s on %s; no TODO inserted"
+              home (or branch "a detached HEAD")))
+          (when (buffer-live-p buf)
+            (with-current-buffer buf
+              (goto-char position)
+              (jira-todo--insert-todo-entry
+                (concat
+                  (format "*** TODO %s: Review PR %s\n"
+                    jira-todo-peer-code-review-prefix url)
+                  (format "Branch: %s\n" branch)
+                  (format "Git Directory: %s\n" home)
+                  (format "Prompt:\n")
+                  (format "--begin--\n")
+                  (format "%s\n" (or (current-kill 0 t) ""))
+                  (format "--end--")))
+              ;; Transform only the text between --begin-- and --end--.
+              (save-excursion
+                (goto-char (point-min))
+                (when (search-forward
+                        (format "Review PR %s\nBranch: %s\n" url branch)
+                        nil t)
+                  (when (re-search-forward "^--begin--\n" nil t)
+                    (let ((start (point)))
+                      (when (re-search-forward "^--end--" nil t)
+                        (let ((end (copy-marker (match-beginning 0))))
+                          (caveman-copy-region start end)
+                          (set-marker end nil))))))))))
         (set-marker position nil)))))
 
 (provide 'jira-todo)
