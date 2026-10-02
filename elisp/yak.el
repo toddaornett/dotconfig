@@ -21,9 +21,9 @@
 
 (defun yak--directory-and-branch ()
   "Return (DIRECTORY . BRANCH) for a yak prompt.
-DIRECTORY is `git-tools-review-directory', which uses
-`git-tools-review-home' when that override is set, otherwise the
-current git project.  BRANCH is the current branch in DIRECTORY."
+DIRECTORY is `git-tools-review-directory': the parallel review
+clone for the current repository under `git-tools-review-home',
+created on demand.  BRANCH is the current branch in DIRECTORY."
   (let ((dir (git-tools-review-directory)))
     (cons dir (git-tools-current-branch-name dir))))
 
@@ -69,8 +69,8 @@ Interactively, prompt for TEXT."
 (defun yak-review-pull-request (arg)
   "Copy a pull-request review prompt onto the kill ring.
 
-Uses `git-tools-review-directory' as the repository (honoring
-`git-tools-review-home' when that override is set) and the current
+Uses `git-tools-review-directory' as the repository (the parallel
+review clone under `git-tools-review-home') and the current
 branch in that repository.
 
 The prompt refers to the latest commit, or the latest N commits,
@@ -108,8 +108,8 @@ comments if applicable."
 (defun yak-review-respond-to-comment (text)
   "Copy a review-comment response prompt for TEXT onto the kill ring.
 
-Uses `git-tools-review-directory' as the repository (honoring
-`git-tools-review-home' when that override is set) and the current
+Uses `git-tools-review-directory' as the repository (the parallel
+review clone under `git-tools-review-home') and the current
 branch in that repository.  TEXT is the review comment to answer.
 
 Interactively, prompt for TEXT."
