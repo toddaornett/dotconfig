@@ -373,8 +373,8 @@ SUMMARY are wrapped as CommonMark autolinks by
     (format "xteams message new %s <<'%s'\n"
       (shell-quote-argument jira-todo-microsoft-teams-channel)
       jira-todo--teams-heredoc-delimiter)
-    (format "PTAL %s\n" (jira-todo--teams-mention-string))
-    (format "<PR-TBD>\n")
+    (format "PTAL %s\\\n" (jira-todo--teams-mention-string))
+    (format "[<PR-TBD>](<PR-TBD>)\\\n")
     (format "%s\n" (car (jira-todo--autolink-urls summary)))
     (format "%s\n" jira-todo--teams-heredoc-delimiter)
     (format "#+end_src\n")))
