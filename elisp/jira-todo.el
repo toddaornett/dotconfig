@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: October 1, 2026
+;; Modified: October 2, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -116,31 +116,101 @@ DISPLAY-NAME is the mention to write, typically \"@Full Name\"."
           (string-match "\\`\\([^@+]+\\)\\(?:\\+[^@]*\\)?@\\(.+\\)\\'" email))
     (concat (match-string 1 email) "@" (match-string 2 email))))
 
+(defun jira-todo--coerce-map-value (val)
+  "Return VAL as the display name from a user-map cdr.
+
+VAL is the part after the `.` in (EMAIL . NAME), or the first
+string in a two-element (EMAIL NAME) list.  Other values yield
+nil."
+  (cond
+    ((stringp val) val)
+    ((and (consp val) (stringp (car val))) (car val))))
+
+(defun jira-todo--map-entry-name (cell)
+  "Return the non-empty display name from map CELL, or nil.
+
+CELL is (EMAIL . NAME) or (EMAIL NAME).  Empty NAME values mark
+suppressed authors and are not returned here."
+  (when-let* ((name (jira-todo--coerce-map-value (cdr cell))))
+    (and (not (string-empty-p (string-trim name))) name)))
+
+(defun jira-todo--identity-norms (key)
+  "Return unique normalized identity strings for KEY.
+
+KEY may be an email, a dotted local-part, or a display name.
+Normalization is `jira-todo--normalize-ptal-name', so
+\"xie.zirui\", \"zirui.xie@host\" and \"Zirui Xie\" share one
+form."
+  (let (norms)
+    (when-let* ((local (jira-todo--email-local-part key)))
+      (let ((n (jira-todo--normalize-ptal-name local)))
+        (unless (or (null n) (string-empty-p n))
+          (push n norms))))
+    (when (stringp key)
+      (let ((n (jira-todo--normalize-ptal-name key)))
+        (unless (or (string-empty-p n) (member n norms))
+          (push n norms))))
+    (nreverse norms)))
+
+(defun jira-todo--map-value-for-norms (norms)
+  "Return the first map display name matching any of NORMS.
+
+A map entry matches when its email local-part or its display
+name, after `jira-todo--normalize-ptal-name', equals a member of
+NORMS.  Empty (suppressed) display names are ignored."
+  (when (and norms jira-todo-github-user-map)
+    (cl-some
+      (lambda (cell)
+        (when-let* ((name (jira-todo--map-entry-name cell)))
+          (and (or (cl-some
+                     (lambda (n)
+                       (string= n (jira-todo--normalize-ptal-name
+                                    (or (jira-todo--email-local-part
+                                          (car cell))
+                                      ""))))
+                     norms)
+                 (cl-some
+                   (lambda (n)
+                     (string= n (jira-todo--normalize-ptal-name name)))
+                   norms))
+            name)))
+      jira-todo-github-user-map)))
+
 (defun jira-todo-github-user-map-get (key)
   "Return the PTAL display name for KEY, or nil if unset.
 
-KEY is a git author email.  Lookup is case-insensitive.  A
-plus-address (user+tag@domain) also matches user@domain.  When
-that fails, the local part is compared across domains so
+KEY is a git author email, a dotted local-part, or a display
+name.  Lookup is case-insensitive.  A plus-address
+\(user+tag@domain) also matches user@domain.  When that fails,
+the local part is compared across domains so
 gem.hung@levelblue.com matches gem.hung@cybereason.com.
+
+Dotted or underscored tokens match in any order, so
+\"zirui.xie@host\" and \"Zirui Xie\" both resolve to the mapped
+name after the `.` for \"xie.zirui@cybereason.com\".  Two-element
+lists (EMAIL NAME) are accepted as well as dotted pairs.
+
 Return nil when the map is unset or KEY is not present."
   (when (and key jira-todo-github-user-map)
-    (or (alist-get key
-          jira-todo-github-user-map
-          nil nil #'jira-todo--string-equal-fold)
+    (or (jira-todo--coerce-map-value
+          (alist-get key
+            jira-todo-github-user-map
+            nil nil #'jira-todo--string-equal-fold))
       (let ((stripped (jira-todo--email-plus-stripped key)))
         (and stripped
           (not (jira-todo--string-equal-fold stripped key))
-          (alist-get stripped
-            jira-todo-github-user-map
-            nil nil #'jira-todo--string-equal-fold)))
+          (jira-todo--coerce-map-value
+            (alist-get stripped
+              jira-todo-github-user-map
+              nil nil #'jira-todo--string-equal-fold))))
       (let ((local (jira-todo--email-local-part key)))
-        (when local
+        (when (and local (not (string-empty-p local)))
           (cl-some (lambda (cell)
                      (and (jira-todo--string-equal-fold
                             local (jira-todo--email-local-part (car cell)))
-                       (cdr cell)))
-            jira-todo-github-user-map))))))
+                       (jira-todo--coerce-map-value (cdr cell))))
+            jira-todo-github-user-map)))
+      (jira-todo--map-value-for-norms (jira-todo--identity-norms key)))))
 
 (defun jira-todo--author-suppressed-p (author-string)
   "Return non-nil if AUTHOR-STRING is mapped to an empty display name.
@@ -835,24 +905,35 @@ Accepts \"Name <email>\", \"email (name)\", or a bare email."
       ((string-prefix-p "@" name) name)
       (t (concat "@" name)))))
 
-(defun jira-todo--mapped-display-name (email)
-  "Return the mapped PTAL display name for EMAIL, or nil.
+(defun jira-todo--mapped-display-name (author)
+  "Return the mapped PTAL display name for AUTHOR, or nil.
 
-EMAIL is compared case-insensitively against
-`jira-todo-github-user-map'.  Returns nil when the map or EMAIL
-is unset, or when EMAIL is not a key.  A leading `@' is added
-when the map value does not already have one."
-  (when (and email jira-todo-github-user-map)
-    (let ((mapped (jira-todo-github-user-map-get email)))
+AUTHOR may be a git author email or a full author string
+accepted by `jira-todo--author-email'.  Lookup uses
+`jira-todo-github-user-map': the email (case-insensitive,
+plus-tags and domain ignored), then a dotted local-part or
+display name compared with `jira-todo--normalize-ptal-name' so
+\"zirui.xie@host\" and \"Zirui Xie\" both resolve to the name
+after the `.` when that map value is \"@Xie Zirui\".  A leading
+`@' is added when the map value does not already have one."
+  (when (and author jira-todo-github-user-map)
+    (let* ((author (if (consp author) (car author) author))
+            (email (jira-todo--author-email author))
+            (display (jira-todo--author-display-name author))
+            (mapped (or (and email (jira-todo-github-user-map-get email))
+                      (and display (jira-todo-github-user-map-get display))
+                      (and (stringp author)
+                        (jira-todo-github-user-map-get author)))))
       (and mapped (jira-todo--ensure-at-mention mapped)))))
 
 (defun jira-todo--format-ptal-mention (author-string)
   "Format AUTHOR-STRING for a PTAL mention.
 
-If AUTHOR-STRING contains an email that is a key in
-`jira-todo-github-user-map', return that map value and never the
-email.  Accepts \"Name <email>\", \"@Name <email>\",
-\"email (name)\", or a bare email.
+If AUTHOR-STRING matches a `jira-todo-github-user-map' entry by
+email, dotted local-part, or display name, return that mapped
+name and never the git spelling.  Accepts \"Name <email>\",
+\"@Name <email>\", \"email (name)\", a bare email, or a name
+such as \"Zirui Xie\".
 
 If the map is unset or has no entry, use the original email
 name: the name that accompanies the email, without the address.
@@ -861,7 +942,7 @@ The result always has a leading `@'."
     (setq author-string (car author-string)))
   (let* ((author-string (and (stringp author-string) author-string))
           (email (jira-todo--author-email author-string))
-          (mapped (jira-todo--mapped-display-name email))
+          (mapped (jira-todo--mapped-display-name author-string))
           (original (jira-todo--author-display-name author-string)))
     (jira-todo--ensure-at-mention
       (or mapped original email author-string))))
@@ -958,8 +1039,7 @@ token is trimmed.  Emails are rewritten via
     (delq nil
       (mapcar (lambda (name)
                 (let* ((name (string-trim name))
-                        (email (jira-todo--author-email name))
-                        (mapped (and email (jira-todo-github-user-map-get email))))
+                        (mapped (jira-todo--mapped-display-name name)))
                   (jira-todo--ensure-at-mention (or mapped name))))
         names))))
 
@@ -1000,7 +1080,7 @@ in their original order."
 Keys are drawn from the mapped PTAL name, the git display name,
 and the email local-part (plus-tags and case ignored)."
   (let* ((email (jira-todo--author-email author-string))
-          (mapped (jira-todo--mapped-display-name email))
+          (mapped (jira-todo--mapped-display-name author-string))
           (display (jira-todo--author-display-name author-string))
           keys)
     (when mapped
@@ -1029,8 +1109,8 @@ and the email local-part (plus-tags and case ignored)."
 (defun jira-todo--choose-author-string (a a-lines b b-lines)
   "Pick a representative author string from A A-LINES and B B-LINES.
 Prefer a mapped PTAL email; otherwise the string with more lines."
-  (let ((a-mapped (jira-todo--mapped-display-name (jira-todo--author-email a)))
-         (b-mapped (jira-todo--mapped-display-name (jira-todo--author-email b))))
+  (let ((a-mapped (jira-todo--mapped-display-name a))
+         (b-mapped (jira-todo--mapped-display-name b)))
     (cond
       ((and a-mapped (not b-mapped)) a)
       ((and b-mapped (not a-mapped)) b)
@@ -1140,7 +1220,7 @@ the longest prefix shared by every changed file, including a sibling
 directory that contains only one changed file.
 
 `git-tools--merged-change-author-weights' takes the top 5 authors of
-each prefix, merges those lists by email and line count.  Authors
+each prefix, merges those lists by email and commit count.  Authors
 mapped to an empty string in `jira-todo-github-user-map' are then
 removed, aliases of the same person are merged, the current git user
 is dropped, and the top LIMIT author strings are returned in that
@@ -1150,7 +1230,7 @@ order.  Suppressed authors never count toward LIMIT."
           (files (jira-todo--changed-files-against-main default-directory))
           (entries (git-tools--author-display-entries
                      (git-tools--merged-change-author-weights
-                       default-directory 'lines files))))
+                       default-directory 'commits files))))
     (setq entries
       (jira-todo--remove-suppressed-authors entries))
     (setq entries
@@ -1390,8 +1470,8 @@ removed.  An already-filled PR URL in the heading is reused and is
 not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
-authors from `git-tools-authors-list' (default order: lines
-changed), merged across unique change-path prefixes of files from
+authors from `jira-todo--top-authors-for-changed-dirs' (commit
+count), merged across unique change-path prefixes of files from
 `git diff --name-only MAIN...BRANCH'.  BRANCH is the heading
 Branch field when present (local, else origin/BRANCH after fetch);
 otherwise HEAD.  Git Directory is optional: the heading field if
