@@ -84,6 +84,14 @@ function _git_log_prettily() {
   fi
 }
 
+function gwho() {
+  if (($# > 0)); then
+    git shortlog --summary --numbered --email HEAD -- "$@"
+  else
+    git shortlog --summary --numbered --email HEAD
+  fi
+}
+
 function git_cleanup_branches() {
   local main_branch candidates branch choice answer failed=""
   main_branch="$(git_main_branch)"

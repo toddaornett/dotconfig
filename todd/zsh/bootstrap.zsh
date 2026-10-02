@@ -8,11 +8,6 @@
 # sourced from the ZDOTDIR chain (.zshrc -> todd/zsh/zshrc -> bootstrap.zsh),
 # so re-sourcing .zshrc recurses until zsh hits its recursion limit.
 
-for key in ~/.ssh/id_ed25519_toddaornett ~/.ssh/id_ed25519_levelblue; do
-	[[ -f "$key" ]] && ssh-add --apple-use-keychain "$key" 2>/dev/null
-done
-
-
 # GCC runtime libs for libgccjit native compilation (bootstrap)
 export LIBRARY_PATH="/opt/homebrew/lib/gcc/current/gcc/aarch64-apple-darwin25/16:/opt/homebrew/lib/gcc/current${LIBRARY_PATH:+:$LIBRARY_PATH}"
 
@@ -23,14 +18,7 @@ if [[ "$(uname -s)" == Darwin ]]; then
     [[ " $CFLAGS " != *" -isysroot "* ]] && export CFLAGS="-isysroot $SDKROOT"
     [[ " $LDFLAGS " != *" -isysroot "* ]] && export LDFLAGS="${LDFLAGS:+$LDFLAGS }-isysroot $SDKROOT"
   fi
-  [[ " $CPPFLAGS " != *" -I/opt/homebrew/include "* ]] &&     export CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I/opt/homebrew/include"
-  [[ " $LDFLAGS " != *" -L/opt/homebrew/lib "* ]] &&     export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L/opt/homebrew/lib"
-  [[ ":$PKG_CONFIG_PATH:" != *":/opt/homebrew/opt/boost/lib/pkgconfig:"* ]] &&     export PKG_CONFIG_PATH="/opt/homebrew/opt/boost/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+  [[ " $CPPFLAGS " != *" -I/opt/homebrew/include "* ]] && export CPPFLAGS="${CPPFLAGS:+$CPPFLAGS }-I/opt/homebrew/include"
+  [[ " $LDFLAGS " != *" -L/opt/homebrew/lib "* ]] && export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L/opt/homebrew/lib"
+  [[ ":$PKG_CONFIG_PATH:" != *":/opt/homebrew/opt/boost/lib/pkgconfig:"* ]] && export PKG_CONFIG_PATH="/opt/homebrew/opt/boost/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 fi
-
-# mise version manager (bootstrap)
-if command -v mise >/dev/null 2>&1; then
-  eval "$(mise activate zsh)"
-fi
-export CARGO_NET_GIT_FETCH_WITH_CLI=true
-export DOCKER_CONTEXT=colima
