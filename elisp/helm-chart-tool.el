@@ -7,7 +7,7 @@
 ;; Modified: June 26, 2026
 ;; Version: 0.0.7
 ;; Keywords: convenience helm chart
-;; Homepage: https://github.com/todd.ornett/dotconfig
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;; Package-Requires: ((emacs "24.4"))
 ;;
 ;; This file is not part of GNU Emacs.

@@ -23,3 +23,10 @@ if [[ "$(uname -s)" == Darwin ]]; then
   [[ " $LDFLAGS " != *" -L/opt/homebrew/lib "* ]] && export LDFLAGS="${LDFLAGS:+$LDFLAGS }-L/opt/homebrew/lib"
   [[ ":$PKG_CONFIG_PATH:" != *":/opt/homebrew/opt/boost/lib/pkgconfig:"* ]] && export PKG_CONFIG_PATH="/opt/homebrew/opt/boost/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 fi
+
+# mise version manager (bootstrap)
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+export DOCKER_CONTEXT=colima

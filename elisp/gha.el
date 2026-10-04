@@ -7,7 +7,7 @@
 ;; Modified: June 13, 2025
 ;; Version: 0.0.2
 ;; Keywords: convenience data extensions files internal languages
-;; Homepage: https://github.com/todd.ornett/dotconfig
+;; Homepage: https://github.com/toddaornett/dotconfig
 ;; Package-Requires: ((emacs "24.4") (magit "3.3.0"))
 ;;
 ;; This file is not part of GNU Emacs.
