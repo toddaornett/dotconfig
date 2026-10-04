@@ -1,6 +1,7 @@
 {
   "trustedtaps": [
     "d12frosted/emacs-plus",
+    "https://github.com/dyoshikawa/rulesync",
     "nikitabobko/tap"
   ],
   "trustedcasks": [
