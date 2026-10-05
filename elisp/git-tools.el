@@ -974,8 +974,11 @@ SORT is a symbol selecting the sort key and direction; see
 FILES are repo-relative paths.  Prefixes are one component past the
 longest prefix shared by every file: sibling directories after that
 fork are each kept, including a directory that contains only one
-changed file.  When every remaining component is a filename in the
-same directory, return that directory instead."
+changed file.  A file at that same fork (for example `Cargo.lock'
+beside `rust/grs/') is not its own prefix, because `git shortlog'
+on the file is that file's whole history.  When every remaining
+component is a filename in the same directory, return that
+directory instead."
   (let* ((files (delq nil
                   (mapcar (lambda (f)
                             (and (stringp f) (not (string-empty-p f)) f))
@@ -990,23 +993,22 @@ same directory, return that directory instead."
       (t
         (let* ((prefix (git-tools--common-prefix-components parts-list))
                 (prefix-len (length prefix))
-                (nexts nil)
-                (all-terminal t))
+                (dir-nexts nil))
           (dolist (parts parts-list)
             (let ((rest-len (- (length parts) prefix-len)))
-              (when (> rest-len 0)
-                (when (> rest-len 1)
-                  (setq all-terminal nil))
+              (when (> rest-len 1)
                 (let ((next (nth prefix-len parts)))
-                  (unless (member next nexts)
-                    (push next nexts))))))
+                  (unless (member next dir-nexts)
+                    (push next dir-nexts))))))
           (cond
-            ((or (null nexts) all-terminal)
+            ;; No deeper path, or only files remain in this directory.
+            ((null dir-nexts)
               (list (if prefix (string-join prefix "/") ".")))
+            ;; Directory children are the change.  Drop file siblings.
             (t
               (mapcar (lambda (next)
                         (string-join (append prefix (list next)) "/"))
-                (nreverse nexts)))))))))
+                (nreverse dir-nexts)))))))))
 
 (defun git-tools--directory-pathspec (directory)
   "Return a repo-relative pathspec for DIRECTORY, or \".\"."

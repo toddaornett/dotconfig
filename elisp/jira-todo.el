@@ -1217,7 +1217,8 @@ resolved, fall back to HEAD (`MAIN...')."
 LIMIT defaults to 5.  Files from `jira-todo--changed-files-against-main'
 are grouped by `git-tools--change-path-prefixes': one component past
 the longest prefix shared by every changed file, including a sibling
-directory that contains only one changed file.
+directory that contains only one changed file.  A file at that fork,
+such as a workspace `Cargo.lock', is not a separate author path.
 
 `git-tools--merged-change-author-weights' takes the top 5 authors of
 each prefix, merges those lists by email and commit count.  Authors
