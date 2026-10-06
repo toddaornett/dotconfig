@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: October 2, 2026
+;; Modified: October 6, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -843,7 +843,7 @@ name from the most recent such commit, or nil)."
                                (list :commits 0 :first nil :last nil
                                  :name nil))))
                   (setq entry (plist-put entry :commits
-                                 (1+ (or (plist-get entry :commits) 0))))
+                                (1+ (or (plist-get entry :commits) 0))))
                   (when time
                     (unless (and (plist-get entry :first)
                               (< (plist-get entry :first) time))
@@ -1505,8 +1505,12 @@ In that clone:
     (let* ((review-branch
              (or (git-tools--pr-head-branch default-directory pr-number)
                (format "review/pr-%s" pr-number)))
+            (url (git-tools--clipboard-string))
             (output (concat (format "In the directory %s, " default-directory)
                       (format "please review the latest commits in the current branch %s " review-branch)
+                      (if (string-empty-p url)
+                        ""
+                        (format "from %s " url))
                       (format "to be merged into %s " (git-tools-main-branch-name default-directory))
                       (format "and start with a simple Approve 'Yes' or 'No' and ")
                       (format "if not approved, provide concise list of critical problems. ")
