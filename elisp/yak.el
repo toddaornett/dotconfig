@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 28, 2026
-;; Modified: September 14, 2026
+;; Modified: October 6, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools agent llm convenience
 ;; Package-Requires: ((emacs "29.1"))
@@ -14,6 +14,8 @@
 ;; This file is not part of GNU Emacs.
 ;;
 ;;; Commentary:
+;;
+;; Generate various messages and prompts.
 ;;
 ;;; Code:
 
@@ -31,21 +33,27 @@ created on demand.  BRANCH is the current branch in DIRECTORY."
 (defun yak-implement (text)
   "Copy an implementation prompt for TEXT onto the kill ring.
 
-The prompt is scoped to `git-tools-review-directory' and the
-current branch in that repository.  TEXT describes the change to
-make.
-
 Interactively, prompt for TEXT."
   (interactive "MText: ")
-  (let* ((ctx (yak--directory-and-branch))
-          (dir (car ctx))
-          (branch (cdr ctx))
+  (let* ((branch (git-tools-current-branch-name))
           (output (format "In %s, under the current branch %s, please make this change: %s."
-                    dir branch text)))
+                    default-directory branch text)))
     (kill-new output)
-    (message "yak-implement: current branch %s in %s" branch dir)))
+    (message "yak-implement: current branch %s in %s" branch default-directory)))
 
 ;;;###autoload
+(defun yak-self-review-and-update ()
+  "Copy a self code review and update prompt into the kill ring."
+  (interactive "")
+  (let* ((branch (git-tools-current-branch-name))
+          (output (concat
+                    (format "In %s, under the current branch %s, please review this code. "
+                      default-directory branch)
+                    (format "Make uncommitted changes for your comments."))))
+    (kill-new output)
+    (message "yak-review: current branch %s in %s" branch default-directory)))
+
+;;;autoload
 (defun yak-commit (text)
   "Copy a commit prompt for TEXT onto the kill ring.
 
