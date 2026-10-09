@@ -17,6 +17,7 @@ doom-emacs/
 emacs
 .venv/
 homebrew/trust.json.lock
+cursor/
 
 # oh-my-pi (omp). Config root is ~/.config/omp; omp's state, logs, and caches
 # resolve under $XDG_*_HOME/omp (~/.local/share/omp, ~/.local/state/omp,
