@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: October 6, 2026
+;; Modified: October 9, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -1350,6 +1350,109 @@ of settings copied."
           (file-name-as-directory (expand-file-name source))))
     (+ (git-tools--copy-local-config source dest)
       (git-tools--copy-git-dir-files source dest))))
+
+(defun git-tools--url-split-last (url)
+  "Split URL into (PREFIX . LAST) at its last `/', or at its last `:'.
+PREFIX keeps the separator, so (concat PREFIX LAST) restores URL.
+The `:' fallback covers scp-like URLs with no slash, such as
+\"git@github-lb:repo.git\".  A trailing `/' is ignored.  Return nil
+when URL has neither separator."
+  (let ((url (string-remove-suffix "/" url)))
+    (cond
+      ((string-match "\\`\\(.*/\\)\\([^/]*\\)\\'" url)
+        (cons (match-string 1 url) (match-string 2 url)))
+      ((string-match "\\`\\(.*:\\)\\([^:]*\\)\\'" url)
+        (cons (match-string 1 url) (match-string 2 url))))))
+
+;;;###autoload
+(defun  git-tools-copy-user-and-origin-config (source &optional dest)
+  "Copy local git `user.*' and `remote.origin.*' config from SOURCE to DEST.
+
+SOURCE is any directory inside the source repository.  DEST defaults
+to the current git project (see `git-tools--project-root').
+
+Only the repository-local config of SOURCE is read, so values SOURCE
+merely inherits from your global config are not copied.
+
+`user.*' keys: any existing local `user.*' key in DEST that SOURCE
+also defines is replaced; other keys in DEST are left alone.
+
+`remote.origin.*' keys: copied the same way, except that in
+`remote.origin.url' and `remote.origin.pushurl' everything after the
+last `/' (or the last `:' for scp-like URLs without a slash) is
+replaced with the corresponding part of DEST's existing origin URL.
+This keeps SOURCE's host alias and owner while DEST keeps its own
+repository name.  If DEST has no origin URL, the remote block is
+skipped.
+
+Interactively, prompt for SOURCE."
+  (interactive
+    (list (read-directory-name
+            "Copy git user/origin config from repository: "
+            (let ((root (git-tools--project-root)))
+              (and root (file-name-directory (directory-file-name root))))
+            nil t)))
+  (let* ((dest-root (or (and dest (git-tools--repo-root dest))
+                      (git-tools--project-root)
+                      (user-error "Current directory is not inside a git repository")))
+          (source-root (or (git-tools--repo-root source)
+                         (user-error "%s is not inside a git repository" source))))
+    (when (file-equal-p source-root dest-root)
+      (user-error "Source and destination are the same repository: %s" dest-root))
+    (let* ((all-pairs (git-tools--local-config-alist source-root))
+            (user-pairs (seq-filter
+                          (lambda (pair) (string-prefix-p "user." (car pair)))
+                          all-pairs))
+            (origin-pairs (seq-filter
+                            (lambda (pair)
+                              (string-prefix-p "remote.origin." (car pair)))
+                            all-pairs))
+            (default-directory dest-root)
+            ;; Read DEST's existing origin URL before touching anything.
+            (dest-last (let* ((url (magit-git-string "config" "--local" "--get"
+                                     "remote.origin.url"))
+                               (split (and url (git-tools--url-split-last url))))
+                         (cdr split)))
+            (remote-skipped nil)
+            (count 0))
+      (when (and origin-pairs (not dest-last))
+        (setq origin-pairs nil
+          remote-skipped t))
+      (unless (or user-pairs origin-pairs)
+        (user-error "No local user.* or remote.origin.* config set in %s"
+          source-root))
+      ;; Rewrite url/pushurl values to point at DEST's repo name.
+      (setq origin-pairs
+        (mapcar
+          (lambda (pair)
+            (if (member (car pair) '("remote.origin.url" "remote.origin.pushurl"))
+              (let ((split (git-tools--url-split-last (cdr pair))))
+                (cons (car pair)
+                  (if split
+                    (concat (car split) dest-last)
+                    (cdr pair))))
+              pair))
+          origin-pairs))
+      (let ((pairs (append user-pairs origin-pairs)))
+        ;; Clear first so multi-valued keys are replaced, not appended to.
+        (dolist (key (delete-dups (mapcar #'car pairs)))
+          (magit-git-success "config" "--local" "--unset-all" key))
+        (dolist (pair pairs)
+          (when (magit-git-success "config" "--local" "--add"
+                  (car pair) (cdr pair))
+            (setq count (1+ count))))
+        ;; Make `user-full-name'/`user-mail-address' pick up the change.
+        (clrhash git-tools-git-identity-cache)
+        (git-tools-set-user-from-git-or-default)
+        (message "Copied %d setting(s) (%s) from %s to %s%s"
+          count
+          (mapconcat #'identity (delete-dups (mapcar #'car pairs)) ", ")
+          (abbreviate-file-name source-root)
+          (abbreviate-file-name dest-root)
+          (if remote-skipped
+            "; skipped remote.origin.* (destination has no origin URL)"
+            ""))
+        count))))
 
 (defun git-tools--ensure-review-repo (&optional directory)
   "Return the parallel review clone for the repository in DIRECTORY.
