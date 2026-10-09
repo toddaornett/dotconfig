@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: July 28, 2026
-;; Modified: October 6, 2026
+;; Modified: October 8, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools agent llm convenience
 ;; Package-Requires: ((emacs "29.1"))
@@ -20,6 +20,7 @@
 ;;; Code:
 
 (require 'git-tools)
+(require 'caveman)
 
 (defun yak--directory-and-branch ()
   "Return (DIRECTORY . BRANCH) for a yak prompt.
@@ -42,6 +43,23 @@ Interactively, prompt for TEXT."
     (message "yak-implement: current branch %s in %s" branch default-directory)))
 
 ;;;###autoload
+(defun yak-update-stacked-pull-request (text)
+  "Copy an implementation prompt for TEXT and update stacked PR onto the kill ring.
+
+Interactively, prompt for TEXT."
+  (interactive "MText: ")
+  (let* ((branch (git-tools-current-branch-name))
+          (output (concat
+                    (format "In %s, under the current branch %s, please make this change: %s "
+                      default-directory branch text)
+                    (format "commit it with only title message, update entire stack as needed, ")
+                    (format "and push --force-with-lease as needed."))))
+    (with-temp-buffer
+      (insert output)
+      (caveman-copy-region (point-min) (point-max )))
+    (message "yak-update-stacked-request: current branch %s in %s" branch default-directory)))
+
+;;;autoload
 (defun yak-self-review-and-update ()
   "Copy a self code review and update prompt into the kill ring."
   (interactive "")
