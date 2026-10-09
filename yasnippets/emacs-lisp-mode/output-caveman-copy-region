@@ -1,0 +1,14 @@
+# -*- mode: snippet -*-
+# name: output caveman-copy-region
+# uuid: 
+# key: ,cmcr
+# condition: (derived-mode-p 'emacs-lisp-mode)
+# --
+(with-temp-buffer
+  (insert output)
+    (goto-char (point-min))
+      (when (re-search-forward "^--begin--\n" nil t)
+        (let ((start (point)))
+          (when (re-search-forward "^--end--" nil t)
+            (caveman-copy-region start (match-beginning 0))))))
+
