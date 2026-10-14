@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: October 9, 2026
+;; Modified: October 13, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -1454,6 +1454,111 @@ Interactively, prompt for SOURCE."
             ""))
         count))))
 
+(defun git-tools--rewrite-origin-url (url repo)
+  "Return URL with the last path component replaced by REPO.
+
+A trailing `.git' on URL is kept.  Return nil when URL has no
+path separator to split on.  URL is a git remote URL.  REPO is
+the repository name without a `.git' suffix."
+  (when-let* ((split (and (stringp url) (git-tools--url-split-last url))))
+    (concat (car split)
+      (if (string-suffix-p ".git" (cdr split))
+        (concat repo ".git")
+        repo))))
+
+(defun git-tools--review-owner-origin-url (owner)
+  "Return an origin URL from any review clone of OWNER, or nil.
+
+Looks under `git-tools-review-base-directory'/OWNER for an
+existing git repository with an origin remote.  OWNER is a GitHub
+organization or user name."
+  (let ((owner-dir (expand-file-name owner (git-tools-review-base-directory)))
+         url)
+    (when (file-directory-p owner-dir)
+      (dolist (child (directory-files owner-dir t "\\`[^.]"))
+        (when (and (null url)
+                (file-directory-p child)
+                (git-tools--git-repo-p child))
+          (setq url (git-tools--remote-url child)))))
+    url))
+
+(defun git-tools--clone-url (owner repo &optional source)
+  "Return a git clone URL for OWNER/REPO.
+
+When SOURCE is a git repository whose origin owner is OWNER, reuse
+that origin URL with the last path component replaced by REPO, so
+SSH host aliases are kept.  Otherwise try an origin URL from an
+existing review clone under OWNER.  Fall back to
+https://github.com/OWNER/REPO.git."
+  (or (when-let* ((url (and source (git-tools--remote-url source)))
+                   (id (git-tools-remote-identity source)))
+        (and (string= (downcase (nth 1 id)) (downcase owner))
+          (git-tools--rewrite-origin-url url repo)))
+    (when-let* ((url (git-tools--review-owner-origin-url owner)))
+      (git-tools--rewrite-origin-url url repo))
+    (format "https://github.com/%s/%s.git" owner repo)))
+
+(defun git-tools--clone-review-repo (url dest &optional source)
+  "Clone URL into DEST and copy SOURCE git settings when present.
+
+DEST's parent directories are created as needed.  SOURCE is an
+optional local repository; when it is a git repository, copy its
+project/user git settings into DEST after the clone (see
+`git-tools--copy-review-repo-settings').  Return DEST as a
+directory name.  Signal a `user-error' when the clone fails."
+  (make-directory (file-name-directory dest) t)
+  (message "git-tools-review: cloning %s into %s" url dest)
+  (if (magit-git-success "clone" url dest)
+    (progn
+      (when (and source (git-tools--git-repo-p source))
+        (git-tools--copy-review-repo-settings source dest)
+        (message "git-tools-review: copied project git settings into %s"
+          dest))
+      (file-name-as-directory dest))
+    (ignore-errors (delete-directory dest t))
+    (user-error "The git clone failed: %s" url)))
+
+(defun git-tools--ensure-review-repo-for (owner repo &optional source)
+  "Return the review clone for OWNER/REPO, cloning origin when missing.
+
+OWNER and REPO name the GitHub repository.  SOURCE is an optional
+local repository used as the clone URL template and as the source
+of project git settings copied by
+`git-tools--copy-review-repo-settings'.  The clone lives at
+`git-tools-review-repo-path'.  When it does not exist, clone from
+origin: SOURCE's origin URL with REPO substituted, else a sibling
+review clone's origin, else https://github.com/OWNER/REPO.git.
+Signal a `user-error' when the computed path exists but is not a
+git repository, or when cloning fails."
+  (let ((dest (directory-file-name
+                (git-tools-review-repo-path owner repo))))
+    (cond
+      ((git-tools--git-repo-p (file-name-as-directory dest))
+        (file-name-as-directory dest))
+      ((file-exists-p dest)
+        (user-error "Review path exists but is not a git repository: %s"
+          dest))
+      (t
+        (git-tools--clone-review-repo
+          (git-tools--clone-url owner repo source)
+          dest
+          source)))))
+
+(defun git-tools--review-source (directory owner)
+  "Return a local repo from DIRECTORY usable as clone template for OWNER.
+
+DIRECTORY is tried first, then the current buffer's directory.
+A candidate is used only when it is a git repository whose origin
+owner equals OWNER, ignoring case.  OWNER is a GitHub organization
+or user name."
+  (catch 'found
+    (dolist (dir (delq nil (list directory (git-tools--default-directory))))
+      (when (and (git-tools--git-repo-p dir)
+              (when-let* ((id (git-tools-remote-identity dir)))
+                (string= (downcase (nth 1 id)) (downcase owner))))
+        (throw 'found
+          (directory-file-name (expand-file-name dir)))))))
+
 (defun git-tools--ensure-review-repo (&optional directory)
   "Return the parallel review clone for the repository in DIRECTORY.
 DIRECTORY defaults to the current buffer's directory.  The clone
@@ -1468,28 +1573,8 @@ cloning fails."
   (let* ((source (or directory (git-tools--default-directory)))
           (identity (git-tools-remote-identity source)))
     (when identity
-      (let* ((owner (nth 1 identity))
-              (repo (nth 2 identity))
-              (dest (directory-file-name
-                      (git-tools-review-repo-path owner repo))))
-        (cond
-          ((git-tools--git-repo-p (file-name-as-directory dest))
-            (file-name-as-directory dest))
-          ((file-exists-p dest)
-            (user-error "Review path exists but is not a git repository: %s"
-              dest))
-          (t
-            (let ((url (git-tools--remote-url source)))
-              (make-directory (file-name-directory dest) t)
-              (message "git-tools-review: cloning %s into %s" url dest)
-              (if (magit-git-success "clone" url dest)
-                (progn
-                  (git-tools--copy-review-repo-settings source dest)
-                  (message "git-tools-review: copied project git settings into %s"
-                    dest)
-                  (file-name-as-directory dest))
-                (ignore-errors (delete-directory dest t))
-                (user-error "The git clone failed: %s" url)))))))))
+      (git-tools--ensure-review-repo-for
+        (nth 1 identity) (nth 2 identity) source))))
 
 ;;;###autoload
 (defun git-tools-review-directory (&optional directory)
@@ -1567,30 +1652,37 @@ Tries `gh' first, then the GitHub REST API. Returns nil if both fail."
 ;;;###Autoload
 (defun git-tools-review-start (&optional directory)
   "Start reviewing a GitHub pull request in a dedicated review clone.
-DIRECTORY is the repository whose origin remote selects the clone
-\(default: the current buffer's repository).  The clone lives under
-`git-tools-review-home' as OWNER/REPO and is created on demand
-by `git-tools-review-directory'.
+
+DIRECTORY is an optional local repository used as the origin URL
+template and as the source of project git settings.  The pull
+request URL is taken from the clipboard, or prompted for.  OWNER
+and REPO come from that URL.  The review clone lives under
+`git-tools-review-home' as OWNER/REPO and is cloned from origin
+when it does not exist.
+
 In that clone:
 1. Clean the working tree (`git reset --hard' + `git clean -fd',
    discarding local changes and untracked files).
 2. Check out the main branch, per `git-tools-main-branch-name'.
 3. Pull the latest changes from origin.
-4. Determine which pull request to review from the URL currently on
-   the system clipboard, if it looks like a GitHub PR URL (e.g.
-   https://github.com/OWNER/REPO/pull/123).  If the clipboard is
-   empty or doesn't hold such a URL, prompt for one interactively.
-   Fetch that PR from origin and check it out into a local branch
+4. Fetch that PR from origin and check it out into a local branch
    using the PR's actual head branch name (looked up via `gh' or the
    GitHub API), falling back to `review/pr-NUMBER' if that lookup
    fails.
 5. Add prompt to the kill ring."
   (interactive)
-  (let* ((default-directory (git-tools-review-directory directory))
+  (let* ((pr-url (git-tools--github-pr-url-from-clipboard-or-prompt))
+          (parts (or (git-tools--github-pr-parts pr-url)
+                    (user-error "Not a GitHub pull request URL: %s" pr-url)))
+          (owner (nth 0 parts))
+          (repo (nth 1 parts))
+          (pr-number (nth 2 parts))
+          (source (git-tools--review-source directory owner))
+          (default-directory
+            (git-tools--ensure-review-repo-for owner repo source))
           (main-branch (or (git-tools-main-branch-name)
                          (user-error "Could not determine main branch for %s"
-                           default-directory)))
-          (pr-number (git-tools--pr-number-from-clipboard-or-prompt)))
+                           default-directory))))
     (unless (file-directory-p default-directory)
       (user-error "Directory does not exist: %s" default-directory))
     (message "git-tools-review: preparing %s" default-directory)
@@ -1608,12 +1700,9 @@ In that clone:
     (let* ((review-branch
              (or (git-tools--pr-head-branch default-directory pr-number)
                (format "review/pr-%s" pr-number)))
-            (url (git-tools--clipboard-string))
             (output (concat (format "In the directory %s, " default-directory)
                       (format "please review the latest commits in the current branch %s " review-branch)
-                      (if (string-empty-p url)
-                        ""
-                        (format "from %s " url))
+                      (format "from %s " pr-url)
                       (format "to be merged into %s " (git-tools-main-branch-name default-directory))
                       (format "and start with a simple Approve 'Yes' or 'No' and ")
                       (format "if not approved, provide concise list of critical problems. ")
@@ -1632,15 +1721,43 @@ In that clone:
   (or (ignore-errors (gui-get-selection 'CLIPBOARD 'STRING))
     (ignore-errors (current-kill 0 t))))
 
+(defun git-tools--github-pr-parts (url)
+  "Return (OWNER REPO NUMBER) when URL is a GitHub pull-request URL.
+
+URL is trimmed.  Return nil when URL is nil, empty, or not a
+GitHub pull-request URL."
+  (let ((trimmed (and (stringp url) (string-trim url))))
+    (when (and trimmed
+            (not (string-empty-p trimmed))
+            (string-match
+              "\\`https?://github\\.com/\\([^/]+\\)/\\([^/]+\\)/pull/\\([0-9]+\\)/?\\'"
+              trimmed))
+      (list (match-string 1 trimmed)
+        (match-string 2 trimmed)
+        (match-string 3 trimmed)))))
+
 (defun git-tools--github-pr-number (url)
   "Return the PR number as a string if URL looks like a GitHub PR URL.
 Return nil otherwise (including when URL is nil or empty)."
-  (when (and (stringp url)
-          (not (string-empty-p (string-trim url)))
-          (string-match
-            "\\`https?://github\\.com/[^/]+/[^/]+/pull/\\([0-9]+\\)/?\\'"
-            (string-trim url)))
-    (match-string 1 (string-trim url))))
+  (nth 2 (git-tools--github-pr-parts url)))
+
+(defun git-tools--github-pr-url-from-clipboard-or-prompt ()
+  "Return a GitHub pull-request URL from the clipboard or a prompt.
+
+If the clipboard holds a GitHub pull-request URL, return it.
+Otherwise prompt until one is entered."
+  (let ((clip (git-tools--clipboard-string)))
+    (if (git-tools--github-pr-parts clip)
+      (string-trim clip)
+      (let (url)
+        (while (not url)
+          (let ((typed (string-trim
+                         (read-string "GitHub pull request URL: "))))
+            (if (git-tools--github-pr-parts typed)
+              (setq url typed)
+              (message "That doesn't look like a GitHub pull request URL; try again.")
+              (sit-for 1))))
+        url))))
 
 (defun git-tools--pr-number-from-clipboard-or-prompt ()
   "Return a GitHub PR number, taken from the clipboard if possible.
@@ -1648,16 +1765,8 @@ If the clipboard holds a string that looks like a GitHub pull
 request URL, extract and return its PR number.  Otherwise (empty
 clipboard, or a URL that doesn't match), prompt interactively,
 re-prompting until a valid GitHub PR URL is entered."
-  (or (git-tools--github-pr-number (git-tools--clipboard-string))
-    (let (number)
-      (while (not number)
-        (setq number
-          (git-tools--github-pr-number
-            (read-string "GitHub pull request URL: ")))
-        (unless number
-          (message "That doesn't look like a GitHub pull request URL; try again.")
-          (sit-for 1)))
-      number)))
+  (nth 2 (git-tools--github-pr-parts
+           (git-tools--github-pr-url-from-clipboard-or-prompt))))
 
 (defun git-tools--default-copy-dir ()
   "Compute the default destination directory: ~/wip/RELATIVE-PATH/BRANCH.

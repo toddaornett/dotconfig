@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: October 2, 2026
+;; Modified: October 13, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -678,6 +678,22 @@ has the remote branch.  Returns nil when nothing matches."
             ((and branch-ok (not branch-match)) (setq branch-match dir))))))
     (when-let* ((chosen (or both origin-match branch-match)))
       (directory-file-name (file-truename chosen)))))
+
+(defun jira-todo--origin-template-repo (owner)
+  "Return a local git repo whose origin owner is OWNER, or nil.
+
+Searches the same roots as `jira-todo--directory-candidates'.  Used
+as a clone URL template when no clone of the target repository
+exists yet, so SSH host aliases from a sibling repo are kept."
+  (catch 'found
+    (dolist (dir (jira-todo--directory-candidates owner ""))
+      (when (and (git-tools--git-repo-p dir)
+              (when-let* ((pair (ignore-errors
+                                  (git-tools--pr-owner-repo
+                                    (file-name-as-directory
+                                      (file-truename dir))))))
+                (string= (downcase (car pair)) (downcase owner))))
+        (throw 'found (directory-file-name (file-truename dir)))))))
 
 (defun jira-todo--git-directory (&optional fields)
   "Return the git directory for the current heading with optional FIELDS.
@@ -1508,23 +1524,23 @@ ring."
 
 The pull request URL is taken from the system clipboard and must be
 a non-JIRA http(s) GitHub pull request URL; otherwise nothing is
-inserted and this signals.  A local clone whose origin matches the
-pull request's owner/repo must be discoverable (see
-`jira-todo--find-repo-from-remote': `jira-todo-git-directory' and
-the parallel review clones under `git-tools-review-home');
-otherwise this signals.  Point must be in an `org-mode' buffer,
+inserted and this signals.  Point must be in an `org-mode' buffer,
 because the TODO is inserted as a heading.
 
-The pull request is reviewed in a parallel clone under
-`git-tools-review-home', created from that local clone's origin by
-`git-tools-review-start', which resets and cleans the review clone
-and checks out the pull request's head branch.  Only then is the
-TODO inserted, above the TODO point was on, with the Branch the
-review ended up on, that review directory, and the review prompt
-`git-tools-review-start' leaves on the kill ring.  That ordering
-matters: inserted before the review, the Branch would name the
-pre-review branch and the Prompt would be the previous kill, not
-the review prompt.
+A matching local clone is used when one exists (see
+`jira-todo--find-repo-from-remote': `jira-todo-git-directory' and
+the parallel review clones under `git-tools-review-home').  If none
+exists, a same-owner sibling is used as an origin URL template
+when available.  The pull request is reviewed in a parallel clone
+under `git-tools-review-home', created from origin by
+`git-tools-review-start' when that destination does not exist,
+which resets and cleans the review clone and checks out the pull
+request's head branch.  Only then is the TODO inserted, above the
+TODO point was on, with the Branch the review ended up on, that
+review directory, and the review prompt `git-tools-review-start'
+leaves on the kill ring.  That ordering matters: inserted before
+the review, the Branch would name the pre-review branch and the
+Prompt would be the previous kill, not the review prompt.
 
 The text between the --begin-- and --end-- lines is then passed
 through `caveman-region'.
@@ -1543,13 +1559,10 @@ inserted and this signals."
     (let* ((owner-repo (jira-todo--pr-url-owner-repo url))
             (owner (car owner-repo))
             (repo (cdr owner-repo))
-            (source (jira-todo--find-repo-from-remote owner repo nil))
+            (source (or (jira-todo--find-repo-from-remote owner repo nil)
+                      (jira-todo--origin-template-repo owner)))
             (buf (current-buffer))
             (position (copy-marker (point))))
-      (unless source
-        (user-error
-          "No local clone matching %s/%s found under %s or %s"
-          owner repo jira-todo-git-directory (git-tools-review-base-directory)))
       (unwind-protect
         (let* ((home (save-window-excursion (git-tools-review-start source)))
                 (branch (git-tools-current-branch-name home)))
