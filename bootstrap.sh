@@ -9,7 +9,9 @@ ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MIGRATED_ZSHRC_MARKER="home .zshrc migration (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
-EMACS_PACKAGE="emacs-plus@31"
+EMACS_PACKAGE="emacs-plus@32"
+# Floor, not a pin: adopt/upgrade may move $EMACS_PACKAGE to a newer emacs-plus@N.
+EMACS_MAJOR_FLOOR=32
 EDITOR_CONFIG="$HOME/.editorconfig"
 
 check_and_install_xcode() {
@@ -838,20 +840,37 @@ ensure_emacs_plus_linked() {
 
 # emacs-plus@N is versioned per Emacs major, so a newer Emacs arrives as a new
 # formula (emacs-plus@32) instead of an upgrade of the current keg: `brew
-# outdated` never reports it and $EMACS_PACKAGE is only a floor. Adopt the
-# newest installed emacs-plus@N so an upgrade accepted below sticks on later
-# runs without rewriting this script.
+# outdated` never reports it. $EMACS_PACKAGE is a floor (32+), not a pin. Adopt
+# the newest installed emacs-plus@N at or above that floor so an upgrade
+# accepted below sticks on later runs without rewriting this script.
 adopt_newest_installed_emacs_plus() {
   local pkg major best="$EMACS_PACKAGE" best_major="${EMACS_PACKAGE##*@}"
+  if [ "$best_major" -lt "$EMACS_MAJOR_FLOOR" ]; then
+    best="emacs-plus@${EMACS_MAJOR_FLOOR}"
+    best_major="$EMACS_MAJOR_FLOOR"
+  fi
   while IFS= read -r pkg; do
     major="${pkg#emacs-plus@}"
     case "$major" in ''|*[!0-9]*) continue ;; esac
-    if [ "$major" -gt "$best_major" ]; then
+    if [ "$major" -ge "$EMACS_MAJOR_FLOOR" ] && [ "$major" -gt "$best_major" ]; then
       best="$pkg"
       best_major="$major"
     fi
   done < <(brew list --formula 2>/dev/null | grep '^emacs-plus@' || true)
   EMACS_PACKAGE="$best"
+}
+
+# Drop emacs-plus@N kegs below the floor so they cannot shadow 32+.
+prune_older_emacs_plus_kegs() {
+  local pkg major
+  while IFS= read -r pkg; do
+    major="${pkg#emacs-plus@}"
+    case "$major" in ''|*[!0-9]*) continue ;; esac
+    if [ "$major" -lt "$EMACS_MAJOR_FLOOR" ]; then
+      echo "🧹 Uninstalling $pkg (Emacs $major is below floor ${EMACS_MAJOR_FLOOR}+)"
+      brew uninstall --formula --ignore-dependencies "$pkg" || true
+    fi
+  done < <(brew list --formula 2>/dev/null | grep '^emacs-plus@' || true)
 }
 
 # Newest emacs-plus@N the tap ships, read from the tap checkout `brew update`
@@ -899,6 +918,7 @@ maybe_upgrade_emacs_plus() {
 
 adopt_newest_installed_emacs_plus
 maybe_upgrade_emacs_plus
+prune_older_emacs_plus_kegs
 ensure_emacs_plus_linked
 
 #################################
@@ -1004,8 +1024,17 @@ fi
 
 EMACS_MAJOR="$(emacs --batch --eval '(princ emacs-major-version)' 2>/dev/null || true)"
 EMACS_EXPECTED_MAJOR="${EMACS_PACKAGE##*@}"
+case "$EMACS_MAJOR" in ''|*[!0-9]*)
+  echo "❌ emacs-major-version is ${EMACS_MAJOR:-unknown}, expected ${EMACS_MAJOR_FLOOR}+"
+  exit 1
+  ;;
+esac
+if [ "$EMACS_MAJOR" -lt "$EMACS_MAJOR_FLOOR" ]; then
+  echo "❌ emacs-major-version is $EMACS_MAJOR, expected ${EMACS_MAJOR_FLOOR}+"
+  exit 1
+fi
 if [ "$EMACS_MAJOR" != "$EMACS_EXPECTED_MAJOR" ]; then
-  echo "❌ emacs-major-version is ${EMACS_MAJOR:-unknown}, expected $EMACS_EXPECTED_MAJOR"
+  echo "❌ emacs-major-version is $EMACS_MAJOR, expected $EMACS_EXPECTED_MAJOR"
   exit 1
 fi
 
@@ -1042,22 +1071,104 @@ ensure_emacs_runtime_deps() {
 
 ensure_emacs_runtime_deps
 
-# Link Emacs.app into /Applications if missing, and repoint it after an
-# emacs-plus upgrade. A real .app bundle in /Applications is left alone.
-# (use full formula path for tap)
-EMACS_PREFIX="$(brew --prefix d12frosted/emacs-plus/$EMACS_PACKAGE 2>/dev/null || brew --prefix $EMACS_PACKAGE 2>/dev/null)"
-EMACS_APP_SRC="${EMACS_PREFIX}/Emacs.app"
-EMACS_APP_DST="/Applications/Emacs.app"
+# Best of the emacs-plus caveats: keep the formula (`emacs` on PATH, native-comp,
+# tree-sitter, build.yml patches/icons) and still get Dock/Spotlight/Launchpad
+# icons. The emacs-plus-app cask drops apps in /Applications natively but cannot
+# coexist with the formula. Symlinks follow upgrades, but Spotlight may hide
+# them. Copies show as real applications; after each formula upgrade remove
+# them and copy Emacs.app and Emacs Client.app again.
+remove_conflicting_emacs_plus_app_casks() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
 
-if [ -n "$EMACS_PREFIX" ] && [ -d "$EMACS_APP_SRC" ]; then
-  if [ -L "$EMACS_APP_DST" ] && [ ! "$EMACS_APP_DST" -ef "$EMACS_APP_SRC" ]; then
-    echo "📎 Repointing /Applications/Emacs.app at $EMACS_PACKAGE..."
-    ln -sfn "$EMACS_APP_SRC" "$EMACS_APP_DST"
-  elif [ ! -e "$EMACS_APP_DST" ] && [ ! -L "$EMACS_APP_DST" ]; then
-    echo "📎 Linking Emacs.app into /Applications..."
-    ln -s "$EMACS_APP_SRC" "$EMACS_APP_DST"
+  local cask
+  while IFS= read -r cask; do
+    [ -z "$cask" ] && continue
+    echo "🧹 Uninstalling cask $cask"
+    echo "   (formula + cask is unsupported; /Applications will get copies of $EMACS_PACKAGE)"
+    brew uninstall --cask --force "$cask" || true
+  done < <(brew list --cask 2>/dev/null | grep '^emacs-plus-app' || true)
+}
+
+emacs_app_copy_is_current() {
+  local src="$1" dst="$2"
+  local src_plist="$src/Contents/Info.plist"
+  local dst_plist="$dst/Contents/Info.plist"
+  local exe src_ver dst_ver icns
+
+  [ -d "$dst" ] && [ ! -L "$dst" ] || return 1
+  [ -f "$src_plist" ] && [ -f "$dst_plist" ] || return 1
+
+  src_ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$src_plist" 2>/dev/null || true)"
+  dst_ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$dst_plist" 2>/dev/null || true)"
+  [ -n "$src_ver" ] && [ "$src_ver" = "$dst_ver" ] || return 1
+
+  exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$src_plist" 2>/dev/null || true)"
+  [ -n "$exe" ] || return 1
+  cmp -s "$src/Contents/MacOS/$exe" "$dst/Contents/MacOS/$exe" || return 1
+
+  for icns in Emacs.icns applet.icns; do
+    if [ -f "$src/Contents/Resources/$icns" ]; then
+      cmp -s "$src/Contents/Resources/$icns" "$dst/Contents/Resources/$icns" || return 1
+    fi
+  done
+}
+
+register_macos_app() {
+  local app="$1"
+  local lsregister="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+  xattr -dr com.apple.quarantine "$app" &>/dev/null || true
+  touch "$app"
+  if [ -x "$lsregister" ]; then
+    "$lsregister" -f "$app" &>/dev/null || true
   fi
-fi
+  mdimport "$app" &>/dev/null || true
+}
+
+install_emacs_apps_to_applications() {
+  [[ "$(uname -s)" != Darwin ]] && return 0
+
+  local src_root name src dst
+
+  src_root="$(brew --prefix "$EMACS_PACKAGE" 2>/dev/null || true)"
+  if [ -z "$src_root" ] || [ ! -d "$src_root/Emacs.app" ]; then
+    echo "⚠️  Emacs.app not found under $EMACS_PACKAGE; skipping /Applications install"
+    return 0
+  fi
+
+  for name in "Emacs.app" "Emacs Client.app"; do
+    src="$src_root/$name"
+    dst="/Applications/$name"
+    if [ ! -d "$src" ]; then
+      echo "⚠️  $name not found under $EMACS_PACKAGE"
+      continue
+    fi
+
+    if emacs_app_copy_is_current "$src" "$dst"; then
+      echo "✅ $dst already matches $EMACS_PACKAGE"
+      continue
+    fi
+
+    echo "📎 Installing $name into /Applications (copy so macOS shows the app icon)..."
+    # Caveats: after each upgrade remove the copy, then copy it again.
+    # Never ditto/cp into a symlink — that writes through into the Cellar.
+    rm -rf "$dst"
+    if [ -e "$dst" ]; then
+      echo "❌ Could not replace $dst (quit Emacs and retry)"
+      exit 1
+    fi
+    if ! /usr/bin/ditto "$src" "$dst"; then
+      echo "❌ Failed to copy $name to /Applications"
+      exit 1
+    fi
+    register_macos_app "$dst"
+    echo "✅ $dst"
+  done
+}
+
+remove_conflicting_emacs_plus_app_casks
+ensure_emacs_plus_linked
+install_emacs_apps_to_applications
 
 #################################
 # Ensure fonts are registered (macOS)

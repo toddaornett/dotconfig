@@ -15,7 +15,7 @@ cask "hammerspoon"
 
 brew "gcc"
 brew "libgccjit"
-brew "emacs-plus@31", args: ["with-tree-sitter", "with-native-comp"]
+brew "emacs-plus@32"
 brew "jpeg"
 brew "zlib"
 brew "tree-sitter"
