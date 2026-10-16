@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 02, 2025
-;; Modified: October 13, 2026
+;; Modified: October 16, 2026
 ;; Version: 0.0.1
 ;; Keywords: vc tools convenience files
 ;; Package-Requires: ((emacs "29.1"))
@@ -1673,7 +1673,7 @@ In that clone:
   (interactive)
   (let* ((pr-url (git-tools--github-pr-url-from-clipboard-or-prompt))
           (parts (or (git-tools--github-pr-parts pr-url)
-                    (user-error "Not a GitHub pull request URL: %s" pr-url)))
+                   (user-error "Not a GitHub pull request URL: %s" pr-url)))
           (owner (nth 0 parts))
           (repo (nth 1 parts))
           (pr-number (nth 2 parts))
@@ -1986,6 +1986,57 @@ directory; with no prefix argument, the default directory is used."
     (message "Copied %d modified/untracked file(s) to %s%s"
       copied dir
       (if (> skipped 0) (format " (%d skipped, likely deleted)" skipped) ""))))
+
+;;;###autoload
+(defun git-tools-set-upstream (&optional dir remote)
+  "Set the upstream of the current branch to REMOTE/BRANCH in DIR.
+DIR is any directory inside the repository and defaults to the
+current buffer's directory.  REMOTE defaults to \"origin\".
+
+The branch is the current branch of the repository containing DIR.
+If REMOTE/BRANCH already exists (after a quick fetch), the branch is
+set to track it with `git branch --set-upstream-to'.  If it does not
+exist on the remote yet, offer to publish the branch with
+`git push --set-upstream'.
+
+Signal a `user-error' when DIR is not in a git repository, HEAD is
+detached, or the push is declined.
+
+Interactively, a prefix argument (e.g. `\\[universal-argument]
+\\[git-tools-set-upstream]') prompts for the git directory; with no
+prefix argument, the current buffer's repository is used."
+  (interactive
+    (list
+      (when current-prefix-arg
+        (read-directory-name "Git repository directory: "
+          (git-tools--default-directory) nil t))))
+  (let* ((root (or (git-tools--repo-root dir)
+                 (user-error "Not inside a git repository: %s"
+                   (or dir (git-tools--default-directory)))))
+          (default-directory root)
+          (remote (or remote "origin"))
+          (branch (or (git-tools-current-branch-name root)
+                    (user-error "Not on a branch (detached HEAD)")))
+          (upstream (format "%s/%s" remote branch))
+          (current (magit-get-upstream-branch branch)))
+    (if (equal current upstream)
+      (message "Branch `%s' already tracks `%s'" branch upstream)
+      ;; Refresh the remote-tracking ref; failure just means the
+      ;; branch is not on the remote yet.
+      (magit-git-success "fetch" remote branch)
+      (cond
+        ((magit-rev-verify (format "refs/remotes/%s" upstream))
+          (magit-run-git "branch"
+            (format "--set-upstream-to=%s" upstream) branch)
+          (message "Branch `%s' now tracks `%s' in %s"
+            branch upstream (abbreviate-file-name root)))
+        ((y-or-n-p (format "`%s' does not exist; push `%s' and set upstream? "
+                     upstream branch))
+          (magit-run-git "push" "--set-upstream" remote branch)
+          (message "Pushed `%s' and set upstream to `%s' in %s"
+            branch upstream (abbreviate-file-name root)))
+        (t
+          (user-error "Upstream not set: `%s' does not exist" upstream))))))
 
 (provide 'git-tools)
 ;;; git-tools.el ends here
