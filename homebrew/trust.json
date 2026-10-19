@@ -9,6 +9,7 @@
   ],
   "trustedformulae": [
     "can1357/tap/omp",
+    "d12frosted/emacs-plus/emacs-plus@32",
     "redpanda-data/tap/redpanda"
   ]
 }
