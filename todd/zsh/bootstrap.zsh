@@ -30,3 +30,4 @@ if command -v mise >/dev/null 2>&1; then
 fi
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
 export DOCKER_CONTEXT=colima
+path+=/Users/todd/.config/doom-emacs/bin

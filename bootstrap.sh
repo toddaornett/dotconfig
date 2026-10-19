@@ -795,6 +795,14 @@ echo "📦 Installing Homebrew packages..."
 # Allow emacs-plus link conflict — we force-link the desired keg immediately after
 brew bundle --file="./Brewfile" || true
 
+# rulesync ships a new release several times a day, so `brew bundle` would try to
+# upgrade it on every run. That upgrade is a large download (a ~12 MB bottle, or
+# a ~120 MB `npm install` source build while the newest version's bottle has not
+# landed) and can stall indefinitely on a slow connection. Pin it at its
+# bottle-installed version so bootstrap stays fast and non-interactive; pinning
+# never blocks the initial install, only subsequent upgrades.
+brew pin rulesync 2>/dev/null || true
+
 # Homebrew reports a keg "already linked" via opt/emacs-plus even when bin/emacs
 # still belongs to another emacs-plus@N keg. Homebrew's own linked-keg record is
 # $BREW_PREFIX/var/homebrew/linked/<formula>, a symlink to the linked keg, so it
