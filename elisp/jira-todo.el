@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: October 13, 2026
+;; Modified: October 19, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -348,6 +348,121 @@ stay intact."
   "Return NAMES (\"@Ada Lovelace\") as space-separated `@{...}' mentions."
   (mapconcat #'jira-todo--teams-mention names " "))
 
+(defun jira-todo--teams-hard-break-suffix (line)
+  "Split a CommonMark hard line break off the end of LINE.
+
+Return (BODY . SUFFIX).  SUFFIX is a backslash plus any trailing
+spaces when LINE ends that way, otherwise the empty string.  BODY
+is LINE without SUFFIX and without a trailing CR.  `xteams' uses
+that backslash to keep each Teams body line from folding into the
+next paragraph."
+  (if (string-match "\\(\\\\[ \t]*\\)\\(\r?\\)\\'" line)
+    (cons (substring line 0 (match-beginning 1))
+      (match-string 1 line))
+    (cons (string-trim-right line "\r") "")))
+
+(defun jira-todo--teams-hard-break-lines (lines)
+  "Join LINES with CommonMark hard line breaks for `xteams' markdown.
+
+A backslash before the newline is how pulldown-cmark emits a
+`<br>' instead of folding the lines into one paragraph.  The last
+of LINES has no backslash.  LINES is a list of strings without
+trailing newlines.  Empty LINES yields an empty string."
+  (let ((lines (cl-remove-if
+                 (lambda (s) (or (null s) (string-empty-p s)))
+                 lines)))
+    (cond
+      ((null lines) "")
+      ((null (cdr lines)) (concat (car lines) "\n"))
+      (t (concat
+           (mapconcat (lambda (line) (concat line "\\"))
+             (butlast lines)
+             "\n")
+           "\n" (car (last lines)) "\n")))))
+
+(defun jira-todo--teams-pr-markdown (url)
+  "Return CommonMark linking URL to itself as `[<URL>](<URL>)'.
+
+Label and destination are the same autolink so the syntax stays
+valid and `xteams' renders a hyperlink.  Surrounding `<>' on URL
+are stripped first so they are not doubled."
+  (let ((bare (if (string-match "\\`<\\([^>]+\\)>\\'" url)
+                (match-string 1 url)
+                url)))
+    (format "[<%s>](<%s>)" bare bare)))
+
+(defun jira-todo--replace-pr-placeholder-text (text url &optional title)
+  "Replace <PR-TBD> and <TBD> placeholders in TEXT using URL.
+
+A Teams markdown link `[<PR-TBD>](<PR-TBD>)' becomes
+`[<URL>](<URL>)' so label and destination are the same text.  A
+bare <PR-TBD> becomes URL with TITLE on the next line.  A bare
+<TBD> becomes URL only.  TITLE may be nil.  Return
+\(NEW-TEXT . COUNT)."
+  (let ((count 0))
+    (cons
+      (replace-regexp-in-string
+        "\\[\\(<\\(?:PR-\\)?TBD>\\)\\](\\1)\\|<\\(?:PR-\\)?TBD>"
+        (lambda (match)
+          (setq count (1+ count))
+          (cond
+            ((string-prefix-p "[" match)
+              (jira-todo--teams-pr-markdown url))
+            ((string-prefix-p "<PR-" match)
+              (if title (concat url "\n" title) url))
+            (t url)))
+        (or text "") t t)
+      count)))
+
+(defun jira-todo--repair-teams-pr-link (body)
+  "Rewrite a filled Teams PR markdown link in BODY to `[<URL>](<URL>)'.
+
+The old placeholder fill put URL then a title into both sides of
+`[<PR-TBD>](<PR-TBD>)', which CommonMark cannot parse.  Collapse
+`[<URL>\\nTITLE](<URL>\\nTITLE)' and `[TITLE](<URL>)' into
+`[<URL>](<URL>)' so label and destination are the same text.  A
+trailing backslash is optional.  Return
+\(NEW-BODY . COUNT)."
+  (let ((count 0)
+         (new (or body "")))
+    (setq new
+      (replace-regexp-in-string
+        (concat
+          "\\[<?\\(https?://[^[:space:]<>\n]+\\)>?[ \t]*\n"
+          "[ \t]*\\([^]\n]+\\)\\](<?\\1>?[ \t]*\n[ \t]*\\2)\\\\?")
+        (lambda (match)
+          (setq count (1+ count))
+          (jira-todo--teams-pr-markdown (match-string 1 match)))
+        new t t))
+    (setq new
+      (replace-regexp-in-string
+        "\\[[^][\n]+\\](<?\\(https?://[^[:space:]<>]+\\)>?)\\\\?"
+        (lambda (match)
+          (let ((url (match-string 1 match)))
+            (if (string= match (jira-todo--teams-pr-markdown url))
+              match
+              (progn
+                (setq count (1+ count))
+                (jira-todo--teams-pr-markdown url)))))
+        new t t))
+    (cons new count)))
+
+(defun jira-todo--normalize-teams-body (body)
+  "Return BODY with a valid PR link, autolinks, and hard line breaks.
+
+BODY is the here-document contents of a Teams `xteams' block.
+Already-expanded placeholders are repaired, leftover bare URLs are
+wrapped as `<URL>', and every line but the last gets a CommonMark
+backslash so `xteams' keeps the line breaks."
+  (let* ((repaired (car (jira-todo--repair-teams-pr-link body)))
+          (linked (car (jira-todo--autolink-urls repaired)))
+          (lines (mapcar
+                   (lambda (line)
+                     (car (jira-todo--teams-hard-break-suffix line)))
+                   (split-string linked "\n" t))))
+    (string-remove-suffix "\n"
+      (jira-todo--teams-hard-break-lines lines))))
+
 (defun jira-todo--format-slack-message (summary)
   "Format message with SUMMARY for Slack."
   (concat
@@ -366,16 +481,22 @@ standard input, so evaluating it (\\[org-ctrl-c-ctrl-c] inside the
 block) sends the message to `jira-todo-microsoft-teams-channel'.
 Reviewer names are encoded as `@{NAME}' mention tokens and URLs in
 SUMMARY are wrapped as CommonMark autolinks by
-`jira-todo--autolink-urls'."
+`jira-todo--autolink-urls'.  Body lines except the last end with a
+backslash so CommonMark keeps each on its own line.  The PR
+placeholder is a markdown link so
+`jira-todo--replace-pr-placeholder-text' can fill
+`[<url>](<url>)' without putting a newline in the destination."
   (concat
     (format "Teams:\n")
     (format "#+begin_src sh :results none\n")
     (format "xteams message new %s <<'%s'\n"
       (shell-quote-argument jira-todo-microsoft-teams-channel)
       jira-todo--teams-heredoc-delimiter)
-    (format "PTAL %s\\\n" (jira-todo--teams-mention-string))
-    (format "[<PR-TBD>](<PR-TBD>)\\\n")
-    (format "%s\n" (car (jira-todo--autolink-urls summary)))
+    (jira-todo--teams-hard-break-lines
+      (list
+        (format "PTAL %s" (jira-todo--teams-mention-string))
+        "[<PR-TBD>](<PR-TBD>)"
+        (car (jira-todo--autolink-urls summary))))
     (format "%s\n" jira-todo--teams-heredoc-delimiter)
     (format "#+end_src\n")))
 
@@ -853,24 +974,20 @@ both lookups fail, or only a prefix was found."
 (defun jira-todo--replace-pr-placeholders (url)
   "Replace <PR-TBD> and <TBD> placeholders in the current org heading with URL.
 
-Each <PR-TBD> gets URL with the pull request title summary
-`(ticket and conventional-commit prefixes removed) inserted on the
-next line when one can be retrieved; a bare <TBD> gets URL only.
+A Teams `[<PR-TBD>](<PR-TBD>)' link becomes `[<URL>](<URL>)' so
+label and destination are the same text.  Other <PR-TBD> placeholders
+get URL with the pull request title summary (ticket and
+conventional-commit prefixes removed) inserted on the next line
+when one can be retrieved; a bare <TBD> gets URL only.
 Return the number of replacements, which may be zero when the PR
 URL is already filled in.  Signal if point is not in an org heading.
 Works even when the subtree is folded."
   (let* ((text (jira-todo--heading-text))
           (title (jira-todo--pr-title url))
-          (replacement (if title (concat url "\n" title) url))
-          (count 0)
-          (new (replace-regexp-in-string
-                 "<\\(PR-\\)?TBD>"
-                 (lambda (match)
-                   (setq count (1+ count))
-                   (if (string-prefix-p "<PR-" match) replacement url))
-                 text t t)))
+          (replaced (jira-todo--replace-pr-placeholder-text text url title))
+          (count (cdr replaced)))
     (when (> count 0)
-      (jira-todo--replace-heading-text new))
+      (jira-todo--replace-heading-text (car replaced)))
     count))
 
 (defun jira-todo--username-from-email (email)
@@ -1263,24 +1380,33 @@ order.  Suppressed authors never count toward LIMIT."
             (> (cdr a) (cdr b))))))
     (mapcar #'car (cl-subseq entries 0 (min limit (length entries))))))
 
-(defun jira-todo--ptal-replacement-line (line reviewers)
-  "Return LINE rewritten with REVIEWERS, or nil to leave LINE unchanged."
-  (when (string-match
-          "\\`\\([ \t]*\\)\\(:pull_request: \\)?PTAL\\(?:[ \t]+\\(.*\\)\\)?[ \t]*\r?\\'"
-          line)
-    (let ((indent (or (match-string 1 line) ""))
-           (prefix (or (match-string 2 line) ""))
-           (rest (or (match-string 3 line) "")))
-      (unless (string-match-p "\\`PR[ \t]*\\'" rest)
-        (concat indent prefix "PTAL " reviewers)))))
+(defun jira-todo--ptal-replacement-line (line reviewers &optional teams)
+  "Return LINE rewritten with REVIEWERS, or nil to leave LINE unchanged.
+
+TEAMS non-nil forces a CommonMark hard line break so `xteams'
+keeps the PTAL line separate.  Otherwise a trailing backslash
+already on LINE is kept."
+  (let* ((split (jira-todo--teams-hard-break-suffix line))
+          (body (car split))
+          (hard-break (cdr split)))
+    (when (string-match
+            "\\`\\([ \t]*\\)\\(:pull_request: \\)?PTAL\\(?:[ \t]+\\(.*\\)\\)?[ \t]*\\'"
+            body)
+      (let ((indent (or (match-string 1 body) ""))
+             (prefix (or (match-string 2 body) ""))
+             (rest (or (match-string 3 body) "")))
+        (unless (string-match-p "\\`PR[ \t]*\\'" rest)
+          (concat indent prefix "PTAL " reviewers
+            (if teams "\\" hard-break)))))))
 
 (defun jira-todo--insert-ptal-in-message-block (text reviewers teams-reviewers)
   "Insert a PTAL line with REVIEWERS into the Teams/Slack block in TEXT.
 
 TEAMS-REVIEWERS is the same list encoded as Teams `@{NAME}' mention
 tokens and defaults to REVIEWERS.  A Teams `xteams' block gets it
-after the here-document opener; a Slack block gets REVIEWERS after
-`--begin--'.  Return (NEW-TEXT . COUNT)."
+after the here-document opener with a trailing CommonMark hard
+line break; a Slack block gets REVIEWERS after `--begin--'.
+Return (NEW-TEXT . COUNT)."
   (let ((count 0)
          (new text))
     (setq new
@@ -1288,7 +1414,7 @@ after the here-document opener; a Slack block gets REVIEWERS after
         "\\(Teams:\n\\(?:#\\+begin_src[^\n]*\n\\)?[^\n]*<<'[A-Za-z0-9_-]+'\n\\)"
         (lambda (m)
           (setq count (1+ count))
-          (concat m "PTAL " (or teams-reviewers reviewers) "\n"))
+          (concat m "PTAL " (or teams-reviewers reviewers) "\\\n"))
         new t t))
     (when (zerop count)
       (setq new
@@ -1382,23 +1508,26 @@ Return the copied text, or nil if no such section exists."
     body))
 
 (defun jira-todo--linkify-teams-body ()
-  "Turn the bare URLs of the Teams message body into CommonMark autolinks.
+  "Repair links, autolinks, and line breaks in the Teams message body.
 
-`xteams' builds the Teams HTML from CommonMark, which does not
-autolink bare URLs, so Teams would otherwise store them as plain
-text.  Slack bodies and already-wrapped URLs are left alone.
-Return the number of URLs wrapped."
+Works after placeholders are already expanded: a newline-split
+`[<URL> TITLE](<URL> TITLE)' link becomes `[<URL>](<URL>)', bare
+URLs become CommonMark autolinks, and every body line but the last
+gets a backslash so `xteams' keeps the line breaks.  Slack bodies
+are left alone.  Return the number of URLs wrapped."
   (let* ((text (jira-todo--heading-text))
           (bounds (jira-todo--messaging-body-bounds text 'teams)))
     (if (not bounds)
       0
       (let* ((start (cadr bounds))
               (end (cddr bounds))
-              (autolinked (jira-todo--autolink-urls (substring text start end)))
-              (count (cdr autolinked)))
-        (when (> count 0)
+              (body (substring text start end))
+              (new (jira-todo--normalize-teams-body body))
+              (count (cdr (jira-todo--autolink-urls
+                            (car (jira-todo--repair-teams-pr-link body))))))
+        (unless (string= body new)
           (jira-todo--replace-heading-text
-            (concat (substring text 0 start) (car autolinked) (substring text end))))
+            (concat (substring text 0 start) new (substring text end))))
         count))))
 
 (defun jira-todo--replace-ptal-reviewers (reviewers &optional teams-reviewers)
@@ -1431,7 +1560,9 @@ the number of replacements."
                   (t
                     (let ((rewritten
                             (jira-todo--ptal-replacement-line
-                              line (if in-teams teams-reviewers reviewers))))
+                              line
+                              (if in-teams teams-reviewers reviewers)
+                              in-teams)))
                       (if rewritten
                         (progn (setq count (1+ count)) rewritten)
                         line)))))
@@ -1479,12 +1610,15 @@ If INPUT is not provided, prompt interactively."
 (defun jira-todo-update-with-pr (&optional url)
   "Update the current TODO with URL, clipboard, or then prompt for it.
 
-Replace <PR-TBD> patterns in the current TODO when present, with
-the pull request title summary on the line under the URL.  The
-title is looked up via `gh' or the GitHub REST API and has any
-leading ticket prefix (bracketed, or a ticket key with its `\": \"')
-removed.  An already-filled PR URL in the heading is reused and is
-not an error.
+Replace <PR-TBD> patterns in the current TODO when present.  A
+Teams `[<PR-TBD>](<PR-TBD>)' link becomes `[<url>](<url>)'.  Other
+placeholders get the URL with the pull request title summary on
+the next line.  An already-filled heading is reused: a Teams body
+whose link was split across lines by the old fill is repaired, and
+hard line breaks are restored.  The title is looked up via `gh' or
+the GitHub REST API and has any leading ticket prefix (bracketed,
+or a ticket key with its `\": \"') removed.  An already-filled PR
+URL in the heading is reused and is not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
 authors from `jira-todo--top-authors-for-changed-dirs' (commit
