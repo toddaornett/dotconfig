@@ -25,8 +25,12 @@ if [[ "$(uname -s)" == Darwin ]]; then
 fi
 
 # mise version manager (bootstrap)
+# Interactive hook only. Non-interactive zsh gets shims from ~/.zshenv.
+# Prefer `command -v` (Homebrew) over a stale ~/.local/bin/mise.
 if command -v mise >/dev/null 2>&1; then
   eval "$(mise activate zsh)"
+elif [[ -x "$HOME/.local/bin/mise" ]]; then
+  eval "$("$HOME/.local/bin/mise" activate zsh)"
 fi
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
 export DOCKER_CONTEXT=colima

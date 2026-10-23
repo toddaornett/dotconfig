@@ -9,6 +9,7 @@ ZDOTDIR_DIR="$HOME/.config/zsh"
 BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MIGRATED_ZSHRC_MARKER="home .zshrc migration (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
+MISE_ZSHENV_MARKER="mise PATH/shims (bootstrap)"
 EMACS_PACKAGE="emacs-plus@32"
 # Floor, not a pin: adopt/upgrade may move $EMACS_PACKAGE to a newer emacs-plus@N.
 EMACS_MAJOR_FLOOR=32
@@ -305,14 +306,74 @@ EOF
   fi
 }
 
+ensure_mise_on_path_in_zshenv() {
+  grep -Fq "$MISE_ZSHENV_MARKER" "$ZSHENV" 2>/dev/null && return 0
+  touch "$ZSHENV"
+  cat >>"$ZSHENV" <<'EOF'
+
+# mise PATH/shims (bootstrap)
+# ~/.local/bin is where `curl https://mise.run | sh` installs. Append it so a
+# Homebrew mise (already on PATH via /opt/homebrew/bin) stays preferred.
+# Shims are zsh-only: bootstrap.sh also sources this file from bash.
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) ;;
+  *) export PATH="$PATH:$HOME/.local/bin" ;;
+esac
+if [[ -n ${ZSH_VERSION:-} ]] && command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh --shims)"
+fi
+EOF
+  echo "  Added mise PATH/shims to $ZSHENV"
+}
+
+# Login shells used to `eval "$(~/.local/bin/mise activate zsh)"` in ~/.zprofile,
+# which pinned an old curl-installed binary ahead of Homebrew. Interactive
+# activate belongs in bootstrap.zsh only.
+ensure_mise_not_activated_in_zprofile() {
+  local f="$HOME/.zprofile"
+  [[ -f "$f" ]] || return 0
+  grep -q 'mise activate' "$f" 2>/dev/null || return 0
+  local tmp
+  tmp="$(mktemp)"
+  grep -v 'mise activate' "$f" >"$tmp"
+  mv "$tmp" "$f"
+  echo "  Removed mise activate from $f (interactive hook lives in $ZSH_BOOTSTRAP)"
+}
+
+# ZDOTDIR .zshrc previously copied the bootstrap.zsh activate block, so login
+# interactive shells ran `mise activate` twice (or three times with .zprofile).
+ensure_mise_not_duplicated_in_zdot_zshrc() {
+  local f="$ZDOTDIR_DIR/.zshrc"
+  [[ -f "$f" ]] || return 0
+  grep -Fq "$MISE_MARKER" "$f" 2>/dev/null || return 0
+  grep -Fq "$MISE_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null || return 0
+  local tmp
+  tmp="$(mktemp)"
+  awk -v marker="$MISE_MARKER" '
+    index($0, marker) { skip = 1; next }
+    skip && /^fi$/ { skip = 0; next }
+    skip { next }
+    { print }
+  ' "$f" >"$tmp"
+  mv "$tmp" "$f"
+  echo "  Removed duplicate mise activate from $f"
+}
+
 ensure_mise_in_shell() {
+  ensure_mise_on_path_in_zshenv
+  ensure_mise_not_activated_in_zprofile
+  ensure_mise_not_duplicated_in_zdot_zshrc
   grep -Fq "$MISE_MARKER" "$ZSH_BOOTSTRAP" 2>/dev/null && return 0
   mkdir -p "$(dirname "$ZSH_BOOTSTRAP")"
   cat >>"$ZSH_BOOTSTRAP" <<'EOF'
 
 # mise version manager (bootstrap)
+# Interactive hook only. Non-interactive zsh gets shims from ~/.zshenv.
+# Prefer `command -v` (Homebrew) over a stale ~/.local/bin/mise.
 if command -v mise >/dev/null 2>&1; then
   eval "$(mise activate zsh)"
+elif [[ -x "$HOME/.local/bin/mise" ]]; then
+  eval "$("$HOME/.local/bin/mise" activate zsh)"
 fi
 EOF
   echo "  Added mise activation to $ZSH_BOOTSTRAP"
@@ -1510,12 +1571,22 @@ fi
 #################################
 # Install mise
 #################################
-if ! command -v mise >/dev/null 2>&1; then
-  echo "🛠️ Installing Mise..."
-  curl https://mise.run | sh
-  if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
-    echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
-  fi
+# One copy: Homebrew on Darwin (already on PATH via ~/.zshenv). Fall back to
+# mise.run (~/.local/bin) when brew is unavailable. Do not curl-install on top
+# of a brew formula — login shells used to pin that older binary via .zprofile.
+if command -v brew >/dev/null 2>&1 && brew list mise &>/dev/null; then
+  echo "✅ mise already installed via Homebrew"
+elif command -v brew >/dev/null 2>&1; then
+  echo "🛠️ Installing mise via Homebrew..."
+  brew install mise
+elif command -v mise >/dev/null 2>&1 || [[ -x "$HOME/.local/bin/mise" ]]; then
+  echo "✅ mise already installed"
+else
+  echo "🛠️ Installing mise via mise.run..."
+  curl -fsSL https://mise.run | sh
+fi
+if ! grep -Fqs "MISE_TRUSTED_CONFIG_PATHS" "$ZSHENV" 2>/dev/null; then
+  echo 'export MISE_TRUSTED_CONFIG_PATHS="${HOME}/dev:${HOME}/Projects"' >>"$ZSHENV"
 fi
 ensure_mise_in_shell
 
