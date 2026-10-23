@@ -113,8 +113,7 @@ cuupr() {
   fi
 
   # cargo update for packages in special registries that need explicit updating
-  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}
-  do
+  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}; do
     parts=(${(s: :)line})
     package_name=${parts[2]}
     version=${parts[-1]#v}
@@ -191,8 +190,7 @@ cruupr() {
   fi
 
   # cargo update for packages in special registries that need explicit updating
-  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}
-  do
+  for line in ${(f)"$(cargo update --dry-run |& grep 'Updating' | grep '(registry')"}; do
     parts=(${(s: :)line})
     package_name=${parts[2]}
     version=${parts[-1]#v}
@@ -272,12 +270,12 @@ cclippyfix() {
     # switch to the new branch and create git commit
     if git checkout $branch_name; then
       local commit_message_file=$(mktemp -t tmp_cclippyfix_message)
-      echo ${DEFAULT_GIT_COMMIT_MESSAGE_RUST_CLIPPY:-"refactor: fix clippy warnings with rustc $(rustc --version | cut -d ' ' -f 2)"} > "$commit_message_file"
+      echo ${DEFAULT_GIT_COMMIT_MESSAGE_RUST_CLIPPY:-"refactor: fix clippy warnings with rustc $(rustc --version | cut -d ' ' -f 2)"} >"$commit_message_file"
       git add .
       git commit -F "$commit_message_file"
       rm -f "$commit_message_file"
       echo "Ran cargo clippy --fix and git committed details in $temp_file"
-      pbcopy < "$temp_file"
+      pbcopy <"$temp_file"
     fi
   fi
 }
@@ -398,5 +396,4 @@ alias cwti="echo \"$cmd\" && $cmd"
 cmd='cargo fmt --all -- --check && cargo clippy --all-targets'
 alias cfc="echo \"$cmd\" && $cmd"
 
-# list mostly cargo related aliases
 alias acargo="alias | egrep '^c.+='"

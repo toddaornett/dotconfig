@@ -85,5 +85,4 @@ alias nsr="echo \"$cmd\" && $cmd"
 cmd='npm run test'
 alias nt="echo \"$cmd\" && $cmd"
 
-# list mostly cargo related aliases
 alias anode="alias | grep '^n' | grep -v '^nvim'"

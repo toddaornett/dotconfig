@@ -33,5 +33,4 @@ alias brs="echo \"$cmd\" && $cmd"
 cmd='bun run storybook'
 alias brsb="echo \"$cmd\" && $cmd"
 
-# list mostly cargo related aliases
 alias abun="alias | grep '^br'"

@@ -19,7 +19,4 @@ if [[ -n "$_sound_dir" && -d "$_sound_dir" ]]; then
 fi
 unset _sound_file _sound_name _alias_name _sound_dir
 
-# ---------------------------------------------------------------------------
-# List all play* aliases and functions
-# ---------------------------------------------------------------------------
 alias aplay="alias | grep '^play' | sort"
