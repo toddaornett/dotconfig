@@ -36,6 +36,8 @@
 ;;
 ;;; Code:
 
+(require 'seq)
+
 (defgroup nodoze nil
   "Customize settings for the running of nodoze to keep the system awake."
   :group 'hardware
@@ -89,11 +91,27 @@ Stores a plist of the form (:pid PID :start START-TIME :seconds SECONDS).")
 (defvar nodoze--next-phase-timer nil
   "Timer that starts the full-awake phase after an idle-only phase.")
 
-(defun nodoze--write-state (pid start-time seconds)
-  "Persist PID, START-TIME, and SECONDS to `nodoze--state-file'."
+(defun nodoze--write-state (pid start-time seconds &optional schedule)
+  "Persist PID, START-TIME, SECONDS and SCHEDULE to `nodoze--state-file'.
+SCHEDULE is a list of plists (:label STR :start FLOAT-TIME :end FLOAT-TIME
+[:pending t]) describing every phase of the current run, past, present, and
+queued."
   (with-temp-file nodoze--state-file
-    (prin1 (list :pid pid :start start-time :seconds seconds)
+    (prin1 (list :pid pid :start start-time :seconds seconds
+             :schedule schedule)
       (current-buffer))))
+
+(defun nodoze--log-finished (buffer pid)
+  "Log in BUFFER that process PID has finished.
+Only do so if PID is still the tracked process and no later phase of a
+schedule is waiting to start."
+  (let ((state (nodoze--read-state)))
+    (when (and state
+            (eq (plist-get state :pid) pid)
+            (null nodoze--next-phase-timer))
+      (nodoze--delete-state)
+      (nodoze--log-and-message
+        buffer "Caffeinate (pid %s) finished - system can now sleep" pid))))
 
 (defun nodoze--read-state ()
   "Read and return the persisted state plist, or nil if none/unreadable."
@@ -129,14 +147,15 @@ in BUFFER, and also show it via `message'."
     (nodoze--log buffer "%s" text)
     (message "%s" text)))
 
-(defun nodoze--log-finished (buffer pid)
-  "Log in BUFFER that process PID has finished.
-Only do so if PID is still the tracked process."
-  (let ((state (nodoze--read-state)))
-    (when (and state (eq (plist-get state :pid) pid))
-      (nodoze--delete-state)
-      (nodoze--log-and-message
-        buffer "Caffeinate (pid %s) finished - system can now sleep" pid))))
+(defun nodoze--write-state (pid start-time seconds &optional schedule)
+  "Persist PID, START-TIME, SECONDS and SCHEDULE to `nodoze--state-file'.
+SCHEDULE is a list of plists (:label STR :start FLOAT-TIME :end FLOAT-TIME
+[:pending t]) describing every phase of the current run, past, present, and
+queued."
+  (with-temp-file nodoze--state-file
+    (prin1 (list :pid pid :start start-time :seconds seconds
+             :schedule schedule)
+      (current-buffer))))
 
 (defun nodoze--cancel-next-phase ()
   "Cancel a pending full-awake phase, if any."
@@ -296,6 +315,121 @@ Emacs exits.  DESCRIPTION is logged with the new PID."
       pid description (nodoze--format-duration seconds))
     (run-at-time seconds nil #'nodoze--log-finished buffer pid)
     pid))
+
+(defun nodoze--launch (options seconds description &optional history pending)
+  "Start `nodoze-command-program' with OPTIONS for SECONDS.
+
+The process is detached from Emacs so it keeps running after
+Emacs exits.  DESCRIPTION is logged with the new PID and used as the
+phase label.  HISTORY is a list of already-completed schedule entries and
+PENDING a list of entries still to come; both are stored so that
+`nodoze-status' can show the complete schedule."
+  (let* ((buffer (get-buffer-create "*nodoze*"))
+          (start-time (current-time))
+          (start-float (float-time start-time))
+          (pid (nodoze--start-detached
+                 nodoze-command-program options seconds))
+          (entry (list :label description
+                   :start start-float
+                   :end (+ start-float seconds))))
+    (nodoze--write-state pid start-time seconds
+      (append history (list entry) pending))
+    (nodoze--log-and-message
+      buffer "Starting caffeinate (pid %s) %s (%s)"
+      pid description (nodoze--format-duration seconds))
+    (run-at-time seconds nil #'nodoze--log-finished buffer pid)
+    pid))
+
+(defun nodoze--start-full-phase ()
+  "Start the full-awake phase of a prefixed schedule, if time remains."
+  (setq nodoze--next-phase-timer nil)
+  (let* ((until-end (nodoze--seconds-until nodoze-until-time))
+          (buffer (get-buffer-create "*nodoze*"))
+          (history (seq-remove (lambda (e) (plist-get e :pending))
+                     (plist-get (nodoze--read-state) :schedule))))
+    (if (<= until-end 0)
+      (nodoze--log-and-message
+        buffer "nodoze: schedule ended (past %s)" nodoze-until-time)
+      (nodoze--launch nodoze-command-options until-end
+        (format "until %s" nodoze-until-time)
+        history))))
+
+(defun nodoze--start-schedule ()
+  "Start a kokoni-style schedule through `nodoze-until-time'."
+  (let ((plan (nodoze--schedule-plan)))
+    (unless plan
+      (user-error "Already past %s so nodoze is skipping this schedule" nodoze-until-time))
+    (nodoze--kill-tracked)
+    (pcase plan
+      (`(full ,until-end)
+        (nodoze--launch nodoze-command-options until-end
+          (format "until %s" nodoze-until-time)))
+      (`(idle ,until-idle)
+        (let* ((now (float-time))
+                (pending (list (list :label (format "until %s" nodoze-until-time)
+                                 :start (+ now until-idle)
+                                 :end (+ now (nodoze--seconds-until
+                                               nodoze-until-time))
+                                 :pending t))))
+          (nodoze--launch nodoze-idle-command-options until-idle
+            (format "idle-only until %s" nodoze-idle-until-time)
+            nil pending)
+          (setq nodoze--next-phase-timer
+            (run-at-time until-idle nil #'nodoze--start-full-phase)))))))
+
+(defun nodoze--format-schedule-entry (entry index now)
+  "Return a one-line description of schedule ENTRY numbered INDEX at time NOW."
+  (let* ((start (plist-get entry :start))
+          (end (plist-get entry :end))
+          (state (cond ((<= end now) "done")
+                   ((<= start now) "running")
+                   ((timerp nodoze--next-phase-timer) "pending")
+                   (t "pending, but its timer is gone (Emacs restarted); \
+it will not start"))))
+    (format "  %d. %s | %s -> %s (%s) [%s]"
+      index
+      (plist-get entry :label)
+      (format-time-string "%H:%M:%S" start)
+      (format-time-string "%H:%M:%S" end)
+      (nodoze--format-duration (- end start))
+      state)))
+
+;;;###autoload
+(defun nodoze-status ()
+  "Show the start time, duration, and expected end time of the tracked process.
+When the tracked run is a multi-phase schedule, also list every phase
+`(completed, running, and pending). If nodoze isn't currently tracking a
+running caffeinate process, report that instead."
+  (interactive)
+  (let* ((state (nodoze--read-state))
+          (pid (plist-get state :pid))
+          (start (plist-get state :start))
+          (seconds (plist-get state :seconds))
+          (schedule (plist-get state :schedule)))
+    (if (and pid start seconds (nodoze--process-running-p pid))
+      (let* ((end-time (time-add start seconds))
+              (now (float-time))
+              (remaining (max 0 (float-time
+                                  (time-subtract end-time (current-time)))))
+              (header
+                (format
+                  "nodoze: running (pid %s) | started %s | duration %.2f hours \
+| ends %s | %.0f min remaining"
+                  pid
+                  (format-time-string "%Y-%m-%d %H:%M:%S" start)
+                  (/ seconds 3600.0)
+                  (format-time-string "%Y-%m-%d %H:%M:%S" end-time)
+                  (/ remaining 60.0))))
+        (if (cdr schedule)
+          (message "%s\nSchedule:\n%s" header
+            (mapconcat #'identity
+              (seq-map-indexed
+                (lambda (e i) (nodoze--format-schedule-entry e (1+ i) now))
+                schedule)
+              "\n"))
+          (message "%s" header)))
+      (nodoze--delete-state)
+      (message "nodoze: no caffeinate process is currently running"))))
 
 (defun nodoze--schedule-plan ()
   "Return the prefixed-run plan as (PHASE SECONDS), or nil if past end of day.
