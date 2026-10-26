@@ -358,24 +358,32 @@ PENDING a list of entries still to come; both are stored so that
   "Start a kokoni-style schedule through `nodoze-until-time'."
   (let ((plan (nodoze--schedule-plan)))
     (unless plan
-      (user-error "Already past %s so nodoze is skipping this schedule" nodoze-until-time))
+      (user-error "Already past %s so nodoze is skipping this schedule"
+        nodoze-until-time))
     (nodoze--kill-tracked)
     (pcase plan
       (`(full ,until-end)
         (nodoze--launch nodoze-command-options until-end
           (format "until %s" nodoze-until-time)))
       (`(idle ,until-idle)
-        (let* ((now (float-time))
+        (let* ((buffer (get-buffer-create "*nodoze*"))
+                (now (float-time))
+                (until-end (nodoze--seconds-until nodoze-until-time))
                 (pending (list (list :label (format "until %s" nodoze-until-time)
                                  :start (+ now until-idle)
-                                 :end (+ now (nodoze--seconds-until
-                                               nodoze-until-time))
+                                 :end (+ now until-end)
                                  :pending t))))
           (nodoze--launch nodoze-idle-command-options until-idle
             (format "idle-only until %s" nodoze-idle-until-time)
             nil pending)
           (setq nodoze--next-phase-timer
-            (run-at-time until-idle nil #'nodoze--start-full-phase)))))))
+            (run-at-time until-idle nil #'nodoze--start-full-phase))
+          (nodoze--log-and-message
+            buffer "Schedule: 1. idle-only until %s (%s) -> 2. full-awake until %s (%s)"
+            nodoze-idle-until-time
+            (nodoze--format-duration until-idle)
+            nodoze-until-time
+            (nodoze--format-duration (- until-end until-idle))))))))
 
 (defun nodoze--format-schedule-entry (entry index now)
   "Return a one-line description of schedule ENTRY numbered INDEX at time NOW."
