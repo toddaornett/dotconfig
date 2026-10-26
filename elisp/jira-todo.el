@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: April 22, 2026
-;; Modified: October 19, 2026
+;; Modified: October 26, 2026
 ;; Version: 0.0.1
 ;; Keywords: jira, org, tools
 ;; Homepage: https://github-tao/toddaornett/dotconfig
@@ -307,12 +307,16 @@ immediately above the first sibling TODO under the parent heading."
 `xteams' builds the Teams HTML from CommonMark, which does not
 autolink bare URLs (its `pulldown-cmark' pass enables only tables,
 strikethrough, and task lists), so Teams would store them as plain
-text.  URLs already inside `<>' are left alone.  Return
-\(NEW-TEXT . COUNT)."
+text.  URLs already inside `<>' are left alone, as are URLs used
+as a Markdown link label or destination, which sit right after a
+`[' or an open parenthesis.  Return (NEW-TEXT . COUNT)."
   (let ((count 0))
     (cons
       (replace-regexp-in-string
-        "\\(^\\|[^<]\\)\\(https?://[^[:space:]<>]+\\)"
+        ;; The URL class excludes whitespace, `<', `>' and `)'.  A `]'
+        ;; must come first in a bracket expression to be a member, so
+        ;; the class is written `[^][:space:]<>)]'.
+        "\\(^\\|[^<[(]\\)\\(https?://[^][:space:]<>)]+\\)"
         (lambda (m)
           (setq count (1+ count))
           (concat (match-string 1 m) "<" (match-string 2 m) ">"))
@@ -381,28 +385,30 @@ trailing newlines.  Empty LINES yields an empty string."
            "\n" (car (last lines)) "\n")))))
 
 (defun jira-todo--teams-pr-markdown (url)
-  "Return CommonMark linking URL to itself as `[<URL>](<URL>)'.
+  "Return CommonMark linking URL to itself as `[URL](URL)'.
 
-Label and destination are the same autolink so the syntax stays
-valid and `xteams' renders a hyperlink.  Surrounding `<>' on URL
-are stripped first so they are not doubled."
+Label and destination are the same text so `xteams' renders a
+hyperlink.  Surrounding angle brackets on URL are stripped first
+so they never appear in the label or the destination."
   (let ((bare (if (string-match "\\`<\\([^>]+\\)>\\'" url)
                 (match-string 1 url)
                 url)))
-    (format "[<%s>](<%s>)" bare bare)))
+    (format "[%s](%s)" bare bare)))
 
 (defun jira-todo--replace-pr-placeholder-text (text url &optional title)
   "Replace <PR-TBD> and <TBD> placeholders in TEXT using URL.
 
-A Teams markdown link `[<PR-TBD>](<PR-TBD>)' becomes
-`[<URL>](<URL>)' so label and destination are the same text.  A
-bare <PR-TBD> becomes URL with TITLE on the next line.  A bare
-<TBD> becomes URL only.  TITLE may be nil.  Return
+A Teams markdown link `[PR-TBD](PR-TBD)' becomes `[URL](URL)' so
+label and destination are the same text.  The older
+`[<PR-TBD>](<PR-TBD>)' form is accepted and rewritten the same
+way.  A bare <PR-TBD> becomes URL with TITLE on the next line.  A
+bare <TBD> becomes URL only.  TITLE may be nil.  Return
 \(NEW-TEXT . COUNT)."
   (let ((count 0))
     (cons
       (replace-regexp-in-string
-        "\\[\\(<\\(?:PR-\\)?TBD>\\)\\](\\1)\\|<\\(?:PR-\\)?TBD>"
+        (concat "\\[<?\\(?:PR-\\)?TBD>?\\](<?\\(?:PR-\\)?TBD>?)"
+          "\\|<\\(?:PR-\\)?TBD>")
         (lambda (match)
           (setq count (1+ count))
           (cond
@@ -415,14 +421,14 @@ bare <PR-TBD> becomes URL with TITLE on the next line.  A bare
       count)))
 
 (defun jira-todo--repair-teams-pr-link (body)
-  "Rewrite a filled Teams PR markdown link in BODY to `[<URL>](<URL>)'.
+  "Rewrite a filled Teams PR markdown link in BODY to `[URL](URL)'.
 
 The old placeholder fill put URL then a title into both sides of
 `[<PR-TBD>](<PR-TBD>)', which CommonMark cannot parse.  Collapse
-`[<URL>\\nTITLE](<URL>\\nTITLE)' and `[TITLE](<URL>)' into
-`[<URL>](<URL>)' so label and destination are the same text.  A
-trailing backslash is optional.  Return
-\(NEW-BODY . COUNT)."
+`[URL\\nTITLE](URL\\nTITLE)' and `[TITLE](URL)' into `[URL](URL)'
+so label and destination are the same text.  Links written with
+angle brackets, `[<URL>](<URL>)', are rewritten without them.  A
+trailing backslash is optional.  Return (NEW-BODY . COUNT)."
   (let ((count 0)
          (new (or body "")))
     (setq new
@@ -483,9 +489,9 @@ Reviewer names are encoded as `@{NAME}' mention tokens and URLs in
 SUMMARY are wrapped as CommonMark autolinks by
 `jira-todo--autolink-urls'.  Body lines except the last end with a
 backslash so CommonMark keeps each on its own line.  The PR
-placeholder is a markdown link so
+placeholder is a markdown link, `[PR-TBD](PR-TBD)', so
 `jira-todo--replace-pr-placeholder-text' can fill
-`[<url>](<url>)' without putting a newline in the destination."
+`[URL](URL)' without putting a newline in the destination."
   (concat
     (format "Teams:\n")
     (format "#+begin_src sh :results none\n")
@@ -495,7 +501,7 @@ placeholder is a markdown link so
     (jira-todo--teams-hard-break-lines
       (list
         (format "PTAL %s" (jira-todo--teams-mention-string))
-        "[<PR-TBD>](<PR-TBD>)"
+        "[PR-TBD](PR-TBD)"
         (car (jira-todo--autolink-urls summary))))
     (format "%s\n" jira-todo--teams-heredoc-delimiter)
     (format "#+end_src\n")))
@@ -974,14 +980,14 @@ both lookups fail, or only a prefix was found."
 (defun jira-todo--replace-pr-placeholders (url)
   "Replace <PR-TBD> and <TBD> placeholders in the current org heading with URL.
 
-A Teams `[<PR-TBD>](<PR-TBD>)' link becomes `[<URL>](<URL>)' so
-label and destination are the same text.  Other <PR-TBD> placeholders
-get URL with the pull request title summary (ticket and
-conventional-commit prefixes removed) inserted on the next line
-when one can be retrieved; a bare <TBD> gets URL only.
-Return the number of replacements, which may be zero when the PR
-URL is already filled in.  Signal if point is not in an org heading.
-Works even when the subtree is folded."
+A Teams `[PR-TBD](PR-TBD)' link (or the older `[<PR-TBD>](<PR-TBD>)'
+form) becomes `[URL](URL)' so label and destination are the same
+text.  Other <PR-TBD> placeholders get URL with the pull request
+title summary (ticket and conventional-commit prefixes removed)
+inserted on the next line when one can be retrieved; a bare <TBD>
+gets URL only.  Return the number of replacements, which may be
+zero when the PR URL is already filled in.  Signal if point is not
+in an org heading.  Works even when the subtree is folded."
   (let* ((text (jira-todo--heading-text))
           (title (jira-todo--pr-title url))
           (replaced (jira-todo--replace-pr-placeholder-text text url title))
@@ -1511,10 +1517,11 @@ Return the copied text, or nil if no such section exists."
   "Repair links, autolinks, and line breaks in the Teams message body.
 
 Works after placeholders are already expanded: a newline-split
-`[<URL> TITLE](<URL> TITLE)' link becomes `[<URL>](<URL>)', bare
-URLs become CommonMark autolinks, and every body line but the last
-gets a backslash so `xteams' keeps the line breaks.  Slack bodies
-are left alone.  Return the number of URLs wrapped."
+`[URL TITLE](URL TITLE)' link becomes `[URL](URL)', a link written
+with angle brackets loses them, bare URLs become CommonMark
+autolinks, and every body line but the last gets a backslash so
+`xteams' keeps the line breaks.  Slack bodies are left alone.
+Return the number of URLs wrapped."
   (let* ((text (jira-todo--heading-text))
           (bounds (jira-todo--messaging-body-bounds text 'teams)))
     (if (not bounds)
@@ -1611,14 +1618,15 @@ If INPUT is not provided, prompt interactively."
   "Update the current TODO with URL, clipboard, or then prompt for it.
 
 Replace <PR-TBD> patterns in the current TODO when present.  A
-Teams `[<PR-TBD>](<PR-TBD>)' link becomes `[<url>](<url>)'.  Other
-placeholders get the URL with the pull request title summary on
-the next line.  An already-filled heading is reused: a Teams body
-whose link was split across lines by the old fill is repaired, and
-hard line breaks are restored.  The title is looked up via `gh' or
-the GitHub REST API and has any leading ticket prefix (bracketed,
-or a ticket key with its `\": \"') removed.  An already-filled PR
-URL in the heading is reused and is not an error.
+Teams `[PR-TBD](PR-TBD)' link (or the older `[<PR-TBD>](<PR-TBD>)'
+form) becomes `[URL](URL)'.  Other placeholders get the URL with
+the pull request title summary on the next line.  An already-filled
+heading is reused: a Teams body whose link was split across lines
+by the old fill is repaired, a link written with angle brackets
+loses them, and hard line breaks are restored.  The title is looked
+up via `gh' or the GitHub REST API and has any leading ticket
+prefix (bracketed, or a ticket key with its `\": \"') removed.  An
+already-filled PR URL in the heading is reused and is not an error.
 
 Also rewrite the Teams/Slack PTAL reviewer line with the top 5 git
 authors from `jira-todo--top-authors-for-changed-dirs' (commit
