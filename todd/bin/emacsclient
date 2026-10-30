@@ -1,0 +1,35 @@
+#!/bin/sh
+# emacsclient that launches the /Applications Emacs.app (the Desktop-icon
+# build) when no Emacs server is running, waits for its server, then connects.
+app="/Applications/Emacs.app"
+client=""
+for p in /opt/homebrew/bin/emacsclient /usr/local/bin/emacsclient; do
+  [ -x "$p" ] && { client="$p"; break; }
+done
+[ -n "$client" ] || { echo "emacsclient: Homebrew emacsclient not found" >&2; exit 127; }
+
+# A custom socket or server file means the caller is targeting a specific
+# server; don't guess, just pass through.
+for arg in "$@"; do
+  case "$arg" in
+    -s|-s*|--socket-name*|-f|-f*|--server-file*) exec "$client" "$@" ;;
+  esac
+done
+
+# ALTERNATE_EDITOR="" would make emacsclient start a headless daemon instead.
+server_up() { (unset ALTERNATE_EDITOR; "$client" -e t >/dev/null 2>&1 </dev/null); }
+
+if ! server_up; then
+  [ -d "$app" ] || { echo "emacsclient: $app not found (run ~/.config/bootstrap.sh)" >&2; exit 1; }
+  open -a "$app" || exit 1
+  tries=0
+  until server_up; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 120 ]; then
+      echo "emacsclient: Emacs started but its server did not come up within 60s" >&2
+      exit 1
+    fi
+    sleep 0.5
+  done
+fi
+exec "$client" "$@"

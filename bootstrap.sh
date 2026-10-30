@@ -10,6 +10,7 @@ BUILD_FLAGS_MARKER="Homebrew/macOS build flags (bootstrap)"
 MIGRATED_ZSHRC_MARKER="home .zshrc migration (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
 MISE_ZSHENV_MARKER="mise PATH/shims (bootstrap)"
+EMACS_WRAPPERS_ZSHENV_MARKER="Emacs wrappers on PATH (bootstrap)"
 EMACS_PACKAGE="emacs-plus@32"
 # Floor, not a pin: adopt/upgrade may move $EMACS_PACKAGE to a newer emacs-plus@N.
 EMACS_MAJOR_FLOOR=32
@@ -304,6 +305,22 @@ fi
 EOF
     echo "  Replaced ~/.zshrc with pointer stub"
   fi
+}
+
+ensure_emacs_wrappers_on_path_in_zshenv() {
+  grep -Fq "$EMACS_WRAPPERS_ZSHENV_MARKER" "$ZSHENV" 2>/dev/null && return 0
+  touch "$ZSHENV"
+  cat >>"$ZSHENV" <<'EOF'
+
+# Emacs wrappers on PATH (bootstrap)
+# ~/.config/todd/bin/{emacs,emacsclient} run the /Applications Emacs.app (the
+# Desktop-icon build), so they must come before /opt/homebrew/bin.
+case ":$PATH:" in
+  *":$HOME/.config/todd/bin:"*) ;;
+  *) export PATH="$HOME/.config/todd/bin:$PATH" ;;
+esac
+EOF
+  echo "  Added Emacs wrappers (~/.config/todd/bin) to the front of PATH in $ZSHENV"
 }
 
 ensure_mise_on_path_in_zshenv() {
@@ -610,6 +627,7 @@ ensure_zdotdir_in_zshenv
 ensure_zdotdir_startup_files
 ensure_editor_config_file
 ensure_no_sdkroot_in_zshenv
+ensure_emacs_wrappers_on_path_in_zshenv
 migrate_home_zshrc_to_bootstrap
 ensure_bootstrap_sourced_in_zshrc
 
@@ -1075,15 +1093,23 @@ if ! command -v emacs >/dev/null 2>&1; then
   exit 1
 fi
 
-EMACS_BIN="$(command -v emacs)"
-EMACS_REAL="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$EMACS_BIN")"
-echo "➡ using emacs at: $EMACS_BIN -> $EMACS_REAL"
-
-if [[ "$EMACS_BIN" == "/usr/bin/emacs" ]]; then
+EMACS_ON_PATH="$(command -v emacs)"
+if [[ "$EMACS_ON_PATH" == "/usr/bin/emacs" ]]; then
   echo "❌ Wrong Emacs (system stub). Homebrew Emacs is not first in PATH."
   echo "   Check your shell init files (.zshenv, .config/zsh/.zprofile, .config/todd/zsh/)."
   exit 1
 fi
+
+# PATH emacs is normally the ~/.config/todd/bin wrapper for /Applications/Emacs.app,
+# which is only recopied from the keg further down. Verify the Homebrew keg itself.
+EMACS_BIN="$BREW_PREFIX/bin/emacs"
+if [ ! -x "$EMACS_BIN" ]; then
+  echo "❌ $EMACS_BIN not found; $EMACS_PACKAGE is not linked"
+  exit 1
+fi
+EMACS_REAL="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$EMACS_BIN")"
+echo "➡ emacs on PATH: $EMACS_ON_PATH"
+echo "➡ Homebrew emacs: $EMACS_BIN -> $EMACS_REAL"
 
 if [[ "$EMACS_REAL" != *"/Cellar/${EMACS_PACKAGE}/"* ]]; then
   echo "❌ emacs resolved to $EMACS_REAL, expected $EMACS_PACKAGE"
@@ -1091,7 +1117,7 @@ if [[ "$EMACS_REAL" != *"/Cellar/${EMACS_PACKAGE}/"* ]]; then
   exit 1
 fi
 
-EMACS_MAJOR="$(emacs --batch --eval '(princ emacs-major-version)' 2>/dev/null || true)"
+EMACS_MAJOR="$("$EMACS_BIN" --batch --eval '(princ emacs-major-version)' 2>/dev/null || true)"
 EMACS_EXPECTED_MAJOR="${EMACS_PACKAGE##*@}"
 case "$EMACS_MAJOR" in ''|*[!0-9]*)
   echo "❌ emacs-major-version is ${EMACS_MAJOR:-unknown}, expected ${EMACS_MAJOR_FLOOR}+"
@@ -1130,7 +1156,7 @@ ensure_emacs_runtime_deps() {
     brew install "${missing[@]}"
   fi
 
-  if ! emacs --batch --eval '(message "ok")' &>/dev/null; then
+  if ! "$EMACS_BIN" --batch --eval '(message "ok")' &>/dev/null; then
     echo "❌ Emacs failed to launch (missing dylibs?)."
     echo "   Try: brew reinstall $EMACS_PACKAGE"
     exit 1

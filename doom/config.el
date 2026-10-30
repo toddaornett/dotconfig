@@ -865,3 +865,9 @@ If the point is not on a file, copies the full path of the current directory."
   (load custom-file))
 
 (load! "config/clipboard")
+
+;; Run a server in the GUI Emacs right away so `emacsclient`
+;; (~/.config/todd/bin/emacsclient) can connect as soon as the app is up.
+(when (display-graphic-p)
+  (require 'server)
+  (unless (server-running-p) (server-start)))

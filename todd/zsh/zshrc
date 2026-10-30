@@ -10,6 +10,10 @@ export PI_CONFIG_FILES="$HOME/.config/omp/agent/local-config.yml"
 # bootstrap-managed machine setup (see ~/.config/bootstrap.sh)
 [[ -f "$HOME/.config/todd/zsh/bootstrap.zsh" ]] && source "$HOME/.config/todd/zsh/bootstrap.zsh"
 
+# Emacs wrappers (/Applications Emacs.app) ahead of Homebrew's emacs. ~/.zshenv
+# puts them first, but ~/.zprofile's `brew shellenv` re-prepends /opt/homebrew/bin.
+path=("$HOME/.config/todd/bin" ${path:#$HOME/.config/todd/bin})
+
 ##########
 # append specified path both to users .zprofile without any variables
 # and append to path of current session with any variables interpolated
