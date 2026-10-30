@@ -1,6 +1,12 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 (set-language-environment "UTF-8")
 
+;; Day and month names in timestamps (`format-time-string' %a/%b, used by Org's
+;; <2026-10-30 Fri> stamps and #+UPDATED:) follow LC_TIME.
+;; Org expects English names, so for example, if LC_TIME was ja_JP
+;; a Japanese 金 trips org-lint/flycheck.
+(setq system-time-locale "C")
+
 (add-to-list 'load-path "~/.config/elisp")
 
 (setq epg-pinentry-mode 'loopback)
