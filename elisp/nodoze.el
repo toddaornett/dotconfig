@@ -147,16 +147,6 @@ in BUFFER, and also show it via `message'."
     (nodoze--log buffer "%s" text)
     (message "%s" text)))
 
-(defun nodoze--write-state (pid start-time seconds &optional schedule)
-  "Persist PID, START-TIME, SECONDS and SCHEDULE to `nodoze--state-file'.
-SCHEDULE is a list of plists (:label STR :start FLOAT-TIME :end FLOAT-TIME
-[:pending t]) describing every phase of the current run, past, present, and
-queued."
-  (with-temp-file nodoze--state-file
-    (prin1 (list :pid pid :start start-time :seconds seconds
-             :schedule schedule)
-      (current-buffer))))
-
 (defun nodoze--cancel-next-phase ()
   "Cancel a pending full-awake phase, if any."
   (when (timerp nodoze--next-phase-timer)
@@ -300,22 +290,6 @@ when Emacs exits.  Return the new PID."
       (user-error "Failed to start %s from nodoze" program))
     pid))
 
-(defun nodoze--launch (options seconds description)
-  "Start `nodoze-command-program' with OPTIONS for SECONDS.
-
-The process is detached from Emacs so it keeps running after
-Emacs exits.  DESCRIPTION is logged with the new PID."
-  (let* ((buffer (get-buffer-create "*nodoze*"))
-          (start-time (current-time))
-          (pid (nodoze--start-detached
-                 nodoze-command-program options seconds)))
-    (nodoze--write-state pid start-time seconds)
-    (nodoze--log-and-message
-      buffer "Starting caffeinate (pid %s) %s (%s)"
-      pid description (nodoze--format-duration seconds))
-    (run-at-time seconds nil #'nodoze--log-finished buffer pid)
-    pid))
-
 (defun nodoze--launch (options seconds description &optional history pending)
   "Start `nodoze-command-program' with OPTIONS for SECONDS.
 
@@ -450,33 +424,6 @@ PHASE is `idle' (then a full-awake follow-up) or `full'."
         (list 'full until-end))
       (t (list 'idle (nodoze--seconds-until nodoze-idle-until-time))))))
 
-(defun nodoze--start-full-phase ()
-  "Start the full-awake phase of a prefixed schedule, if time remains."
-  (setq nodoze--next-phase-timer nil)
-  (let ((until-end (nodoze--seconds-until nodoze-until-time))
-         (buffer (get-buffer-create "*nodoze*")))
-    (if (<= until-end 0)
-      (nodoze--log-and-message
-        buffer "nodoze: schedule ended (past %s)" nodoze-until-time)
-      (nodoze--launch nodoze-command-options until-end
-        (format "until %s" nodoze-until-time)))))
-
-(defun nodoze--start-schedule ()
-  "Start a kokoni-style schedule through `nodoze-until-time'."
-  (let ((plan (nodoze--schedule-plan)))
-    (unless plan
-      (user-error "Already past %s so nodoze is skipping this schedule" nodoze-until-time))
-    (nodoze--kill-tracked)
-    (pcase plan
-      (`(full ,until-end)
-        (nodoze--launch nodoze-command-options until-end
-          (format "until %s" nodoze-until-time)))
-      (`(idle ,until-idle)
-        (nodoze--launch nodoze-idle-command-options until-idle
-          (format "idle-only until %s" nodoze-idle-until-time))
-        (setq nodoze--next-phase-timer
-          (run-at-time until-idle nil #'nodoze--start-full-phase))))))
-
 ;;;###autoload
 (defun nodoze (duration &optional scheduled)
   "Prevent the system from sleeping for DURATION, logging to *nodoze* buffer.
@@ -529,31 +476,6 @@ process nodoze itself started. Either way, the result is logged to the
           buffer "Killed caffeinate (pid %s) via nodoze-kill" pid)
         (nodoze--log-and-message
           buffer "nodoze-kill: no caffeinate process is currently running")))))
-
-;;;###autoload
-(defun nodoze-status ()
-  "Show the start time, duration, and expected end time of the tracked process.
-If nodoze isn't currently tracking a running caffeinate process, report that
-instead."
-  (interactive)
-  (let* ((state (nodoze--read-state))
-          (pid (plist-get state :pid))
-          (start (plist-get state :start))
-          (seconds (plist-get state :seconds)))
-    (if (and pid start seconds (nodoze--process-running-p pid))
-      (let* ((end-time (time-add start seconds))
-              (remaining (max 0 (float-time
-                                  (time-subtract end-time (current-time))))))
-        (message
-          "nodoze: running (pid %s) | started %s | duration %.2f hours \
-| ends %s | %.0f min remaining"
-          pid
-          (format-time-string "%Y-%m-%d %H:%M:%S" start)
-          (/ seconds 3600.0)
-          (format-time-string "%Y-%m-%d %H:%M:%S" end-time)
-          (/ remaining 60.0)))
-      (nodoze--delete-state)
-      (message "nodoze: no caffeinate process is currently running"))))
 
 (provide 'nodoze)
 ;;; nodoze.el ends here
