@@ -7,7 +7,6 @@
 # NOTE: do not source $ZDOTDIR/.zshrc from here. bootstrap.zsh is itself
 # sourced from the ZDOTDIR chain (.zshrc -> todd/zsh/zshrc -> bootstrap.zsh),
 # so re-sourcing .zshrc recurses until zsh hits its recursion limit.
-path+=/Users/todd.ornett/.config/doom-emacs/bin
 
 # GCC runtime libs for libgccjit native compilation (bootstrap)
 export LIBRARY_PATH="/opt/homebrew/lib/gcc/current/gcc/aarch64-apple-darwin25/16:/opt/homebrew/lib/gcc/current${LIBRARY_PATH:+:$LIBRARY_PATH}"
@@ -34,4 +33,3 @@ elif [[ -x "$HOME/.local/bin/mise" ]]; then
 fi
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
 export DOCKER_CONTEXT=colima
-path+=/Users/todd/.config/doom-emacs/bin

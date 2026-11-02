@@ -11,6 +11,8 @@ MIGRATED_ZSHRC_MARKER="home .zshrc migration (bootstrap)"
 MISE_MARKER="mise version manager (bootstrap)"
 MISE_ZSHENV_MARKER="mise PATH/shims (bootstrap)"
 EMACS_WRAPPERS_ZSHENV_MARKER="Emacs wrappers on PATH (bootstrap)"
+PATH_DEDUPE_ZSHENV_MARKER="PATH/FPATH de-duplication (bootstrap)"
+PATH_DEDUPE_ZSHENV_LINE='[[ -n ${ZSH_VERSION:-} ]] && typeset -U path PATH fpath FPATH'
 EMACS_PACKAGE="emacs-plus@32"
 # Floor, not a pin: adopt/upgrade may move $EMACS_PACKAGE to a newer emacs-plus@N.
 EMACS_MAJOR_FLOOR=32
@@ -52,8 +54,8 @@ note_shell_init_for_builds() {
 # activation, compinit, fzf key bindings) and cannot be sourced by bash.
 load_shell_env() {
   if [[ -f "$ZSHENV" ]]; then
-    # ~/.zshenv is a zsh file. Read it quietly: zsh-only lines (e.g. the
-    # `typeset -U path PATH` this script seeds on a fresh machine) are harmless
+    # ~/.zshenv is a zsh file. Read it quietly: zsh-only lines (e.g. `path+=`
+    # entries; the `typeset -U` line is guarded by ZSH_VERSION) are harmless
     # here, and zsh itself reports any genuine error to the user.
     # shellcheck disable=SC1090,SC1091
     source "$ZSHENV" 2>/dev/null || true
@@ -584,9 +586,28 @@ ensure_omp_layout() {
 #################################
 # Seed ~/.zshenv before the first Homebrew call
 #################################
-if [ ! -f "$ZSHENV" ]; then
-  echo "typeset -U path PATH" >>$ZSHENV
-fi
+# `typeset -U` must be the first thing in ~/.zshenv so every later prepend or
+# append (here, in ~/.zprofile's `brew shellenv`, path_helper, zshrc) drops
+# repeats and keeps the first occurrence. Added to an existing file too, not
+# only a new one; an older unguarded `typeset -U path PATH` seed is replaced.
+ensure_path_dedupe_in_zshenv() {
+  touch "$ZSHENV"
+  grep -Fqx "$PATH_DEDUPE_ZSHENV_LINE" "$ZSHENV" && return 0
+  local tmp
+  tmp="$(mktemp)"
+  {
+    echo "# $PATH_DEDUPE_ZSHENV_MARKER. First occurrence wins."
+    echo "# zsh-only: bootstrap.sh also sources this file from bash."
+    echo "$PATH_DEDUPE_ZSHENV_LINE"
+    grep -vx -e 'typeset -U path PATH' -e "# $PATH_DEDUPE_ZSHENV_MARKER. First occurrence wins." \
+      -e '# zsh-only: bootstrap.sh also sources this file from bash.' "$ZSHENV" || true
+  } >"$tmp"
+  # Write in place (not mv) so the file keeps its permissions.
+  cat "$tmp" >"$ZSHENV"
+  rm -f "$tmp"
+  echo "  Added PATH/FPATH de-duplication (typeset -U) to the top of $ZSHENV"
+}
+ensure_path_dedupe_in_zshenv
 
 # Machine-wide env written to ~/.zshenv so it is present in every shell *and*
 # in this bootstrap process — including the very first run, before any
@@ -1335,7 +1356,11 @@ fi
 #################################
 # Clone Doom Emacs
 #################################
-DOOM_DIR="$HOME/.config/doom-emacs"
+# One Doom checkout, inside the chemacs2 dir (~/.config/emacs). chemacs2 is the
+# profile switcher: its "default" profile in ~/.emacs-profiles.el points here.
+# Do not create ~/.emacs.d — Emacs would load it instead of ~/.config/emacs and
+# bypass chemacs2. The chemacs2 step below copies its files in next to Doom.
+DOOM_DIR="$HOME/.config/emacs/doom-emacs"
 
 if [ ! -d "$DOOM_DIR" ]; then
   echo "😈 Cloning Doom Emacs..."
@@ -1364,9 +1389,26 @@ echo "🔥 Installing Doom packages..."
 
 DOOM_BIN="$DOOM_DIR/bin"
 
-if ! grep -Fqs "$DOOM_BIN" "$ZSH_BOOTSTRAP" 2>/dev/null; then
-  echo "path+=$DOOM_BIN" >>"$ZSH_BOOTSTRAP"
+# Doom CLI on PATH in every shell via ~/.zshenv (untracked), written with a
+# literal $HOME so no machine-specific path lands in the tracked bootstrap.zsh.
+DOOM_BIN_REL="${DOOM_BIN#"$HOME"/}"
+if ! grep -Fqs "$DOOM_BIN_REL" "$ZSHENV" 2>/dev/null; then
+  echo "path+=(\"\$HOME/$DOOM_BIN_REL\")" >>"$ZSHENV"
 fi
+
+# Drop PATH lines for the retired ~/.config/doom-emacs checkout (any user's
+# home), which older runs and append_path wrote to these files.
+remove_stale_doom_bin_paths() {
+  local f
+  for f in "$ZSH_BOOTSTRAP" "$ZSHENV" "$HOME/.zprofile" "$ZDOTDIR_DIR/.zprofile"; do
+    [[ -f "$f" ]] || continue
+    if grep -Eq '^path\+=\(?"?[^[:space:]]*/\.config/doom-emacs/bin"?\)?$' "$f"; then
+      sed -i '' -E '/^path\+=\(?"?[^[:space:]]*\/\.config\/doom-emacs\/bin"?\)?$/d' "$f"
+      echo "  Removed stale ~/.config/doom-emacs/bin PATH line(s) from $f"
+    fi
+  done
+}
+remove_stale_doom_bin_paths
 
 # Set LIBRARY_PATH so libgccjit's embedded gcc driver can find libemutls_w.a.
 # The file lives in the arch/version subdir, not the top-level current/ dir.
@@ -1478,7 +1520,7 @@ CHEMACS2_DIR="$HOME/.config/emacs"
 
 write_chemacs2_profiles() {
   cat >"$CHEMACS2_PROFILES_FILE" <<'EOF'
-(("default" .  ((user-emacs-directory . "~/.config/doom-emacs")))
+(("default" .  ((user-emacs-directory . "~/.config/emacs/doom-emacs")))
  ("scratch" . ((user-emacs-directory . "~/.config/scratch-emacs"))))
 EOF
 }
@@ -1518,8 +1560,17 @@ fi
 if [ ! -f "$CHEMACS2_PROFILES_FILE" ]; then
   write_chemacs2_profiles
   echo "✅ Wrote $CHEMACS2_PROFILES_FILE"
+elif grep -Fqs '"~/.config/doom-emacs"' "$CHEMACS2_PROFILES_FILE"; then
+  sed -i '' 's#"~/.config/doom-emacs"#"~/.config/emacs/doom-emacs"#' "$CHEMACS2_PROFILES_FILE"
+  echo "✅ Pointed chemacs2 profiles at $DOOM_DIR"
 else
   echo "✅ chemacs2 profiles already configured"
+fi
+
+# ~/.emacs.d (or ~/.emacs) wins over ~/.config/emacs, so chemacs2 would never run.
+if [ -e "$HOME/.emacs.d" ] || [ -L "$HOME/.emacs.d" ] || [ -e "$HOME/.emacs" ]; then
+  echo "⚠️  ~/.emacs.d or ~/.emacs exists: Emacs will skip chemacs2 in $CHEMACS2_DIR."
+  echo "   Remove it to use the chemacs2 profiles in $CHEMACS2_PROFILES_FILE."
 fi
 
 #################################

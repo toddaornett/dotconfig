@@ -14,27 +14,15 @@ export PI_CONFIG_FILES="$HOME/.config/omp/agent/local-config.yml"
 path=("$HOME/.config/todd/bin" ${path:#$HOME/.config/todd/bin})
 
 ##########
-# append specified path both to users .zprofile without any variables
-# and append to path of current session with any variables interpolated
+# append a directory to the current session's path only (no file writes).
+# Takes a literal like '$HOME/bin'; variables are expanded here. Skips
+# missing dirs and ones already on path. Persistent PATH lives in ~/.zshenv.
 ##########
 append_path() {
-  local new_path="$1"
   local expanded_path
-  local zdotdir="${ZDOTDIR:-$HOME}"
-  local zprofile_path="$zdotdir/.zprofile"
-
-  eval "expanded_path=$new_path"
-  if [[ -d "$expanded_path" ]]; then
-    # Ensure the exact string with the variable reference is persisted
-    if ! grep -Fxq "path+=($new_path)" "$zprofile_path"; then
-      echo "path+=($new_path)" >> "$zprofile_path"
-    fi
-
-    # append expanded path to the current session’s path
-    if [[ -d "$expanded_path" && ":$path:" != *":$expanded_path:"* ]]; then
-      path+=("$expanded_path")
-    fi
-  fi
+  eval "expanded_path=$1"
+  [[ -d "$expanded_path" ]] || return 0
+  (( ${path[(Ie)$expanded_path]} )) || path+=("$expanded_path")
 }
 
 ##########
@@ -43,10 +31,7 @@ append_path() {
 append_path '$OPENPROJECTS_PATH/emacs/src'
 append_path '$OPENPROJECTS_PATH/emacs/lib-src'
 
-##########
-# doom emacs scripts
-##########
-append_path '$HOME/.config/doom-emacs/bin'
+# doom emacs scripts: ~/.config/emacs/doom-emacs/bin is on PATH via ~/.zshenv
 
 ##########
 # local scripts
