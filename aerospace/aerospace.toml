@@ -216,7 +216,7 @@ on-mode-changed = ['exec-and-forget echo "mode changed: $(aerospace list-modes -
 # Configure assignment of workspace to some apps
 [[on-window-detected]]
 if.app-id = 'com.google.Chrome'
-run = 'move-node-to-workspace G'
+run = 'move-node-to-workspace A'
 
 [[on-window-detected]]
 if.app-id = 'org.gnu.Emacs'

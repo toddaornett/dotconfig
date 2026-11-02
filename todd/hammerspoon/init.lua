@@ -68,7 +68,7 @@ hs.hotkey.bind({ "command", "alt" }, "b", function()
 	hs.execute('open "/Applications/Brave Browser.app"')
 end)
 
-hs.hotkey.bind({ "command", "alt", "shift" }, "g", function()
+hs.hotkey.bind({ "command", "alt", "shift" }, "a", function()
   hs.execute('open "/Applications/Google Chrome.app"')
 end)
 
