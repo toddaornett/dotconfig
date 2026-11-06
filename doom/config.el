@@ -31,9 +31,9 @@
 (defun tao/setup-emoji-fonts ()
   "Give the emoji blocks Apple Color Emoji as a fallback font."
   (dolist (range '((#x1F300 . #x1FAFF)  ; pictographs through pictographs extended-A
-                   (#x2600 . #x27BF)    ; Miscellaneous Symbols, Dingbats
-                   (#x2B00 . #x2BFF)    ; Miscellaneous Symbols and Arrows
-                   (#xFE00 . #xFE0F)))  ; variation selectors
+                    (#x2600 . #x27BF)    ; Miscellaneous Symbols, Dingbats
+                    (#x2B00 . #x2BFF)    ; Miscellaneous Symbols and Arrows
+                    (#xFE00 . #xFE0F)))  ; variation selectors
     (set-fontset-font "fontset-default" range "Apple Color Emoji" nil 'append)))
 
 (add-hook 'emacs-startup-hook #'tao/setup-emoji-fonts)
@@ -800,6 +800,8 @@ If the point is not on a file, copies the full path of the current directory."
 (use-package! json-tools)
 
 (use-package! yak)
+
+(use-package! ez-buffers)
 
 (use-package! rust-clean)
 

@@ -119,6 +119,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("nodoze.el")))
 
+(package! ez-buffers
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("ez-buffers.el")))
+
 ;; Prefer project.el-based ibuffer grouping over Doom's default
 ;; ibuffer-projectile (which the :emacs ibuffer module would install).
 (package! ibuffer-projectile :disable t)
