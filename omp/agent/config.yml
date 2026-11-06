@@ -1,7 +1,7 @@
 defaultThinkingLevel: medium
 dev:
   autoqaConsent: denied
-setupVersion: 2
+setupVersion: 3
 symbolPreset: unicode
 composer:
   shape: band
@@ -33,9 +33,10 @@ retry:
       - web/mojeek
       - web/public
       - openai-codex/gpt-6-luna
-      - openai-codex/gpt-5.6
-      - openai-codex/gpt-5.5
+      - openai-codex/gpt-5.6-sol
       - openai/gpt-6-luna
       - openai/gpt-5.6-luna
       - xai-oauth/grok-4.5
       - web/ollama
+update:
+  auto: true
