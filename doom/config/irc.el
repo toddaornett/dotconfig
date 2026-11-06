@@ -365,3 +365,96 @@ rather than a dropped session."
 (after! erc
   (add-hook 'erc-after-connect #'tao/erc--note-connection)
   (advice-add 'erc-schedule-reconnect :around #'tao/erc--reconnect-backoff))
+
+;;; Unread channel notifications
+;; `erc-insert-post-hook' runs with the buffer narrowed to the message just
+;; inserted, so the parsed response identifies it.  A PRIVMSG that lands in a
+;; buffer the focused window does not show stays unread until that buffer is
+;; focused; a channel sitting in a background window still notifies.
+(defvar tao/erc--unread-buffers nil
+  "ERC channel and query buffers with messages received while unfocused.
+Ordered most recently unread first.")
+
+(defvar tao/erc--announced-buffers nil
+  "Buffers in `tao/erc--unread-buffers' whose notice was already shown.")
+
+(defvar tao/erc--pending-notice nil
+  "Names of unread channels whose notice waits for an idle minibuffer.")
+
+(defun tao/erc--unread-names ()
+  "Return names of the live buffers in `tao/erc--unread-buffers'."
+  (delq nil (mapcar (lambda (buf)
+                      (and (buffer-live-p buf) (buffer-name buf)))
+                    tao/erc--unread-buffers)))
+
+(defun tao/erc--flush-unread-notice ()
+  "Show the pending unread-channel notice in the echo area.
+Channels read in the meantime are dropped from it."
+  (let ((names (seq-intersection tao/erc--pending-notice
+                                 (tao/erc--unread-names))))
+    (setq tao/erc--pending-notice nil)
+    (when names
+      (message "New IRC messages in %s" (string-join names ", ")))))
+
+(defun tao/erc--focused-buffer ()
+  "Return the buffer the user is looking at.
+While the minibuffer is active, report the window it was invoked from, so
+typing a command does not make a visible channel look unread."
+  (window-buffer (or (and (active-minibuffer-window)
+                          (minibuffer-selected-window))
+                     (selected-window))))
+
+(defun tao/erc--buffer-focused-p (buffer)
+  "Return non-nil when BUFFER is the one in the focused window."
+  (eq buffer (tao/erc--focused-buffer)))
+
+(defun tao/erc--prune-unread ()
+  "Forget unread buffers that were killed or moved to the focused window.
+Only the focused buffer counts as read: a channel in a background window
+still gets notified."
+  (setq tao/erc--unread-buffers
+        (seq-filter (lambda (buf)
+                      (and (buffer-live-p buf)
+                           (not (tao/erc--buffer-focused-p buf))))
+                    tao/erc--unread-buffers))
+  (setq tao/erc--announced-buffers
+        (seq-filter (lambda (buf) (memq buf tao/erc--unread-buffers))
+                    tao/erc--announced-buffers)))
+
+(defun tao/erc--note-unread ()
+  "Mark the current buffer unread and announce it if it was not already.
+The notice lists every unread channel, so a burst of messages never hides
+an earlier channel behind the echo area; it waits while the minibuffer is
+active so an in-progress prompt is not clobbered."
+  (let ((buf (current-buffer)))
+    (cl-pushnew buf tao/erc--unread-buffers)
+    (tao/erc--prune-unread)
+    (when (and (memq buf tao/erc--unread-buffers)
+               (not (memq buf tao/erc--announced-buffers)))
+      (push buf tao/erc--announced-buffers)
+      (setq tao/erc--pending-notice (tao/erc--unread-names))
+      (unless (active-minibuffer-window)
+        (tao/erc--flush-unread-notice)))))
+
+(defun tao/erc--track-unread-message ()
+  "Record the message just inserted as unread unless its buffer is focused.
+Only PRIVMSGs count as messages; joins, parts, and notices do not."
+  (when (and (derived-mode-p 'erc-mode)
+             (erc-default-target)
+             (not (tao/erc--buffer-focused-p (current-buffer))))
+    (when-let* ((pos (erc-find-parsed-property))
+                (parsed (erc-get-parsed-vector pos))
+                ((equal (erc-response.command parsed) "PRIVMSG")))
+      (tao/erc--note-unread))))
+
+(defun tao/erc--prune-unread-on-command ()
+  "Recheck unread buffers after each command; those now shown are read."
+  (when tao/erc--unread-buffers
+    (tao/erc--prune-unread)))
+
+(after! erc
+  (require 'seq)
+  (require 'subr-x)
+  (add-hook 'erc-insert-post-hook #'tao/erc--track-unread-message)
+  (add-hook 'post-command-hook #'tao/erc--prune-unread-on-command)
+  (add-hook 'minibuffer-exit-hook #'tao/erc--flush-unread-notice))
