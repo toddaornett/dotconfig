@@ -458,3 +458,142 @@ Only PRIVMSGs count as messages; joins, parts, and notices do not."
   (add-hook 'erc-insert-post-hook #'tao/erc--track-unread-message)
   (add-hook 'post-command-hook #'tao/erc--prune-unread-on-command)
   (add-hook 'minibuffer-exit-hook #'tao/erc--flush-unread-notice))
+
+;;; Session snapshots
+(defcustom tao/erc-session-directory "~/Notes/irc-sessions/"
+  "Directory where `tao/erc-save-session' writes IRC logs.
+Each channel or query gets a file named after its buffer."
+  :type 'directory)
+
+(defun tao/erc--chat-message-p (position)
+  "Return non-nil if the message starting at POSITION is user chat text.
+Joins, parts, quits, notices, mode changes, and server output are
+excluded.  Own messages lack `erc--cmd', so they are recognized by the
+\"input\" catalog keys ERC stores in `erc--msg'."
+  (and (get-text-property position 'erc--spkr)
+       (or (eq (get-text-property position 'erc--cmd) 'PRIVMSG)
+           (memq (get-text-property position 'erc--msg)
+                 '(input-chan-privmsg input-query-privmsg
+                   ctcp-action-input)))))
+
+(defun tao/erc--message-body (start end)
+  "Return the text of the message at START..END without its timestamp.
+Continuation lines are indented so the result fits one Org list item."
+  (let ((p start))
+    (while (and (< p end)
+                (eq (get-text-property p 'field) 'erc-timestamp))
+      (setq p (next-single-property-change p 'field nil end)))
+    (replace-regexp-in-string
+     "\n" "\n  "
+     (string-trim (buffer-substring-no-properties p end)))))
+
+(defun tao/erc--session-text ()
+  "Return the current buffer's user messages as an Org document.
+Only chat text is kept: joins, parts, quits, notices, mode changes, and
+server messages are dropped.  Each calendar day becomes a heading and
+each message a list item, dated from ERC's `erc--ts' text property.
+Everything after `erc-insert-marker' is the prompt and input line, so it
+is left out."
+  (save-restriction
+    (widen)
+    (let* ((marker (and (boundp 'erc-insert-marker) erc-insert-marker))
+           (end (if (and (markerp marker) (marker-position marker))
+                    (marker-position marker)
+                  (point-max)))
+           (parts (list (format "#+title: %s\n\n" (buffer-name))))
+           (day nil)
+           (starts nil))
+      (save-excursion
+        (goto-char (point-min))
+        (while (< (point) end)
+          (when (get-text-property (point) 'erc--msg)
+            (push (point) starts))
+          (forward-line 1))
+        (setq starts (append (nreverse starts) (list end)))
+        (while (cdr starts)
+          (let* ((start (car starts))
+                 (stop (cadr starts))
+                 (ts (get-text-property start 'erc--ts))
+                 (msg-day (and ts
+                               (ignore-errors
+                                 (format-time-string "%F" ts))))
+                 (msg-time (and ts
+                                (ignore-errors
+                                  (format-time-string "%H:%M" ts)))))
+            (when (tao/erc--chat-message-p start)
+              (when (and msg-day (not (equal msg-day day)))
+                (setq day msg-day)
+                ;; Leave a blank line between days, but not after the title.
+                (when (> (length parts) 1)
+                  (push "\n" parts))
+                (push (format "* %s\n" day) parts))
+              (let ((body (tao/erc--message-body start stop)))
+                (unless (string-empty-p body)
+                  (push (if msg-time
+                            (format "- %s %s\n" msg-time body)
+                          (format "- %s\n" body))
+                        parts))))
+            (setq starts (cdr starts)))))
+      (apply #'concat (nreverse parts)))))
+
+(defun tao/erc--archive-session-file (file)
+  "Rename FILE beside itself with its modification time and return the name.
+The stamp is \"YYYY-MM-DDTHH-MM-SS\" taken from FILE, plus a numeric
+suffix if that name is already taken."
+  (let* ((time (or (file-attribute-modification-time (file-attributes file))
+                   (current-time)))
+         (stamp (format-time-string "%Y-%m-%dT%H-%M-%S" time))
+         (dir (file-name-directory file))
+         (base (file-name-sans-extension (file-name-nondirectory file)))
+         (ext (file-name-extension file t))
+         (candidate (expand-file-name (concat base "-" stamp ext) dir))
+         (n 1))
+    (while (file-exists-p candidate)
+      (setq candidate (expand-file-name
+                       (format "%s-%s-%d%s" base stamp n ext) dir)
+            n (1+ n)))
+    (rename-file file candidate)
+    candidate))
+
+(defun tao/erc-save-session (&optional buffer)
+  "Write BUFFER's IRC session to `tao/erc-session-directory' as Org text.
+BUFFER defaults to the current buffer and must be an ERC channel or query
+buffer.  Only user chat text is saved, grouped under one heading per
+calendar day.  The file is named after the buffer with leading hash marks
+removed and an .org suffix, e.g. \"emacs.org\" for \"#emacs\".
+
+If the session text has changed since the file was written, the existing
+file is first renamed to the same name with its modification timestamp
+appended, e.g. \"emacs-2026-11-05T12-34-56.org\"; unchanged text leaves
+the file alone.  Returns the main file name."
+  (interactive)
+  (let ((buffer (or buffer (current-buffer))))
+    (with-current-buffer buffer
+      (unless (and (derived-mode-p 'erc-mode)
+                   (erc-default-target))
+        (user-error "Not an ERC channel or query buffer: %s"
+                    (buffer-name buffer))))
+    (with-current-buffer buffer
+      (let* ((dir (expand-file-name tao/erc-session-directory))
+             (name (concat (replace-regexp-in-string
+                            "\\`#+" "" (buffer-name buffer))
+                           ".org"))
+             (file (expand-file-name name dir))
+             (text (tao/erc--session-text))
+             (unchanged (and (file-exists-p file)
+                             (with-temp-buffer
+                               (insert-file-contents file)
+                               (string= text (buffer-string))))))
+        (make-directory dir t)
+        (cond
+         (unchanged
+          (message "IRC session unchanged; kept %s" file))
+         (t
+          (let ((archived (and (file-exists-p file)
+                               (tao/erc--archive-session-file file))))
+            (write-region text nil file nil 'quiet)
+            (if archived
+                (message "Archived previous session as %s; saved %s"
+                         archived file)
+              (message "Saved IRC session to %s" file)))))
+        file))))
