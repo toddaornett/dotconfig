@@ -803,6 +803,8 @@ If the point is not on a file, copies the full path of the current directory."
 
 (use-package! ai-usage)
 
+(use-package! org-todo-tools)
+
 (use-package! ez-buffers)
 
 (use-package! rust-clean)

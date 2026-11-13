@@ -115,6 +115,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("caveman.el")))
 
+(package! org-todo-tools
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("org-todo-tools.el")))
+
 (package! ai-usage
   :recipe (:local-repo "~/.config/elisp"
             :files ("ai-usage.el")))
