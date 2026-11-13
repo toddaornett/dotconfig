@@ -115,6 +115,10 @@
   :recipe (:local-repo "~/.config/elisp"
             :files ("caveman.el")))
 
+(package! ai-usage
+  :recipe (:local-repo "~/.config/elisp"
+            :files ("ai-usage.el")))
+
 (package! nodoze
   :recipe (:local-repo "~/.config/elisp"
             :files ("nodoze.el")))
