@@ -460,6 +460,39 @@ number of hours): ")
         (format "for %s" (nodoze--format-duration seconds))))))
 
 ;;;###autoload
+(defun nodoze-idle (duration &optional scheduled)
+  "Prevent the system from sleeping for DURATION, logging to *nodoze* buffer.
+DURATION is a human-friendly duration string; see `nodoze--parse-duration'
+for the accepted formats (e.g. \"1h30m\", \"5 minutes\", \"45s\", \"1d 2h\",
+or a bare number of hours).
+
+With any prefix argument, or when SCHEDULED is non-nil, ignore DURATION and
+start a kokoni-style schedule: idle-only until `nodoze-idle-until-time',
+then full-awake until `nodoze-until-time'. At or after
+`nodoze-afternoon-time', skip idle-only and run full-awake until
+`nodoze-until-time'."
+  (interactive
+    (let ((default (nodoze--default-duration-prompt)))
+      (list (read-string
+              (if default
+                (format "Duration to stay active while idle (default %s): " default)
+                "Duration to stay active while idle (e.g. 1h30m, 45s, 2 days, or a bare \
+number of hours): ")
+              nil nil default)
+        nil)))
+  (if scheduled
+    (nodoze--start-schedule)
+    (let ((seconds (nodoze--parse-duration duration)))
+      (when (<= seconds 0)
+        (user-error "Duration must be greater than zero for nodoze"))
+      ;; Stop the previous run nodoze itself was tracking, if it's still going,
+      ;; so it doesn't keep running orphaned. Never touches other caffeinate
+      ;; processes on the system.
+      (nodoze--kill-tracked)
+      (nodoze--launch nodoze-idle-command-options seconds
+        (format "for %s" (nodoze--format-duration seconds))))))
+
+;;;autoload
 (defun nodoze-kill ()
   "Terminate the caffeinate process currently tracked by nodoze.
 If no such process is running, report that instead. Only ever affects a
