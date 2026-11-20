@@ -5,7 +5,7 @@
 ;; Author: Todd Ornett <toddgh@acquirus.com>
 ;; Maintainer: Todd Ornett <toddgh@acquirus.com>
 ;; Created: November 13, 2026
-;; Modified: November 13, 2026
+;; Modified: November 20, 2026
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "29.1"))
 ;; Keywords: outlines, convenience, tools
@@ -189,17 +189,17 @@ they sit directly below the section heading at BEGIN."
     (delete-region begin end)))
 
 (defun org-todo-tools--present (begin today stars title)
-  "Fold the source and today's sections, then land on today's first task.
+  "Fold the source and today's sections, then land on today's first ta
 
 BEGIN marks the source section and TODAY marks the section dated today.
 STARS and TITLE identify the source heading; the source is skipped when
 its section no longer exists.  Point ends on the first heading below
 TODAY."
   (when (and (marker-position begin)
-             (save-excursion
-               (goto-char begin)
-               (looking-at-p (concat "^" (regexp-quote stars) " "
-                                     (regexp-quote title) "[ \t]*$"))))
+          (save-excursion
+            (goto-char begin)
+            (looking-at-p (concat "^" (regexp-quote stars) " "
+                            (regexp-quote title) "[ \t]*$"))))
     (save-excursion
       (goto-char begin)
       (org-fold-hide-subtree)))
